@@ -32,10 +32,54 @@ A comprehensive supply chain management application enabling users to efficientl
 
 ---
 
-## ⚙️ طريقة الإعداد والتشغيل | Setup & Running
+⚙️ طريقة التشغيل | How to Run
 
-### 1. استنساخ المستودع | Clone Repository
+استنساخ المشروع | Clone the repository
 
-```bash
 git clone https://github.com/ahmedtharwat19/supplyChain.git
 cd supplyChain
+
+
+إعداد Firebase | Setup Firebase
+
+إنشاء مشروع على Firebase Console
+
+تفعيل Firestore وAuthentication
+
+تنزيل ملفات التكوين وإضافتها للمشروع
+
+تثبيت الحزم | Install dependencies
+
+flutter pub get
+
+
+تشغيل التطبيق | Run the app
+
+flutter run
+
+🧪 اختبارات الوحدة | Unit Testing
+
+لتشغيل الاختبارات:
+
+flutter test
+
+🔐 الأمان | Security
+
+تأكد من إعداد قواعد Firestore بشكل آمن
+
+لا تضع مفاتيح أو بيانات حساسة داخل الكود
+
+🤝 المساهمة | Contributing
+
+مرحبًا بمساهماتكم!
+Welcome to contribute!
+
+📄 الترخيص | License
+
+[أضف نوع الترخيص هنا] | Add your license here.
+
+📞 التواصل | Contact
+
+GitHub: ahmedtharwat19
+
+البريد الإلكتروني | Email: ahmedtharwat19@example.com
