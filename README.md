@@ -82,4 +82,4 @@ Welcome to contribute!
 
 GitHub: ahmedtharwat19
 
-البريد الإلكتروني | Email: ahmedtharwat19@example.com
+البريد الإلكتروني | Email: ahmed.tharwat19@gmail.com
