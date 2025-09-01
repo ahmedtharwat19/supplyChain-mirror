@@ -1,16 +1,41 @@
-# puresip_purchasing
+# supplyChain | سلسلة توريد
 
-A new Flutter project.
+---
 
-## Getting Started
+## 📖 نبذة عن المشروع | Project Overview
 
-This project is a starting point for a Flutter application.
+**عربي:**  
+تطبيق متكامل لإدارة سلسلة التوريد، يتيح للمستخدمين إدارة الموردين، المخزون، والطلبات بسهولة وكفاءة. مبني باستخدام Flutter لتوفير تجربة مستخدم سلسة عبر الأنظمة المختلفة، ويعتمد على Firebase كخدمة سحابية لإدارة البيانات والمصادقة.
 
-A few resources to get you started if this is your first Flutter project:
+**English:**  
+A comprehensive supply chain management application enabling users to efficiently manage suppliers, inventory, and orders. Built with Flutter to deliver a smooth cross-platform user experience, leveraging Firebase for backend data management and authentication.
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+---
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+## 🚀 الميزات | Features
+
+- إدارة الموردين بسهولة | Easy supplier management  
+- متابعة المخزون بكفاءة | Efficient inventory tracking  
+- إنشاء وتتبع الطلبات | Order creation and tracking  
+- إشعارات وتنبيهات ذكية | Smart notifications and alerts  
+- دعم كامل للأنظمة المختلفة | Full multi-platform support (Android, iOS, Web, Windows, macOS, Linux)
+
+---
+
+## 🛠️ التقنيات المستخدمة | Technologies Used
+
+- **Flutter:** لتطوير واجهات مستخدم متعددة الأنظمة  
+- **Firebase:** إدارة قاعدة البيانات والمصادقة  
+- **Cloud Firestore:** قاعدة بيانات NoSQL سحابية  
+- **Dart:** لغة البرمجة الأساسية للمشروع  
+- **Git:** نظام التحكم في الإصدارات  
+
+---
+
+## ⚙️ طريقة الإعداد والتشغيل | Setup & Running
+
+### 1. استنساخ المستودع | Clone Repository
+
+```bash
+git clone https://github.com/ahmedtharwat19/supplyChain.git
+cd supplyChain
