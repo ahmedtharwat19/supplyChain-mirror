@@ -62,3 +62,8 @@ Get-ChildItem -Path E:\purchasing -Recurse -Filter gradle.properties -ErrorActio
 
 dart run flutter_launcher_icons
 
+
+
+license for user isAdmin=false not work
+it always convert to isActive=false
+and in splash screen showen subscreiption is expired 
