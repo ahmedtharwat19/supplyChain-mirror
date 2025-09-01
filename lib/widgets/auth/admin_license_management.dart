@@ -3445,7 +3445,7 @@ class _AdminLicenseManagementPageState
                     Text('User: ${userData['displayName']}'),
                     Text('Email: ${userData['email']}'),
                     Text(
-                        'Devices: ${(data['deviceIds'] as List).length}/${data['maxDevices']}'),
+                        'Devices: ${(data['deviceIds'] != null ? (data['deviceIds'] as List).length : 0)}/${data['maxDevices']}'),
                     if (data['originalRequestId'] != null)
                       _buildRequestInfo(data['originalRequestId']),
                   ],
