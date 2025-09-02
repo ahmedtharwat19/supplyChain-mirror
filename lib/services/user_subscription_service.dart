@@ -378,7 +378,7 @@ class UserSubscriptionService {
   }
 
   /// تحليل بيانات الاشتراك من Firestore
-  SubscriptionData _parseSubscriptionData(Map<String, dynamic> data) {
+/*   SubscriptionData _parseSubscriptionData(Map<String, dynamic> data) {
     final isActive = data['isActive'] as bool? ?? false;
     final createdAt = (data['createdAt'] as Timestamp?)?.toDate();
     final durationDays = data['subscriptionDurationInDays'] as int? ?? 30;
@@ -397,7 +397,7 @@ class UserSubscriptionService {
       isValid: isActive && daysLeft > 0,
     );
   }
-
+ */
   /// معالجة الاشتراك غير الصالح (تسجيل الخروج، تحديث الحالة)
   Future<void> _handleInvalidOnlineSubscription(String userId, bool isActive) async {
     if (isActive) {
@@ -407,7 +407,7 @@ class UserSubscriptionService {
   }
 
   /// تخزين بيانات المستخدم محلياً
-  Future<void> _cacheUserData(
+/*   Future<void> _cacheUserData(
     User user,
     Map<String, dynamic> data,
     SubscriptionData subscriptionData,
@@ -420,18 +420,42 @@ await UserLocalStorage.saveUser(
   companyIds: data['companyIds']?.cast<String>(),
   factoryIds: data['factoryIds']?.cast<String>(),
   supplierIds: data['supplierIds']?.cast<String>(),
-  subscriptionDurationInDays: data['subscriptionDurationInDays'],
-  createdAt: subscriptionData.expiryDate.subtract(Duration(
-    days: data['subscriptionDurationInDays'] ?? 30,
-  )),
+  subscriptionDurationInDays: subscriptionData.daysLeft, // الجديد هنا
+  createdAt: null, // لم يعد مطلوباً
   isActive: subscriptionData.isActive,
 );
+
 
       debugPrint('🔄 User data cached locally');
     } catch (e) {
       debugPrint('Failed to cache user data: $e');
     }
   }
+ */
+
+Future<void> _cacheUserData(
+  User user,
+  Map<String, dynamic> data,
+  SubscriptionData subscriptionData,
+) async {
+  try {
+    await UserLocalStorage.saveUser(
+      userId: user.uid,
+      email: user.email ?? '',
+      displayName: user.displayName,
+      companyIds: data['companyIds']?.cast<String>(),
+      factoryIds: data['factoryIds']?.cast<String>(),
+      supplierIds: data['supplierIds']?.cast<String>(),
+      subscriptionDurationInDays: subscriptionData.daysLeft,
+      expiryDate: subscriptionData.expiryDate, // Add this line
+      createdAt: (data['createdAt'] as Timestamp?)?.toDate(),
+      isActive: subscriptionData.isActive,
+    );
+    debugPrint('🔄 User data cached locally');
+  } catch (e) {
+    debugPrint('Failed to cache user data: $e');
+  }
+}
 
   /// التحقق من الاشتراك في وضع عدم الاتصال
   Future<SubscriptionResult> _checkOfflineSubscription() async {
@@ -462,24 +486,101 @@ await UserLocalStorage.saveUser(
 
   /// تحليل بيانات الاشتراك المحلية
   SubscriptionData _parseLocalSubscriptionData(Map<String, dynamic> localData) {
-    final isActive = localData['isActive'] as bool? ?? false;
-    final createdAt = DateTime.tryParse(localData['createdAt'] as String? ?? '');
-    final durationDays = localData['subscriptionDurationInDays'] as int? ?? 30;
-
-    if (createdAt == null) {
-      throw Exception('Invalid local creation date');
-    }
-
-    final expiryDate = createdAt.add(Duration(days: durationDays));
-    final daysLeft = expiryDate.difference(DateTime.now()).inDays;
-
-    return SubscriptionData(
-      isActive: isActive,
-      expiryDate: expiryDate,
-      daysLeft: daysLeft,
-      isValid: isActive && daysLeft > 0,
-    );
+  final isActive = localData['isActive'] as bool? ?? false;
+  final expiryDateTimestamp = localData['expiryDate'] as Timestamp?;
+  final durationDays = localData['subscriptionDurationInDays'] as int? ?? 0;
+  
+  DateTime expiryDate;
+  
+  if (expiryDateTimestamp != null) {
+    expiryDate = expiryDateTimestamp.toDate();
+  } else {
+    // Fallback: calculate from duration if expiryDate is not cached
+    expiryDate = DateTime.now().add(Duration(days: durationDays));
   }
+  
+  final daysLeft = expiryDate.difference(DateTime.now()).inDays;
+
+  return SubscriptionData(
+    isActive: isActive,
+    expiryDate: expiryDate,
+    daysLeft: daysLeft,
+    isValid: isActive && daysLeft > 0,
+  );
+}
+
+/* SubscriptionData _parseLocalSubscriptionData(Map<String, dynamic> localData) {
+  final isActive = localData['isActive'] as bool? ?? false;
+  final durationDays = localData['subscriptionDurationInDays'] as int? ?? 0;
+  final expiryDate = DateTime.now().add(Duration(days: durationDays));
+  final daysLeft = durationDays;
+
+  return SubscriptionData(
+    isActive: isActive,
+    expiryDate: expiryDate,
+    daysLeft: daysLeft,
+    isValid: isActive && daysLeft > 0,
+  );
+}
+ */
+SubscriptionData _parseSubscriptionData(Map<String, dynamic> data) {
+  final isActive = data['isActive'] as bool? ?? false;
+  final expiryTimestamp = data['expiryDate'] as Timestamp?;
+  final createdAt = (data['createdAt'] as Timestamp?)?.toDate();
+  final durationDays = data['subscriptionDurationInDays'] as int? ?? 30;
+
+  DateTime expiryDate;
+  
+  // If expiryDate exists, use it directly
+  if (expiryTimestamp != null) {
+    expiryDate = expiryTimestamp.toDate();
+  } 
+  // If expiryDate doesn't exist but createdAt does, calculate it
+  else if (createdAt != null) {
+    expiryDate = createdAt.add(Duration(days: durationDays));
+  }
+  // If neither exists, throw a more descriptive error
+  else {
+    throw Exception('Missing both expiryDate and createdAt in user data. Cannot determine subscription validity.');
+  }
+
+  final now = DateTime.now();
+  final daysLeft = expiryDate.difference(now).inDays;
+
+  return SubscriptionData(
+    isActive: isActive,
+    expiryDate: expiryDate,
+    daysLeft: daysLeft,
+    isValid: isActive && now.isBefore(expiryDate),
+  );
+}
+
+/* SubscriptionData _parseSubscriptionData(Map<String, dynamic> data) {
+  final isActive = data['isActive'] as bool? ?? false;
+  final expiryTimestamp = data['expiryDate'] as Timestamp?;
+  final expiryDate = expiryTimestamp?.toDate();
+  int durationDays = data['subscriptionDurationInDays'] ?? 0;
+
+  if (expiryDate == null) {
+    throw Exception('Missing expiry date in user data');
+  }
+
+  final now = DateTime.now();
+  final daysLeft = expiryDate.difference(now).inDays;
+
+  // تقليل عدد الأيام المتبقية في الاشتراك (يومياً)
+  if (durationDays > daysLeft && daysLeft >= 0) {
+    durationDays = daysLeft;
+  }
+
+  return SubscriptionData(
+    isActive: isActive,
+    expiryDate: expiryDate,
+    daysLeft: daysLeft,
+    isValid: isActive && now.isBefore(expiryDate),
+  );
+}
+ */
 
   /// تسجيل نتائج التحقق للتحليل
   void _logSubscriptionResult(SubscriptionResult result, bool isOnline) {

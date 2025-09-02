@@ -10,7 +10,7 @@ import 'package:puresip_purchasing/pages/compositions/services/composition_servi
 import 'package:puresip_purchasing/services/firestore_service.dart';
 import 'package:puresip_purchasing/services/company_service.dart';
 import 'package:puresip_purchasing/services/factory_service.dart';
-import '../purchasing/item_selection_dialog.dart';
+import '../purchasing/Purchasing_orders_crud/item_selection_dialog.dart';
 
 class AddCompositionScreen extends StatefulWidget {
   final String productId;

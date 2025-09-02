@@ -849,6 +849,7 @@ class UserLocalStorage {
     List<String>? supplierIds,
     int? subscriptionDurationInDays,
     DateTime? createdAt,
+     DateTime? expiryDate, 
     bool? isActive,
   }) async {
     final nameToSave = (displayName?.trim().isNotEmpty ?? false)
@@ -865,6 +866,7 @@ class UserLocalStorage {
       if (subscriptionDurationInDays != null)
         'subscriptionDurationInDays': subscriptionDurationInDays,
       if (createdAt != null) 'createdAt': createdAt.toIso8601String(),
+      if (expiryDate != null) 'expiryDate': expiryDate.toIso8601String(),
       if (isActive != null) 'isActive': isActive,
     };
 
@@ -1162,4 +1164,11 @@ class UserLocalStorage {
     await clearExtendedStats();
     await clearSettings();
   }
+
+  static Future<String?> getUserId() async {
+  final prefs = await _getPrefs();
+  return prefs?.getString(_keyUserId);
+}
+
+
 }

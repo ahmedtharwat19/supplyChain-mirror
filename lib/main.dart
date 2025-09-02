@@ -135,6 +135,9 @@ class MyApp extends StatelessWidget {
       localizationsDelegates: context.localizationDelegates,
       routerConfig: appRouter,
       builder: (context, child) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+    // يمكن تنفيذ منطق لاحق هنا بعد البناء
+  });
         return MediaQuery(
           data:
               MediaQuery.of(context).copyWith(textScaler: TextScaler.noScaling),
@@ -175,6 +178,8 @@ class MyApp extends StatelessWidget {
     );
   }
 }
+
+
 /* import 'package:easy_localization/easy_localization.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart'; //show kIsWeb, defaultTargetPlatform;

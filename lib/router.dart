@@ -10,10 +10,11 @@ import 'package:puresip_purchasing/pages/factories/factories_page.dart';
 import 'package:puresip_purchasing/pages/finished_products/finished_products_page.dart';
 import 'package:puresip_purchasing/pages/inventory/inventory_query_page.dart';
 import 'package:puresip_purchasing/pages/manufacturing/manufacturing_orders_screen.dart';
+import 'package:puresip_purchasing/pages/purchasing/purchase_orders_analysis/pages/purchase_orders_analysis_page.dart';
 import 'package:puresip_purchasing/pages/stock_movements/stock_movements_page.dart';
 import 'package:puresip_purchasing/pages/items/add_item_page.dart';
 import 'package:puresip_purchasing/pages/items/edit_item_page.dart';
-import 'package:puresip_purchasing/pages/purchasing/edit_puchase_order_page.dart';
+import 'package:puresip_purchasing/pages/purchasing/Purchasing_orders_crud/edit_puchase_order_page.dart';
 import 'package:puresip_purchasing/services/order_service.dart';
 import 'package:puresip_purchasing/services/license_service.dart';
 import 'package:puresip_purchasing/widgets/auth/admin_license_management.dart';
@@ -30,9 +31,9 @@ import 'pages/companies/edit_company_page.dart';
 import 'pages/suppliers/suppliers_page.dart';
 import 'pages/suppliers/add_supplier_page.dart';
 import 'pages/suppliers/edit_supplier_page.dart';
-import 'pages/purchasing/purchase_orders_page.dart';
-import 'pages/purchasing/purchase_order_details_page.dart';
-import 'pages/purchasing/add_purchase_order_page.dart';
+import 'pages/purchasing/Purchasing_orders_crud/purchase_orders_page.dart';
+import 'pages/purchasing/Purchasing_orders_crud/purchase_order_details_page.dart';
+import 'pages/purchasing/Purchasing_orders_crud/add_purchase_order_page.dart';
 import 'pages/items/items_page.dart';
 
 // مفتاح التنقل العام
@@ -86,6 +87,10 @@ final GoRouter appRouter = GoRouter(
       GoRoute(
         path: '/suppliers',
         builder: (context, state) => const SuppliersPage(),
+      ),
+            GoRoute(
+        path: '/reports',
+        builder: (context, state) => const PurchaseOrdersAnalysisPage(),
       ),
       GoRoute(
         path: '/add-supplier',

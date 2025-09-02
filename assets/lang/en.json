@@ -657,16 +657,40 @@
   "movement_type": "Movement Type",
   "loading_error": "Error loading data",
 
+
  
   "current_stock": "Current Stock",
-  
+    "subscription_expired_message": "Your subscription has expired. Please renew to continue using the app.",
+  "no_finished_products": "No finished products available.",
 
  "select_factory": "Select Factory",
   "select_product": "Select Product",
   "select_filters_first": "Please select the company, factory, and product first",
-
+"daily": "Daily",
+  "weekly": "Weekly",
+  "monthly": "Monthly",
+  "yearly": "Yearly",
+  "custom": "Custom",
     "purchase": "Purchase",
+  "purchase_orders_analysis": "Purchase Orders Analysis",
+  "total_purchases": "Total Purchases",
+  "total_orders": "Total Orders",
+  "completed_orders": "Completed Orders",
+  "open_orders": "Open Orders",
+  "cancelled_orders": "Cancelled Orders",
+    "average_order_value": "Average Order Value",
 
+  "total_value": "Total Value",
+"unique_suppliers": "Unique Suppliers",
+
+"supplier_purchases_breakdown": "Purchases by Supplier",
+  "completed": "Completed",
+  "open": "Open",
+  "cancelled": "Cancelled",
+"quarterly": "Quarterly",
+  "avg_order_value": "Average Order",
+  "orders_by_status": "Orders by Status",
+  "suppliers_distribution": "Suppliers Distribution",
   "transfer_in": "Transfer In",
   "transfer_out": "Transfer Out",
   "adjustment": "Adjustment",
@@ -691,6 +715,12 @@
   "manufacturing_deduction": "Manufacturing Deduction",
     "batch_size": "Batch Size",
   "shelf_life": "Shelf Life",
+  
+  "filters": "Filters",
+  "period": "Period",
+  "order_status_distribution": "Order Status Distribution",
+  "supplier_breakdown": "Supplier Breakdown",
+
   "packaging_materials": "Packaging Materials",
  "all": "All",
   "all_companies": "All Companies",

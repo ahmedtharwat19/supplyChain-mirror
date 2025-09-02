@@ -145,7 +145,7 @@ class _SplashScreenState extends State<SplashScreen>
         return;
       }
 
-      if (result.daysLeft <= 7) {
+      if (result.daysLeft <= 30) {
         if (!mounted) return;
         SubscriptionNotifier.showWarning(
           context,
