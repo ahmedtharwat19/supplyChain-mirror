@@ -571,21 +571,21 @@ class _AppScaffoldState extends State<AppScaffold> {
     if (mounted) setState(() {});
   }
 
-  void _handleBackNavigation(BuildContext context) {
-    final router = GoRouter.of(context);
-    if (Navigator.of(context).canPop()) {
-      Navigator.of(context).pop();
-    } else if (router.canPop()) {
-      context.pop();
-    } else {
-      context.go('/dashboard');
-    }
+void _handleBackNavigation(BuildContext context) {
+  if (context.canPop()) {
+    context.pop(); // رجوع من خلال go_router stack
+  } else {
+    context.go('/dashboard'); // fallback عند الوصول للجذر
   }
+}
+
 
   @override
   Widget build(BuildContext context) {
-    final currentPath =
-        GoRouter.of(context).routeInformationProvider.value.uri.toString();
+    // final currentPath =
+    //     GoRouter.of(context).routeInformationProvider.value.uri.toString();
+
+    final currentPath = GoRouterState.of(context).uri.path;
     final canGoBack = currentPath != '/dashboard';
 
     return Scaffold(

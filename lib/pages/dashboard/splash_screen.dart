@@ -3,6 +3,214 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:puresip_purchasing/services/user_subscription_service.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:puresip_purchasing/utils/user_local_storage.dart';
+
+class SplashScreen extends StatefulWidget {
+  const SplashScreen({super.key});
+
+  @override
+  State<SplashScreen> createState() => _SplashScreenState();
+}
+
+class _SplashScreenState extends State<SplashScreen>
+    with TickerProviderStateMixin {
+  late AnimationController _fadeController;
+  late Animation<double> _fadeAnimation;
+  String _appVersion = '';
+  late AnimationController _versionController;
+  late Animation<Offset> _versionOffset;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAppVersion();
+    
+    _versionController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    );
+
+    _versionOffset = Tween<Offset>(
+      begin: const Offset(0, 0.3),
+      end: Offset.zero,
+    ).animate(
+      CurvedAnimation(parent: _versionController, curve: Curves.easeOut),
+    );
+
+    _versionController.forward();
+
+    _fadeController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 2),
+    );
+
+    _fadeAnimation = Tween<double>(begin: 0, end: 1).animate(_fadeController);
+
+    _fadeController.forward();
+
+    _fadeController.addStatusListener((status) async {
+      if (status == AnimationStatus.completed) {
+        await Future.delayed(const Duration(seconds: 1));
+        _checkUserAndStartApp();
+      }
+    });
+  }
+
+  Future<void> _loadAppVersion() async {
+    final info = await PackageInfo.fromPlatform();
+    setState(() {
+      _appVersion = 'v${info.version}.${info.buildNumber}';
+    });
+  }
+
+  // دالة للتحقق من وجود بيانات المستخدم باستخدام المعرف فقط
+  Future<bool> _checkUserExists() async {
+    try {
+      final userId = await UserLocalStorage.getUserId();
+      
+      debugPrint('User check - ID: $userId');
+      
+      // إذا لم يكن هناك معرف مستخدم، يعتبر غير مسجل
+      return userId != null && userId.isNotEmpty;
+    } catch (e) {
+      debugPrint('Error checking user data: $e');
+      return false;
+    }
+  }
+
+  // الدالة الرئيسية المعدلة للتحقق من المستخدم أولاً
+  Future<void> _checkUserAndStartApp() async {
+    try {
+      // التحقق أولاً من وجود بيانات المستخدم
+      final userExists = await _checkUserExists();
+      
+      if (!mounted) return;
+      
+      if (!userExists) {
+        debugPrint('No user data found, redirecting to login');
+        context.go('/login');
+        return;
+      }
+      
+      debugPrint('User data found, checking subscription...');
+      
+      // إذا كان المستخدم موجوداً، التحقق من الاشتراك
+      final subscriptionService = UserSubscriptionService();
+      final result = await subscriptionService.checkUserSubscription();
+
+      if (!mounted) return;
+
+      debugPrint('''
+      Subscription Check Results:
+      - isValid: ${result.isValid}
+      - isExpired: ${result.isExpired}
+      - Days Left: ${result.daysLeft}
+    ''');
+
+      if (!result.isValid || result.isExpired) {
+        if (!mounted) return;
+        // تأكد من أن showExpiredDialog متوافقة مع المعلمات
+        // SubscriptionNotifier.showExpiredDialog(
+        //   context,
+        //   expiryDate: result.expiryDate ?? DateTime.now(),
+        // );
+        await Future.delayed(const Duration(seconds: 2));
+        if (!mounted) return;
+        context.go('/login');
+        return;
+      }
+
+      if (result.daysLeft <= 30) {
+        if (!mounted) return;
+        // SubscriptionNotifier.showWarning(
+        //   context,
+        //   daysLeft: result.daysLeft,
+        // );
+      }
+
+      if (!mounted) return;
+      context.go('/dashboard');
+    } catch (e) {
+      debugPrint('Error in _checkUserAndStartApp: $e');
+      if (!mounted) return;
+      context.go('/login');
+    }
+  }
+ 
+  @override
+  void dispose() {
+    _fadeController.dispose();
+    _versionController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.white,
+      body: FadeTransition(
+        opacity: _fadeAnimation,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Expanded(
+              child: Center(
+                child: Image.asset(
+                  'assets/images/splash_screen.jpg',
+                  width: 200,
+                  height: 200,
+                  fit: BoxFit.contain,
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(bottom: 24),
+              child: Column(
+                children: [
+                  const Text(
+                    'Ahmed Tharwat tech.',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'ALL RIGHTS ARE RESERVED',
+                    style: TextStyle(
+                      color: Colors.grey,
+                      fontWeight: FontWeight.w500,
+                      fontSize: 12,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  SlideTransition(
+                    position: _versionOffset,
+                    child: AnimatedOpacity(
+                      opacity: _appVersion.isNotEmpty ? 1.0 : 0.0,
+                      duration: const Duration(milliseconds: 500),
+                      child: Text(
+                        _appVersion,
+                        style: const TextStyle(
+                          color: Colors.black,
+                          fontWeight: FontWeight.w400,
+                          fontSize: 15,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/* import 'dart:async';
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:puresip_purchasing/services/user_subscription_service.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -240,7 +448,7 @@ class _SplashScreenState extends State<SplashScreen>
     );
   }
 }
-
+ */
 
 /*   void _showExpiredDialog() {
     showDialog(

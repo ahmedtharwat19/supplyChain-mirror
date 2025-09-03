@@ -28,53 +28,67 @@ class _PurchaseOrdersAnalysisPageState extends State<PurchaseOrdersAnalysisPage>
   }
 
   Future<void> _loadUserInfo() async {
-    final uid = await UserLocalStorage.getUserId();
-    if (uid == null) return;
+    try {
+      final uid = await UserLocalStorage.getUserId();
+      if (uid == null) return;
 
-    final userDoc =
-        await FirebaseFirestore.instance.collection('users').doc(uid).get();
+      final userDoc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+      
+      if (!userDoc.exists) {
+        debugPrint('User document does not exist');
+        return;
+      }
 
-    final companyIds = List<String>.from(userDoc.data()?['companyIds'] ?? []);
+      final companyIds = List<String>.from(userDoc.data()?['companyIds'] ?? []);
+      debugPrint('User companies: $companyIds');
 
-    List<Map<String, String>> companies = [];
+      List<Map<String, String>> companies = [];
 
-    if (companyIds.isNotEmpty) {
-      final snapshot = await FirebaseFirestore.instance
-          .collection('companies')
-          .where(FieldPath.documentId, whereIn: companyIds)
-          .get();
+      if (companyIds.isNotEmpty) {
+        final snapshot = await FirebaseFirestore.instance
+            .collection('companies')
+            .where(FieldPath.documentId, whereIn: companyIds)
+            .get();
 
-      companies = snapshot.docs.map((doc) {
-        final data = doc.data();
-        final name = _isArabic ? (data['nameAr'] ?? '') : (data['nameEn'] ?? '');
-        return {
-          'id': doc.id,
-          'name': name.toString(),
-        };
-      }).toList();
+        companies = snapshot.docs.map((doc) {
+          final data = doc.data();
+          final name = _isArabic ? (data['nameAr'] ?? '') : (data['nameEn'] ?? '');
+          return {
+            'id': doc.id,
+            'name': name.toString(),
+          };
+        }).toList();
+      }
+
+      setState(() {
+        userId = uid;
+        userCompanies = companies;
+        selectedCompany = 'all';
+      });
+    } catch (e) {
+      debugPrint('Error loading user info: $e');
     }
-
-    setState(() {
-      userId = uid;
-      userCompanies = companies;
-      selectedCompany = 'all';
-    });
   }
 
   Future<Map<String, String>> _getSupplierNames(Set<String> supplierIds) async {
     if (supplierIds.isEmpty) return {};
 
-    final snapshot = await FirebaseFirestore.instance
-        .collection('vendors')
-        .where(FieldPath.documentId, whereIn: supplierIds.toList())
-        .get();
+    try {
+      final snapshot = await FirebaseFirestore.instance
+          .collection('vendors')
+          .where(FieldPath.documentId, whereIn: supplierIds.toList())
+          .get();
 
-    final Map<String, String> supplierNames = {};
-    for (var doc in snapshot.docs) {
-      supplierNames[doc.id] = _isArabic ? doc['nameAr'] : doc['nameEn'];
+      final Map<String, String> supplierNames = {};
+      for (var doc in snapshot.docs) {
+        supplierNames[doc.id] = _isArabic ? doc['nameAr'] : doc['nameEn'];
+      }
+
+      return supplierNames;
+    } catch (e) {
+      debugPrint('Error loading supplier names: $e');
+      return {};
     }
-
-    return supplierNames;
   }
 
   Stream<QuerySnapshot> _getOrdersStream() {
@@ -224,7 +238,12 @@ class _PurchaseOrdersAnalysisPageState extends State<PurchaseOrdersAnalysisPage>
                   child: StreamBuilder<QuerySnapshot>(
                     stream: _getOrdersStream(),
                     builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
+                      
                       if (snapshot.hasError) {
+                        debugPrint('Stream error: ${snapshot.error}');
                         return Center(
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
@@ -242,9 +261,6 @@ class _PurchaseOrdersAnalysisPageState extends State<PurchaseOrdersAnalysisPage>
                             ],
                           ),
                         );
-                      }
-                      if (!snapshot.hasData) {
-                        return const Center(child: CircularProgressIndicator());
                       }
 
                       final docs = snapshot.data!.docs;
@@ -277,8 +293,17 @@ class _PurchaseOrdersAnalysisPageState extends State<PurchaseOrdersAnalysisPage>
                       final cancelledOrders =
                           docs.where((d) => d['status'] == 'cancelled').length;
 
-                      final totalValue = docs.fold<double>(
-                          0, (sTotal, d) => sTotal + (d['totalAmount'] ?? 0));
+                      final totalValue = docs.fold<double>(0, (sTotal, d) {
+                        final amount = d['totalAmount'];
+                        if (amount is int) {
+                          return sTotal + amount.toDouble();
+                        } else if (amount is double) {
+                          return sTotal + amount;
+                        } else if (amount is String) {
+                          return sTotal + (double.tryParse(amount) ?? 0);
+                        }
+                        return sTotal;
+                      });
 
                       final avgOrderValue =
                           totalOrders > 0 ? totalValue / totalOrders : 0;
@@ -287,22 +312,39 @@ class _PurchaseOrdersAnalysisPageState extends State<PurchaseOrdersAnalysisPage>
                       final supplierTotals = <String, double>{};
 
                       for (var doc in docs) {
-                        final supplierId = doc['supplierId'];
+                        final supplierId = doc['supplierId'].toString();
                         suppliers.add(supplierId);
 
-                        final amount = (doc['totalAmount'] ?? 0).toDouble();
+                        final amount = doc['totalAmount'];
+                        double amountValue = 0;
+                        
+                        if (amount is int) {
+                          amountValue = amount.toDouble();
+                        } else if (amount is double) {
+                          amountValue = amount;
+                        } else if (amount is String) {
+                          amountValue = double.tryParse(amount) ?? 0;
+                        }
+                        
                         supplierTotals[supplierId] =
-                            (supplierTotals[supplierId] ?? 0) + amount;
+                            (supplierTotals[supplierId] ?? 0) + amountValue;
                       }
 
                       return FutureBuilder<Map<String, String>>(
                         future: _getSupplierNames(suppliers),
                         builder: (context, supplierSnapshot) {
-                          if (!supplierSnapshot.hasData) {
+                          if (supplierSnapshot.connectionState == ConnectionState.waiting) {
                             return const Center(child: CircularProgressIndicator());
                           }
+                          
+                          if (supplierSnapshot.hasError) {
+                            debugPrint('Supplier error: ${supplierSnapshot.error}');
+                            return Center(
+                              child: Text('error_loading_suppliers'.tr()),
+                            );
+                          }
 
-                          final supplierNames = supplierSnapshot.data!;
+                          final supplierNames = supplierSnapshot.data ?? {};
                           final totalSuppliers = suppliers.length;
 
                           return ListView(
@@ -316,7 +358,7 @@ class _PurchaseOrdersAnalysisPageState extends State<PurchaseOrdersAnalysisPage>
                                   crossAxisCount: 2,
                                   crossAxisSpacing: 12,
                                   mainAxisSpacing: 12,
-                                  childAspectRatio: 1.4, // Increased aspect ratio
+                                  childAspectRatio: 1.4,
                                 ),
                                 children: [
                                   _buildSummaryCard(
@@ -472,35 +514,35 @@ class _PurchaseOrdersAnalysisPageState extends State<PurchaseOrdersAnalysisPage>
     return Card(
       elevation: 4,
       child: Container(
-        height: 120, // Fixed height
+        constraints: const BoxConstraints(
+          minHeight: 100,
+          maxHeight: 120,
+        ),
         padding: const EdgeInsets.all(12.0),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
-          mainAxisSize: MainAxisSize.min, // Important: use min size
           children: [
             Icon(icon, size: 28, color: color),
-            const SizedBox(height: 6),
-            FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Text(
-                value,
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16, // Smaller font size
-                    ),
-                textAlign: TextAlign.center,
-              ),
+            const SizedBox(height: 8),
+            Text(
+              value,
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
             const SizedBox(height: 4),
-            FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Text(
-                title,
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      fontSize: 12, // Smaller font size
-                    ),
-              ),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    fontSize: 12,
+                  ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ],
         ),

@@ -11,6 +11,8 @@ import 'package:puresip_purchasing/pages/finished_products/finished_products_pag
 import 'package:puresip_purchasing/pages/inventory/inventory_query_page.dart';
 import 'package:puresip_purchasing/pages/manufacturing/manufacturing_orders_screen.dart';
 import 'package:puresip_purchasing/pages/purchasing/purchase_orders_analysis/pages/purchase_orders_analysis_page.dart';
+import 'package:puresip_purchasing/pages/reports/inventory_report_page.dart';
+import 'package:puresip_purchasing/pages/reports/reports_page.dart';
 import 'package:puresip_purchasing/pages/stock_movements/stock_movements_page.dart';
 import 'package:puresip_purchasing/pages/items/add_item_page.dart';
 import 'package:puresip_purchasing/pages/items/edit_item_page.dart';
@@ -88,9 +90,20 @@ final GoRouter appRouter = GoRouter(
         path: '/suppliers',
         builder: (context, state) => const SuppliersPage(),
       ),
-            GoRoute(
+      GoRoute(
         path: '/reports',
-        builder: (context, state) => const PurchaseOrdersAnalysisPage(),
+        builder: (context, state) => const ReportsPage(),
+        routes: [
+          GoRoute(
+            path: '/purchase-orders-analysis',
+            builder: (context, state) => const PurchaseOrdersAnalysisPage(),
+          ),
+          GoRoute(
+            path: '/report-inventory',
+            builder: (context, state) => const InventoryAnalysisPage(),
+          ),
+          // يمكنك إضافة تقارير أخرى هنا بنفس الطريقة
+        ],
       ),
       GoRoute(
         path: '/add-supplier',

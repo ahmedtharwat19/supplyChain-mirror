@@ -715,7 +715,20 @@
   "manufacturing_deduction": "Manufacturing Deduction",
     "batch_size": "Batch Size",
   "shelf_life": "Shelf Life",
-  
+    "inventory_analysis": "Inventory Analysis",
+  "total_stock": "Total Stock",
+  "total_items": "Total Items",
+  "total_movements": "Total Movements",
+  "turnover_ratio": "Turnover Ratio",
+  "category_distribution": "Category Distribution",
+  "movement_types": "Movement Types",
+  "no_category_data_available": "No category data available",
+  "no_movement_data_available": "No movement data available",
+
+  "sale": "Sale",
+  "transfer": "Transfer",
+
+  "finished_goods": "Finished Goods",
   "filters": "Filters",
   "period": "Period",
   "order_status_distribution": "Order Status Distribution",
