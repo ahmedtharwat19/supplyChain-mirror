@@ -724,7 +724,10 @@
   "movement_types": "Movement Types",
   "no_category_data_available": "No category data available",
   "no_movement_data_available": "No movement data available",
-
+"exit_app": "Exit the app",
+"exit_app_confirmation": "Do you really want to exit the app?",
+"yes": "Yes",
+  "no": "No",
   "sale": "Sale",
   "transfer": "Transfer",
 
