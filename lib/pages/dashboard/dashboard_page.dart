@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import 'package:puresip_purchasing/pages/dashboard/dashboard_metrics.dart';
 import 'package:puresip_purchasing/pages/dashboard/dashboard_tile_widget.dart';
 import 'package:puresip_purchasing/pages/settings_page.dart';
+import 'package:puresip_purchasing/services/subscription_notifier.dart';
 import 'package:puresip_purchasing/services/user_subscription_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../utils/user_local_storage.dart';
@@ -27,6 +28,9 @@ enum DashboardView { short, long }
 class DashboardPageState extends State<DashboardPage> {
   StreamSubscription<DocumentSnapshot>? _userSubscription;
   StreamSubscription<QuerySnapshot>? _licenseStatusSubscription;
+
+  String? subscriptionTimeLeft;
+  Timer? _timer;
 
   // Controllers and State
   final RefreshController _refreshController =
@@ -51,16 +55,452 @@ class DashboardPageState extends State<DashboardPage> {
   @override
   void initState() {
     super.initState();
+    debugPrint('🔄 DashboardPage initState called');
     _initializeData();
     _checkSubscriptionStatus();
     _startListeningToUserChanges();
     _setupFCM();
     _checkInitialNotification();
-    _setupLicenseStatusListener(); // ⬅️ أضف هذا هنا أيضًا
+    _setupLicenseStatusListener();
+    _testExpiryDate();
+    _checkLicenseExpiryStatus();
+    _saveExpiryDateToLocalStorage();
+  }
+
+  Future<void> _saveExpiryDateToLocalStorage() async {
+    try {
+      final expiryDate = await _getExpiryDateFromFirebase();
+      if (expiryDate != null) {
+        debugPrint('💾 Expiry date saved to local storage: $expiryDate');
+      }
+    } catch (e) {
+      debugPrint('❌ Error saving expiry date to local storage: $e');
+    }
+  }
+
+  Future<DateTime?> _getExpiryDateFromLocalStorage() async {
+    try {
+      debugPrint('📦 Getting expiry date from local storage');
+      final prefs = await SharedPreferences.getInstance();
+      final expiryString = prefs.getString('expiry_date');
+
+      if (expiryString != null) {
+        debugPrint('📦 Found expiry date in local storage: $expiryString');
+        return DateTime.parse(expiryString);
+      } else {
+        debugPrint('❌ No expiry date found in local storage');
+      }
+    } catch (e) {
+      debugPrint('❌ Error getting expiry date from local storage: $e');
+    }
+    return null;
+  }
+
+  Widget _buildTimeLeftBar() {
+    debugPrint(
+        '📊 Building time left bar. isExpiringSoon: $isSubscriptionExpiringSoon, timeLeft: $subscriptionTimeLeft');
+
+    // إذا لم يكن الاشتراك على وشك الانتهاء، لا تعرض أي شيء
+    if (!isSubscriptionExpiringSoon) {
+      debugPrint('📊 License is not expiring soon, hiding time left bar');
+      return const SizedBox();
+    }
+
+    // إذا لم يكن هناك وقت متبقي، لا تعرض أي شيء
+    if (subscriptionTimeLeft == null || subscriptionTimeLeft!.isEmpty) {
+      debugPrint('❌ No time left data available');
+      return const SizedBox();
+    }
+
+    return FutureBuilder<DateTime?>(
+      future: _getExpiryDateFromLocalStorage(),
+      builder: (context, dateSnapshot) {
+        debugPrint(
+            '📅 Date snapshot state: ${dateSnapshot.connectionState}, hasData: ${dateSnapshot.hasData}');
+
+        if (dateSnapshot.connectionState != ConnectionState.done) {
+          debugPrint('⏳ Waiting for date snapshot...');
+          return const CircularProgressIndicator();
+        }
+
+        if (!dateSnapshot.hasData) {
+          debugPrint('❌ No expiry date data available');
+          return _buildSimpleTimeLeftBar();
+        }
+
+        final expiryDate = dateSnapshot.data!;
+        final now = DateTime.now();
+        final daysLeft = expiryDate.difference(now).inDays;
+
+        // تحديد اللون حسب الأيام المتبقية
+        Color progressColor;
+        if (daysLeft > 7) {
+          progressColor = Colors.green;
+        } else if (daysLeft > 4) {
+          progressColor = Colors.orange;
+        } else {
+          progressColor = Colors.red;
+        }
+
+        return Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          margin: const EdgeInsets.only(bottom: 16, top: 8),
+          decoration: BoxDecoration(
+            color: progressColor.withAlpha(75),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: progressColor.withAlpha(75)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // العنوان
+              Row(
+                children: [
+                  Icon(
+                    Icons.warning_amber,
+                    color: progressColor,
+                    size: 24,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    tr('license_expiring_soon'),
+                    style: TextStyle(
+                      color: progressColor,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+
+              // الرسالة التحذيرية
+              Text(
+                tr('license_expiring_message'),
+                style: TextStyle(
+                  color: progressColor,
+                  fontSize: 14,
+                ),
+              ),
+              const SizedBox(height: 8),
+
+              // الوقت المتبقي
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    '${tr('time_left')}:',
+                    style: TextStyle(
+                      color: progressColor,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  Text(
+                    subscriptionTimeLeft!,
+                    style: TextStyle(
+                      color: progressColor,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+
+              // تاريخ الانتهاء
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    '${tr('expiry_date')}:',
+                    style: TextStyle(
+                      color: progressColor,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  Text(
+                    '${expiryDate.year}-${expiryDate.month.toString().padLeft(2, '0')}-${expiryDate.day.toString().padLeft(2, '0')}',
+                    style: TextStyle(
+                      color: progressColor,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildSimpleTimeLeftBar() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.only(bottom: 16, top: 8),
+      decoration: BoxDecoration(
+        color: Colors.orange.withAlpha(75),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.orange),
+      ),
+      child: Text(
+        '${tr('license_expiring_soon')}: $subscriptionTimeLeft',
+        style: TextStyle(
+          color: Colors.orange.shade800,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+  }
+
+/*   Widget _buildTimeLeftBarWithFallbackDate() {
+    // حاول الحصول على تاريخ الانتهاء من Firebase مباشرة
+    return FutureBuilder<DateTime?>(
+      future: _getExpiryDateFromFirebase(),
+      builder: (context, firebaseSnapshot) {
+        if (firebaseSnapshot.connectionState != ConnectionState.done ||
+            !firebaseSnapshot.hasData) {
+          return const SizedBox();
+        }
+
+        final expiryDate = firebaseSnapshot.data!;
+        return _buildTimeLeftBarContent(expiryDate, subscriptionTimeLeft!);
+      },
+    );
+  }
+ */
+
+/*   Widget _buildTimeLeftBarContent(DateTime expiryDate, String timeLeft) {
+    final now = DateTime.now();
+    final totalDays = 30;
+    final daysLeft = expiryDate.difference(now).inDays;
+    final progress = (daysLeft / totalDays).clamp(0.0, 1.0);
+
+    debugPrint(
+        '📅 Expiry date: $expiryDate, Now: $now, Days left: $daysLeft, Progress: $progress');
+
+    // تحديد اللون حسب الأيام المتبقية
+    Color progressColor;
+    if (daysLeft > 7) {
+      progressColor = Colors.green;
+    } else if (daysLeft > 4) {
+      progressColor = Colors.orange;
+    } else {
+      progressColor = Colors.red;
+    }
+
+    debugPrint('🎨 Progress color: $progressColor');
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.only(bottom: 16, top: 8),
+      decoration: BoxDecoration(
+        color: progressColor.withAlpha(75),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: progressColor.withAlpha(75)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // العنوان
+          Row(
+            children: [
+              Icon(
+                Icons.access_time,
+                color: progressColor,
+                size: 20,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                tr('license'),
+                style: TextStyle(
+                  color: progressColor,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // شريط التقدم
+          LinearProgressIndicator(
+            value: progress,
+            backgroundColor: progressColor.withAlpha(80),
+            valueColor: AlwaysStoppedAnimation<Color>(progressColor),
+            minHeight: 8,
+            borderRadius: BorderRadius.circular(4),
+          ),
+          const SizedBox(height: 8),
+
+          // الوقت المتبقي
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                '${tr('time_left')}:',
+                style: TextStyle(
+                  color: progressColor,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              Text(
+                timeLeft,
+                style: TextStyle(
+                  color: progressColor,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+
+          // تاريخ الانتهاء
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                '${tr('expiry_date')}:',
+                style: TextStyle(
+                  color: progressColor,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              Text(
+                '${expiryDate.year}-${expiryDate.month.toString().padLeft(2, '0')}-${expiryDate.day.toString().padLeft(2, '0')}',
+                style: TextStyle(
+                  color: progressColor,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+
+          // رسالة تحذير إذا كان الوقت قليل
+          if (daysLeft <= 7)
+            Padding(
+              padding: const EdgeInsets.only(top: 12),
+              child: Text(
+                tr('renew_license_warning'),
+                style: TextStyle(
+                  color: progressColor,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+ */
+  Future<DateTime?> _getExpiryDateFromFirebase() async {
+    try {
+      debugPrint('🔥 Getting expiry date from Firebase');
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return null;
+
+      final snapshot = await FirebaseFirestore.instance
+          .collection('licenses')
+          .where('userId', isEqualTo: user.uid)
+          .where('isActive', isEqualTo: true)
+          .get();
+
+      if (snapshot.docs.isEmpty) return null;
+
+      final licenseDoc = snapshot.docs.first;
+      final expiryTimestamp = licenseDoc.get('expiryDate') as Timestamp?;
+      final expiryDate = expiryTimestamp?.toDate();
+
+      if (expiryDate != null) {
+        // احفظ التاريخ في التخزين المحلي للاستخدام المستقبلي
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('expiry_date', expiryDate.toIso8601String());
+        debugPrint('💾 Saved expiry date to local storage: $expiryDate');
+      }
+
+      return expiryDate;
+    } catch (e) {
+      debugPrint('❌ Error getting expiry date from Firebase: $e');
+      return null;
+    }
+  }
+
+  void _checkLicenseExpiryStatus() async {
+    debugPrint('🔍 Checking license expiry status');
+    final subscriptionService = UserSubscriptionService();
+    final result = await subscriptionService.checkUserSubscription();
+
+    if (!mounted) return;
+
+    setState(() {
+      isSubscriptionExpiringSoon = result.isExpiringSoon;
+      isSubscriptionExpired = result.isExpired;
+      subscriptionTimeLeft = result.timeLeftFormatted;
+    });
+
+    debugPrint('📋 License Status:');
+    debugPrint('   isValid: ${result.isValid}');
+    debugPrint('   isExpiringSoon: $isSubscriptionExpiringSoon');
+    debugPrint('   isExpired: $isSubscriptionExpired');
+    debugPrint('   timeLeft: $subscriptionTimeLeft');
+    debugPrint('   expiryDate: ${result.expiryDate}');
+
+    // تأكد من حفظ تاريخ الانتهاء في التخزين المحلي
+    if (result.expiryDate != null) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(
+          'expiry_date', result.expiryDate!.toIso8601String());
+      debugPrint('💾 Saved expiry date from check: ${result.expiryDate}');
+    }
+  }
+
+/*   String _formatTimeLeft(Duration difference) {
+    final days = difference.inDays;
+    final hours = difference.inHours % 24;
+    final minutes = difference.inMinutes % 60;
+
+    if (days > 0) {
+      return tr('time_left_days', namedArgs: {
+        'days': days.toString(),
+        'hours': hours.toString(),
+      });
+    } else if (hours > 0) {
+      return tr('time_left_hours', namedArgs: {
+        'hours': hours.toString(),
+        'minutes': minutes.toString(),
+      });
+    } else {
+      return tr('time_left_minutes', namedArgs: {
+        'minutes': minutes.toString(),
+      });
+    }
+  }
+ */
+  void _testExpiryDate() {
+    debugPrint('🧪 Testing expiry date calculation');
+    // إصلاح: استخدام Timestamp مباشرة بدلاً من seconds و nanoseconds
+    final expiryTimestamp = Timestamp(1757504727, 573000000);
+    final expiryDate = expiryTimestamp.toDate();
+    final now = DateTime.now();
+    final difference = expiryDate.difference(now);
+
+    debugPrint('=== LICENSE EXPIRY TEST ===');
+    debugPrint('Expiry Date: $expiryDate');
+    debugPrint('Current Date: $now');
+    debugPrint('Days Left: ${difference.inDays}');
+    debugPrint('Is Expiring Soon: ${difference.inDays <= 7}');
+    debugPrint('Is Expired: ${difference.isNegative}');
+    debugPrint('==========================');
   }
 
   @override
   void dispose() {
+    debugPrint('🗑️ DashboardPage disposed');
+    _timer?.cancel();
     _userSubscription?.cancel();
     _refreshController.dispose();
     _notificationSubscription?.cancel();
@@ -68,7 +508,33 @@ class DashboardPageState extends State<DashboardPage> {
     super.dispose();
   }
 
+  Future<void> _initializeData() async {
+    debugPrint('🔄 Initializing data');
+    await _syncUserData();
+    await _reloadUserData();
+    await loadSettings();
+    await _loadInitialData();
+
+    // تحقق من انتهاء الصلاحية بعد تحميل البيانات
+    await _checkIfLicenseExpired();
+  }
+
+  Future<void> _checkIfLicenseExpired() async {
+    final subscriptionService = UserSubscriptionService();
+    final result = await subscriptionService.checkUserSubscription();
+
+    if (result.isExpired && mounted) {
+      debugPrint('⏰ License expired during initialization, redirecting...');
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          context.go('/license/request');
+        }
+      });
+    }
+  }
+
   void _setupLicenseStatusListener() {
+    debugPrint('🔊 Setting up license status listener');
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
@@ -76,79 +542,67 @@ class DashboardPageState extends State<DashboardPage> {
         .collection('licenses')
         .where('userId', isEqualTo: user.uid)
         .snapshots()
-        .listen((snapshot) {
+        .listen((snapshot) async {
       if (!mounted) return;
-/* 
-      final licenseDoc = snapshot.docs.firstWhere(
-        (doc) => doc.exists,
-        orElse: () => null,
-      );
 
-      if (licenseDoc == null) {
-        // لا يوجد ترخيص - توجيه المستخدم
-        context.go('/license/request');
-        return;
-      } */
-
-      debugPrint('License docs count: ${snapshot.docs.length}');
-      for (var doc in snapshot.docs) {
-        debugPrint('License id: ${doc.id}, data: ${doc.data()}');
-      }
+      debugPrint('📄 License docs count: ${snapshot.docs.length}');
 
       final docs = snapshot.docs.where((doc) => doc.exists).toList();
       if (docs.isEmpty) {
-        // لا يوجد ترخيص - توجيه المستخدم
-        debugPrint('no license found');
-        context.go('/license/request');
+        debugPrint('❌ No license found');
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            context.go('/license/request');
+          }
+        });
         return;
       }
 
-      //final licenseDoc = docs.first;
       final now = DateTime.now();
-      final licenseDoc = docs.firstWhereOrNull((doc) {
+      final activeLicense = docs.firstWhereOrNull((doc) {
         final isActive = doc.get('isActive') as bool? ?? false;
         final expiry = (doc.get('expiryDate') as Timestamp?)?.toDate();
         final isExpired = expiry != null && expiry.isBefore(now);
         return isActive && !isExpired;
       });
 
-      final isActive = licenseDoc?.get('isActive') as bool? ?? false;
-      final expiryTimestamp = licenseDoc?.get('expiryDate') as Timestamp?;
-      final expiryDate = expiryTimestamp?.toDate();
-      final isExpired =
-          expiryDate != null && expiryDate.isBefore(DateTime.now());
-
-      debugPrint('License isActive: $isActive, isExpired: $isExpired');
-
-      if (!isActive || isExpired) {
-        // الترخيص ملغي أو منتهي
-        debugPrint('License is expired or canceled');
-        context.go('/license/request');
+      if (activeLicense == null) {
+        debugPrint('❌ No active license found or license expired');
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            context.go('/license/request');
+          }
+        });
       }
     });
   }
 
   Future<void> _setupFCM() async {
+    debugPrint('📱 Setting up FCM');
     await _fcm.requestPermission();
     _notificationSubscription = FirebaseMessaging.onMessage.listen((message) {
       _showNotification(message);
     });
+    debugPrint(
+        '✅ FCM onMessage listener initialized: $_notificationSubscription');
   }
 
   void _checkInitialNotification() async {
+    debugPrint('🔔 Checking for initial notification');
     RemoteMessage? initialMessage = await _fcm.getInitialMessage();
     if (initialMessage != null) {
+      debugPrint('🔔 Initial notification found: ${initialMessage.data}');
       _handleNotification(initialMessage);
+    } else {
+      debugPrint('🔔 No initial notification found');
     }
   }
 
   void _handleNotification(RemoteMessage message) {
-    // تأكد من أن الويدجيت ما زال mounted
+    debugPrint('📨 Handling notification: ${message.data}');
     if (!mounted) return;
 
-    // معالجة الإشعار حسب نوعه
     if (message.data['type'] == 'license_request') {
-      // عرض تفاصيل الإشعار أولاً
       showDialog(
         context: context,
         builder: (context) => AlertDialog(
@@ -167,8 +621,8 @@ class DashboardPageState extends State<DashboardPage> {
           actions: [
             TextButton(
               onPressed: () {
-                Navigator.pop(context); // إغلاق الـ Dialog
-                _navigateToLicenseRequests(); // التنقل لصفحة الطلبات
+                Navigator.pop(context);
+                _navigateToLicenseRequests();
               },
               child: Text('view_details'.tr()),
             ),
@@ -180,7 +634,6 @@ class DashboardPageState extends State<DashboardPage> {
         ),
       );
     } else {
-      // للإشعارات العامة
       showDialog(
         context: context,
         builder: (context) => AlertDialog(
@@ -199,10 +652,12 @@ class DashboardPageState extends State<DashboardPage> {
   }
 
   void _navigateToLicenseRequests() {
+    debugPrint('➡️ Navigating to license requests');
     Navigator.pushNamed(context, '/license-requests');
   }
 
   void _showNotification(RemoteMessage message) {
+    debugPrint('📲 Showing notification: ${message.notification?.title}');
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -218,19 +673,13 @@ class DashboardPageState extends State<DashboardPage> {
     );
   }
 
-  Future<void> _initializeData() async {
-    await _syncUserData();
-    await _reloadUserData(); // ✅ هذا جديد
-    await loadSettings();
-    await _loadInitialData();
-  }
-
   bool isSameDate(DateTime? a, DateTime? b) {
     if (a == null || b == null) return false;
     return a.year == b.year && a.month == b.month && a.day == b.day;
   }
 
   void _startListeningToUserChanges() async {
+    debugPrint('👂 Starting to listen to user changes');
     final firebaseUser = FirebaseAuth.instance.currentUser;
     if (firebaseUser == null) return;
 
@@ -278,9 +727,6 @@ class DashboardPageState extends State<DashboardPage> {
           userId: firebaseUser.uid,
           email: firebaseUser.email ?? '',
           displayName: firebaseUser.displayName,
-/*           companyIds: (data['companyIds'] as List?)?.cast<String>() ?? [],
-          factoryIds: (data['factoryIds'] as List?)?.cast<String>() ?? [],
-          supplierIds: (data['supplierIds'] as List?)?.cast<String>() ?? [], */
           companyIds: (data['companyIds'] is List)
               ? (data['companyIds'] as List).cast<String>()
               : [],
@@ -311,6 +757,7 @@ class DashboardPageState extends State<DashboardPage> {
   }
 
   Future<void> _reloadUserData() async {
+    debugPrint('🔄 Reloading user data');
     final user = await UserLocalStorage.getUser();
     if (user == null || !mounted) return;
 
@@ -329,6 +776,7 @@ class DashboardPageState extends State<DashboardPage> {
   }
 
   Future<void> loadSettings() async {
+    debugPrint('⚙️ Loading settings');
     final prefs = await SharedPreferences.getInstance();
     setState(() {
       _dashboardView = prefs.getString(prefDashboardView) == 'long'
@@ -339,6 +787,7 @@ class DashboardPageState extends State<DashboardPage> {
   }
 
   Future<void> _loadInitialData() async {
+    debugPrint('📊 Loading initial data');
     final user = await UserLocalStorage.getUser();
     if (user == null || !mounted) return;
 
@@ -353,21 +802,8 @@ class DashboardPageState extends State<DashboardPage> {
     await fetchStats();
   }
 
-/*  Future<void> _checkSubscriptionStatus() async {
-  final subscriptionService = UserSubscriptionService();
-  final result = await subscriptionService.checkUserSubscription();
-
-  if (!mounted) return;
-
-  setState(() {
-    isSubscriptionExpiringSoon = result.isExpiringSoon;
-    isSubscriptionExpired = result.isExpired;
-    isLoading = false;
-  });
-
-  SubscriptionNotifier.showWarning(context, result);
-} */
   Future<void> _checkSubscriptionStatus() async {
+    debugPrint('🔍 Checking subscription status');
     final subscriptionService = UserSubscriptionService();
     final result = await subscriptionService.checkUserSubscription();
 
@@ -376,18 +812,29 @@ class DashboardPageState extends State<DashboardPage> {
     setState(() {
       isSubscriptionExpiringSoon = result.isExpiringSoon;
       isSubscriptionExpired = result.isExpired;
+      subscriptionTimeLeft = result.timeLeftFormatted;
       isLoading = false;
     });
 
-    // Show warning if subscription is expiring soon
+    _debugSubscriptionStatus(); // إضافة لعرض حالة الاشتراك
+
+    _timer?.cancel();
+    // if (!result.isExpired && result.expiryDate != null) {
+    //   _timer = Timer.periodic(const Duration(seconds: 1), (_) async {
+    //     final updated = await subscriptionService.checkUserSubscription();
+    //     if (mounted) {
+    //       setState(() => subscriptionTimeLeft = updated.timeLeftFormatted);
+    //     }
+    //   });
+    // }
+
     if (result.isExpiringSoon) {
       SubscriptionNotifier.showWarning(
         context,
-        daysLeft: result.daysLeft,
+        timeLeft: result.timeLeftFormatted ?? '',
       );
     }
 
-    // Show expired dialog if subscription is expired
     if (result.isExpired && result.expiryDate != null) {
       SubscriptionNotifier.showExpiredDialog(
         context,
@@ -396,7 +843,16 @@ class DashboardPageState extends State<DashboardPage> {
     }
   }
 
+  void _debugSubscriptionStatus() {
+    debugPrint('🔍 Subscription Status Debug:');
+    debugPrint('   isSubscriptionExpiringSoon: $isSubscriptionExpiringSoon');
+    debugPrint('   isSubscriptionExpired: $isSubscriptionExpired');
+    debugPrint('   subscriptionTimeLeft: $subscriptionTimeLeft');
+    debugPrint('   userId: $userId');
+  }
+
   Future<void> _loadCachedData() async {
+    debugPrint('💾 Loading cached data');
     final cached = await UserLocalStorage.getDashboardData();
     final extended = await UserLocalStorage.getExtendedStats();
 
@@ -416,34 +872,37 @@ class DashboardPageState extends State<DashboardPage> {
   }
 
   Future<void> fetchStats() async {
+    debugPrint('📈 Fetching stats');
     final user = FirebaseAuth.instance.currentUser;
     if (user == null || !mounted) return;
 
     setState(() => isLoading = true);
 
     try {
-      final userDoc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .get();
-      debugPrint('userDoc : $userDoc');
-      final updatedCompanyIds =
-          (userDoc.data()?['companyIds'] as List?)?.cast<String>() ?? [];
+      final localUser = await UserLocalStorage.getUser();
+      if (localUser == null) {
+        debugPrint('❌ No local user data found');
+        return;
+      }
 
-      // Parallel fetch of basic counts
-      final [itemsCount, suppliersCount,finishedProductCount] = await Future.wait([
+      final updatedCompanyIds =
+          (localUser['companyIds'] as List?)?.cast<String>() ?? [];
+      debugPrint(
+          'Using local user data with ${updatedCompanyIds.length} companies');
+
+      final [itemsCount, suppliersCount, finishedProductCount] =
+          await Future.wait([
         _fetchCollectionCount('items'),
         _fetchCollectionCount('vendors'),
         _fetchCollectionCount('finished_products'),
       ]);
+
       final poStats = await _fetchPoStats();
-    //  final fPStates = await _fetchFinishedProducts();
-      // Fetch company-specific stats
+
       int orderCount = 0;
       double amountSum = 0.0;
       int movementCount = 0;
       int manufacturingCount = 0;
-     // int finishedProductCount = 0;
 
       if (updatedCompanyIds.isNotEmpty) {
         final companyResults = await Future.wait(
@@ -451,20 +910,17 @@ class DashboardPageState extends State<DashboardPage> {
         );
 
         for (final result in companyResults) {
-          orderCount =
-              poStats['count']; // += (result['orders'] as num).toInt();
-          amountSum = poStats[
-              'totalAmount']; // += (result['amount'] as num).toDouble();
+          orderCount = poStats['count'];
+          amountSum = poStats['totalAmount'];
           movementCount += (result['movements'] as num).toInt();
           manufacturingCount += (result['manufacturing'] as num).toInt();
-       //   finishedProductCount += fPStates['count']; //(result['finishedProducts'] as num).toInt();
         }
       }
 
-      // Fetch factories count
-      final factoryCount = await _fetchFactoriesCount();
+      final factoryIds =
+          (localUser['factoryIds'] as List?)?.cast<String>() ?? [];
+      final factoryCount = factoryIds.length;
 
-      // Create new stats object
       final newStats = DashboardStats(
         totalCompanies: updatedCompanyIds.length,
         totalItems: itemsCount,
@@ -477,7 +933,6 @@ class DashboardPageState extends State<DashboardPage> {
         totalFactories: factoryCount,
       );
 
-      // Update state and storage
       if (mounted) {
         setState(() {
           userCompanyIds = updatedCompanyIds;
@@ -499,13 +954,33 @@ class DashboardPageState extends State<DashboardPage> {
     }
   }
 
+  Future<bool> _checkCollectionPermission(String collection) async {
+    try {
+      final query = FirebaseFirestore.instance.collection(collection).limit(1);
+      await query.get();
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
   Future<int> _fetchCollectionCount(String collection) async {
     try {
       if (userId == null) return 0;
+      debugPrint('🔄 Attempting to fetch count for: $collection');
+      final hasPermission = await _checkCollectionPermission(collection);
+      debugPrint('🔍 Permission check for $collection: $hasPermission');
+
+      if (!hasPermission) {
+        debugPrint('❌ No permission to access $collection');
+        return 0;
+      }
       final snapshot = await FirebaseFirestore.instance
           .collection(collection)
           .where('userId', isEqualTo: userId)
           .get();
+
+      debugPrint('✅ Successfully fetched $collection: ${snapshot.size} items');
       return snapshot.size;
     } catch (e) {
       debugPrint('❌ Error fetching $collection: $e');
@@ -515,28 +990,23 @@ class DashboardPageState extends State<DashboardPage> {
 
   Future<Map<String, dynamic>> _getCompanyStats(String companyId) async {
     try {
+      debugPrint('🔄 Getting stats for company: $companyId');
       final results = await Future.wait([
-        //      _getSubCollectionCount('purchase_orders', companyId),
         _getSubCollectionCount('stock_movements', companyId),
         _getSubCollectionCount('manufacturing_orders', companyId),
-   //     _getSubCollectionCount('finished_products', companyId),
       ]);
 
+      debugPrint('✅ Company stats successful');
+
       return {
-        //     'orders': results[0]['count'],
-        //    'amount': results[0]['amount'],
         'movements': results[0]['count'],
         'manufacturing': results[1]['count'],
-  //      'finishedProducts': results[2]['count'],
       };
     } catch (e) {
       debugPrint('❌ Error getting stats for company $companyId: $e');
       return {
-        //    'orders': 0,
-        //     'amount': 0.0,
         'movements': 0,
         'manufacturing': 0,
-    //   'finishedProducts': 0,
       };
     }
   }
@@ -546,10 +1016,16 @@ class DashboardPageState extends State<DashboardPage> {
     try {
       if (userId == null) return {'count': 0, 'amount': 0.0};
 
+      final path = 'companies/$companyId/$collection';
+      debugPrint('🔄 Fetching subcollection: $path');
+
       final snapshot = await FirebaseFirestore.instance
           .collection('companies/$companyId/$collection')
           .where('userId', isEqualTo: userId)
           .get();
+
+      debugPrint(
+          '✅ Fetched $collection for $companyId: ${snapshot.size} items');
 
       double amount = 0.0;
       if (collection == 'purchase_orders') {
@@ -566,36 +1042,9 @@ class DashboardPageState extends State<DashboardPage> {
     }
   }
 
-  // Future<Map<String, dynamic>> _fetchFinishedProducts() async {
-  //   try {
-  //     if (userId == null) return {'count': 0};
-
-  //     final querySnapshot = await FirebaseFirestore.instance
-  //         .collection('finished_products')
-  //         .where('userId', isEqualTo: userId)
-  //         //.where('status', isEqualTo: 'pending')
-  //         .get();
-
-  //     // // حساب القيمة الإجمالية
-  //     // double totalAmount = querySnapshot.docs.fold(0.0, (sTotal, doc) {
-  //     //   final amount = doc.data()['totalAmountAfterTax'] ?? 0.0;
-  //     //   return sTotal + (amount is num ? amount.toDouble() : 0.0);
-  //     // });
-
-  //     return {
-  //       'count': querySnapshot.size,
-  //      // 'totalAmount': totalAmount,
-  //     };
-  //   } catch (e) {
-  //     debugPrint('❌ Error fetching PURCHASE_ORDERS: $e');
-  //     return {'count': 0, 'totalAmount': 0.0};
-  //   }
-  // }
-
-
-
   Future<Map<String, dynamic>> _fetchPoStats() async {
     try {
+      debugPrint('🔄 Fetching purchase orders stats...');
       if (userId == null) return {'count': 0, 'totalAmount': 0.0};
 
       final querySnapshot = await FirebaseFirestore.instance
@@ -604,12 +1053,13 @@ class DashboardPageState extends State<DashboardPage> {
           .where('status', isEqualTo: 'pending')
           .get();
 
-      // حساب القيمة الإجمالية
+      debugPrint('✅ Purchase orders fetched: ${querySnapshot.size}');
+
       double totalAmount = querySnapshot.docs.fold(0.0, (sTotal, doc) {
         final amount = doc.data()['totalAmountAfterTax'] ?? 0.0;
         return sTotal + (amount is num ? amount.toDouble() : 0.0);
       });
-
+      debugPrint('✅ Purchase orders fetched: ${querySnapshot.size} orders');
       return {
         'count': querySnapshot.size,
         'totalAmount': totalAmount,
@@ -620,33 +1070,8 @@ class DashboardPageState extends State<DashboardPage> {
     }
   }
 
-  Future<int> _fetchFactoriesCount() async {
-    try {
-      if (userId == null) return 0;
-
-      final userDoc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(userId)
-          .get();
-
-      final factoryIds =
-          (userDoc.data()?['factoryIds'] as List?)?.cast<String>() ?? [];
-
-      if (factoryIds.isEmpty) return 0;
-
-      final factories = await FirebaseFirestore.instance
-          .collection('factories')
-          .where(FieldPath.documentId, whereIn: factoryIds)
-          .get();
-
-      return factories.size;
-    } catch (e) {
-      debugPrint('❌ Error fetching factories: $e');
-      return 0;
-    }
-  }
-
   Future<void> _syncUserData() async {
+    debugPrint('🔄 Syncing user data');
     final firebaseUser = FirebaseAuth.instance.currentUser;
     if (firebaseUser == null) return;
 
@@ -665,7 +1090,6 @@ class DashboardPageState extends State<DashboardPage> {
     final subscriptionDurationInDays = data['subscriptionDurationInDays'] ?? 30;
     final isActive = data['isActive'] ?? true;
 
-    // جلب البيانات المحلية
     final localUser = await UserLocalStorage.getUser();
 
     bool needUpdateLocal = false;
@@ -699,19 +1123,18 @@ class DashboardPageState extends State<DashboardPage> {
         isActive: isActive,
       );
 
-      // حدث الحالة إذا الواجهة موجودة
       if (mounted) {
         setState(() {
           userName = firebaseUser.displayName;
           userId = firebaseUser.uid;
           userCompanyIds = (data['companyIds'] as List?)?.cast<String>() ?? [];
-          // ... حدث بقية المتغيرات حسب الحاجة
         });
       }
     }
   }
 
   Future<void> _saveToLocalStorage() async {
+    debugPrint('💾 Saving to local storage');
     await UserLocalStorage.saveDashboardData(
       totalCompanies: _stats.totalCompanies,
       totalSuppliers: _stats.totalSuppliers,
@@ -729,9 +1152,21 @@ class DashboardPageState extends State<DashboardPage> {
   }
 
   Future<void> _handleRefresh() async {
+    debugPrint('🔄 Handling refresh');
     try {
       await _syncUserData();
       await fetchStats();
+
+      // تحقق من حالة الاشتراك بعد التحديث
+      final subscriptionService = UserSubscriptionService();
+      final result = await subscriptionService.checkUserSubscription();
+
+      if (result.isExpired && mounted) {
+        debugPrint('⏰ License expired after refresh, redirecting...');
+        context.go('/license/request');
+        return;
+      }
+
       _refreshController.refreshCompleted();
     } catch (e) {
       debugPrint('❌ Refresh failed: $e');
@@ -745,8 +1180,8 @@ class DashboardPageState extends State<DashboardPage> {
   }
 
   Widget _buildStatsGrid() {
+    debugPrint('📊 Building stats grid');
     final statsMap = _stats.toMap();
-    // final isWide = MediaQuery.of(context).size.width > 600;
 
     final filteredMetrics = _selectedCards.isEmpty
         ? dashboardMetrics.where((metric) =>
@@ -777,13 +1212,107 @@ class DashboardPageState extends State<DashboardPage> {
     );
   }
 
+  Widget _buildLicenseExpiredWarning() {
+    debugPrint('⚠️ Building license expired warning');
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Colors.red.shade100,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.red.shade300),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.error_outline, color: Colors.red, size: 24),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  tr('license_expired'),
+                  style: const TextStyle(
+                    color: Colors.red,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  tr('license_expired_message'),
+                  style: TextStyle(
+                    color: Colors.red.shade800,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+/*   Widget _buildLicenseExpiringWarning() {
+    debugPrint('⚠️ Building license expiring warning');
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Colors.orange.shade100,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.orange.shade300),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.warning_amber, color: Colors.orange, size: 24),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  tr('license_expiring_soon'),
+                  style: TextStyle(
+                    color: Colors.orange.shade800,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  tr('license_expiring_message',
+                      args: [subscriptionTimeLeft ?? '']),
+                  style: TextStyle(
+                    color: Colors.orange.shade800,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                if (subscriptionTimeLeft != null)
+                  Text(
+                    '⏰ ${tr('time_left')}: $subscriptionTimeLeft',
+                    style: TextStyle(
+                      color: Colors.orange.shade800,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+ */
   @override
   Widget build(BuildContext context) {
+    debugPrint('🏗️ Building DashboardPage');
     return AppScaffold(
       title: tr('dashboard'),
       userName: userName,
-      isSubscriptionExpiringSoon:
-          isSubscriptionExpiringSoon, // تمرير الحالة هنا
+      isSubscriptionExpiringSoon: isSubscriptionExpiringSoon,
       isSubscriptionExpired: isSubscriptionExpired,
       isDashboard: true,
       body: isLoading
@@ -793,15 +1322,24 @@ class DashboardPageState extends State<DashboardPage> {
               onRefresh: _handleRefresh,
               enablePullDown: true,
               child: SingleChildScrollView(
-                padding: const EdgeInsets.all(8),
+                padding: const EdgeInsets.all(16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // رسالة الترحيب
                     Text(
                       tr('welcome_back', args: [userName ?? '']),
                       style: Theme.of(context).textTheme.headlineSmall,
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 16),
+
+                    // عرض شريط الوقت المتبقي فقط إذا كان الاشتراك على وشك الانتهاء
+                    if (isSubscriptionExpiringSoon) _buildTimeLeftBar(),
+
+                    // عرض تحذير انتهاء الترخيص فقط (تم إزالة التحذير المكرر)
+                    if (isSubscriptionExpired) _buildLicenseExpiredWarning(),
+
+                    const SizedBox(height: 16),
                     _buildStatsGrid(),
                   ],
                 ),
@@ -872,4 +1410,3 @@ class DashboardStats {
     };
   }
 }
-

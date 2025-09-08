@@ -3103,6 +3103,105 @@ class _AdminLicenseManagementPageState extends State<AdminLicenseManagementPage>
 }
  */
 
+
+/*   Widget _buildActiveLicensesList() {
+    return StreamBuilder<QuerySnapshot>(
+      stream: _firestore
+          .collection('licenses')
+          .where('isActive', isEqualTo: true)
+          .orderBy('createdAt', descending: true)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        final licenses = snapshot.data!.docs;
+        if (licenses.isEmpty) {
+          return Center(child: Text('no_active_licenses'.tr()));
+        }
+
+        return ListView.builder(
+          itemCount: licenses.length,
+          itemBuilder: (context, index) {
+            final license = licenses[index];
+            return _buildLicenseCard(license);
+          },
+        );
+      },
+    );
+  }
+ */
+
+/*   Future<void> _processRequest(String requestId, bool approve) async {
+    try {
+      if (approve) {
+        final requestDoc = await _firestore
+            .collection('license_requests')
+            .doc(requestId)
+            .get();
+        final requestData = requestDoc.data() as Map<String, dynamic>;
+
+        await _licenseService.createLicense(
+          userId: requestData['userId'],
+          durationMonths: requestData['durationMonths'],
+          maxDevices: requestData['maxDevices'],
+          requestId: requestId,
+        );
+      } else {
+        await _firestore.collection('license_requests').doc(requestId).update({
+          'status': 'rejected',
+          'processedAt': FieldValue.serverTimestamp(),
+        });
+      }
+
+      // افترض أن الترخيص مرتبط بالطلب، قم بتحديث الترخيص هنا:
+      final licenseQuery = await _firestore
+          .collection('licenses')
+          .where('originalRequestId', isEqualTo: requestId)
+          .get();
+
+      for (var doc in licenseQuery.docs) {
+        await doc.reference.update({
+          'isActive': false,
+          'deactivatedAt': FieldValue.serverTimestamp(),
+        });
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: ${e.toString()}')),
+      );
+    }
+  }
+ */
+
+
+/*         return Card(
+          child: ExpansionTile(
+            title: Text(data['licenseKey']),
+            subtitle:
+                Text('Expires: ${_formatDate(data['expiryDate']?.toDate())}'),
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('User: ${userData['displayName']}'),
+                    Text('Email: ${userData['email']}'),
+                    Text(
+                        'Devices: ${(data['deviceIds'] as List).length}/${data['maxDevices']}'),
+                    if (data['originalRequestId'] != null)
+                      _buildRequestInfo(data['originalRequestId']),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ); */
+    
+
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:easy_localization/easy_localization.dart';
@@ -3265,48 +3364,6 @@ class _AdminLicenseManagementPageState
     }
   }
 
-/*   Future<void> _processRequest(String requestId, bool approve) async {
-    try {
-      if (approve) {
-        final requestDoc = await _firestore
-            .collection('license_requests')
-            .doc(requestId)
-            .get();
-        final requestData = requestDoc.data() as Map<String, dynamic>;
-
-        await _licenseService.createLicense(
-          userId: requestData['userId'],
-          durationMonths: requestData['durationMonths'],
-          maxDevices: requestData['maxDevices'],
-          requestId: requestId,
-        );
-      } else {
-        await _firestore.collection('license_requests').doc(requestId).update({
-          'status': 'rejected',
-          'processedAt': FieldValue.serverTimestamp(),
-        });
-      }
-
-      // افترض أن الترخيص مرتبط بالطلب، قم بتحديث الترخيص هنا:
-      final licenseQuery = await _firestore
-          .collection('licenses')
-          .where('originalRequestId', isEqualTo: requestId)
-          .get();
-
-      for (var doc in licenseQuery.docs) {
-        await doc.reference.update({
-          'isActive': false,
-          'deactivatedAt': FieldValue.serverTimestamp(),
-        });
-      }
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: ${e.toString()}')),
-      );
-    }
-  }
- */
 
   Future<void> _processRequest(String requestId, bool approve) async {
     try {
@@ -3319,7 +3376,7 @@ class _AdminLicenseManagementPageState
 
         await _licenseService.createLicense(
           userId: requestData['userId'],
-          durationMonths: requestData['durationMonths'],
+          durationSeconds: requestData['durationMonths'],
           maxDevices: requestData['maxDevices'],
           requestId: requestId,
         );
@@ -3351,34 +3408,7 @@ class _AdminLicenseManagementPageState
     }
   }
 
-/*   Widget _buildActiveLicensesList() {
-    return StreamBuilder<QuerySnapshot>(
-      stream: _firestore
-          .collection('licenses')
-          .where('isActive', isEqualTo: true)
-          .orderBy('createdAt', descending: true)
-          .snapshots(),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData) {
-          return const Center(child: CircularProgressIndicator());
-        }
 
-        final licenses = snapshot.data!.docs;
-        if (licenses.isEmpty) {
-          return Center(child: Text('no_active_licenses'.tr()));
-        }
-
-        return ListView.builder(
-          itemCount: licenses.length,
-          itemBuilder: (context, index) {
-            final license = licenses[index];
-            return _buildLicenseCard(license);
-          },
-        );
-      },
-    );
-  }
- */
   Widget _buildActiveLicensesList() {
     return StreamBuilder<QuerySnapshot>(
       stream: _firestore
@@ -3454,31 +3484,7 @@ class _AdminLicenseManagementPageState
             ],
           ),
         );
-
-/*         return Card(
-          child: ExpansionTile(
-            title: Text(data['licenseKey']),
-            subtitle:
-                Text('Expires: ${_formatDate(data['expiryDate']?.toDate())}'),
-            children: [
-              Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('User: ${userData['displayName']}'),
-                    Text('Email: ${userData['email']}'),
-                    Text(
-                        'Devices: ${(data['deviceIds'] as List).length}/${data['maxDevices']}'),
-                    if (data['originalRequestId'] != null)
-                      _buildRequestInfo(data['originalRequestId']),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ); */
-      },
+  },
     );
   }
 

@@ -2373,7 +2373,7 @@ Widget _buildSubmitButton() {
 
       // Create and submit new request
       final requestId =
-          _licenseService.generateStandardizedId(isLicense: false);
+         await _licenseService.generateStandardizedId();
       final batch = _firestore.batch();
 
       final requestRef =

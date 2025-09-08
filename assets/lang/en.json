@@ -454,9 +454,15 @@
   "no_access_rights": "You do not have access rights to this feature. Please contact support for assistance.",
   "no_items_added_to_order": "No items have been added to the order. Please add items before saving.",
   "is_taxable": "Is this taxable?",
+   "no_internet_warning": "No internet connection. Data will be saved locally and synced when connected.",
+  "subscription_expired_message_date": "Your subscription expired on {date}. Please renew to continue using the service.",
+  "subscription_warning_message": "Your subscription will expire in {time_left}. Renew now to avoid service interruption.",
+  "dismiss": "Dismiss",
+  "renew": "Renew",
 
 
-
+ 
+  "offline_mode_warning": "Working in offline mode with local data",
   "edit_order": "Edit Purchase Order",
   "order_updated": "Order updated successfully",
   "update_error": "Error while updating",
@@ -679,7 +685,25 @@
   "open_orders": "Open Orders",
   "cancelled_orders": "Cancelled Orders",
     "average_order_value": "Average Order Value",
-
+    "days": "day",
+  "hours": "hour",
+  "minutes": "minute",
+  "seconds": "second",
+  "license": "الترخيص",
+  "time_left_format": "{days} days {hours} hours {minutes} minutes",
+  "expiry_date": "Expiry Date",
+  "renew_license_warning": "Your license is expiring soon. Please renew to avoid interruption.",
+  "not_available": "N/A",
+  "renew_now": "Renew Now",
+  "license_expired_message": "Please renew your license to continue using the application.",
+  "license_expiring_soon": "License Expiring Soon",
+  "license_expiring_message": "Please renew your license before it expires to avoid service interruption",
+  "time_left": "Time Remaining",
+  "subscription_expiring_soon": "Subscription is expiring soon, remaining {time}",
+  "stock_movement_report": "Stock Movement Report",
+  "net_movement": "Net Movement",
+  "positive_balance": "Positive Balance",
+  "negative_balance": "Negative Balance",
   "total_value": "Total Value",
 "unique_suppliers": "Unique Suppliers",
 

@@ -280,7 +280,7 @@ class SubscriptionNotifier {
 
  */
 
-
+/* 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -732,5 +732,467 @@ class SubscriptionNotifier {
 
   static String _formatDate(DateTime date) {
     return '${date.day}/${date.month}/${date.year}';
+  }
+} */
+
+/* 
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:hive/hive.dart';
+import 'package:easy_localization/easy_localization.dart';
+import 'device_fingerprint.dart';
+
+/// كائن النتيجة الخاص بالاشتراك
+class SubscriptionResult {
+  final bool isValid;
+  final bool isExpired;
+  final DateTime? expiryDate;
+
+  /// نص منسق للمدة المتبقية
+  final String? timeLeftFormatted;
+
+  SubscriptionResult({
+    required this.isValid,
+    required this.isExpired,
+    this.expiryDate,
+    this.timeLeftFormatted,
+  });
+
+  /// هل الاشتراك قرب ينتهي؟ (لو باقي أقل من يوم)
+  bool get isExpiringSoon {
+    if (expiryDate == null || isExpired) return false;
+    final now = DateTime.now();
+    final difference = expiryDate!.difference(now);
+    return difference.inHours <= 168; // 7 أيام
+  }
+}
+
+class UserSubscriptionService {
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseFirestore _fs = FirebaseFirestore.instance;
+
+  /// التحقق الأساسي من الاشتراك باستخدام البصمة
+  Future<bool> checkSubscription() async {
+    final user = _auth.currentUser;
+    if (user == null) return false;
+
+    final subRef = _fs.collection('licenses').doc(user.uid);
+    final snap = await subRef.get();
+
+    if (!snap.exists) return false;
+
+    final data = snap.data()!;
+    final serverFingerprint = data['fingerprint'] as String?;
+    final expiryDate = (data['expiryDate'] as Timestamp).toDate();
+
+    // نولد البصمة الحالية
+    final currentFingerprint = await DeviceFingerprint.generate();
+
+    // نجيب البصمة المحلية
+    final box = await Hive.openBox('auth');
+    final localFingerprint = box.get('fingerprint');
+
+    // تحقق من تاريخ الاشتراك
+    if (DateTime.now().isAfter(expiryDate)) {
+      return false; // الاشتراك منتهي
+    }
+
+    // أول مرة → خزّن البصمة
+    if (serverFingerprint == null) {
+      await subRef.set({'fingerprint': currentFingerprint},
+          SetOptions(merge: true));
+      await box.put('fingerprint', currentFingerprint);
+      return true;
+    }
+
+    // تحقق ثلاثي
+    if (serverFingerprint == currentFingerprint &&
+        (localFingerprint == null || localFingerprint == currentFingerprint)) {
+      // خزّنها محليًا لو مش موجودة
+      if (localFingerprint == null) {
+        await box.put('fingerprint', currentFingerprint);
+      }
+      return true;
+    }
+
+    // جهاز مختلف → منع الدخول
+    return false;
+  }
+
+  /// نسخة متوافقة مع SplashScreen (ترجع SubscriptionResult)
+  Future<SubscriptionResult> checkUserSubscription() async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      return SubscriptionResult(
+        isValid: false,
+        isExpired: true,
+        timeLeftFormatted: null,
+      );
+    }
+
+    final subRef = _fs.collection('licenses').doc(user.uid);
+    final snap = await subRef.get();
+
+    if (!snap.exists) {
+      return SubscriptionResult(
+        isValid: false,
+        isExpired: true,
+        timeLeftFormatted: null,
+      );
+    }
+
+    final data = snap.data()!;
+    final expiryDate = (data['expiryDate'] as Timestamp).toDate();
+
+    final now = DateTime.now();
+    final isExpired = now.isAfter(expiryDate);
+    final isValid = await checkSubscription();
+
+    String? formatted;
+    if (!isExpired) {
+      final difference = expiryDate.difference(now);
+
+      final days = difference.inDays;
+      final hours = difference.inHours % 24;
+      final minutes = difference.inMinutes % 60;
+      final seconds = difference.inSeconds % 60;
+
+      final parts = <String>[];
+      if (days > 0) parts.add("$days ${'days'.tr()}");
+      if (hours > 0) parts.add("$hours ${'hours'.tr()}");
+      if (minutes > 0) parts.add("$minutes ${'minutes'.tr()}");
+      if (seconds > 0) parts.add("$seconds ${'seconds'.tr()}");
+
+      formatted = parts.join(' ');
+    }
+
+    return SubscriptionResult(
+      isValid: isValid,
+      isExpired: isExpired,
+      expiryDate: expiryDate,
+      timeLeftFormatted: formatted,
+    );
+  }
+
+  /// تمديد الاشتراك
+  Future<void> extendSubscription(DateTime newExpiryDate) async {
+    final user = _auth.currentUser;
+    if (user == null) return;
+
+    final currentFingerprint = await DeviceFingerprint.generate();
+
+    await _fs.collection('licenses').doc(user.uid).set({
+      'expiryDate': newExpiryDate,
+      'fingerprint': currentFingerprint,
+    }, SetOptions(merge: true));
+
+    final box = await Hive.openBox('auth');
+    await box.put('fingerprint', currentFingerprint);
+  }
+
+  /// إلغاء الاشتراك
+  Future<void> cancelSubscription() async {
+    final user = _auth.currentUser;
+    if (user == null) return;
+
+    await _fs.collection('licenses').doc(user.uid).delete();
+
+    final box = await Hive.openBox('auth');
+    await box.delete('fingerprint');
+  }
+}
+ */
+
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
+import 'package:hive/hive.dart';
+import 'package:easy_localization/easy_localization.dart';
+import 'device_fingerprint.dart';
+
+/// كائن النتيجة الخاص بالاشتراك
+class SubscriptionResult {
+  final bool isValid;
+  final bool isExpired;
+  final bool isExpiringSoon;
+  final DateTime? expiryDate;
+
+  /// نص منسق للمدة المتبقية
+  final String? timeLeftFormatted;
+
+  SubscriptionResult({
+    required this.isValid,
+    required this.isExpired,
+    required this.isExpiringSoon,
+    this.expiryDate,
+    this.timeLeftFormatted,
+  });
+}
+
+class UserSubscriptionService {
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseFirestore _fs = FirebaseFirestore.instance;
+
+  /// التحقق من الاشتراك باستخدام مجموعة licenses
+  Future<SubscriptionResult> checkUserSubscription() async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      return SubscriptionResult(
+        isValid: false,
+        isExpired: true,
+        isExpiringSoon: false,
+        timeLeftFormatted: null,
+      );
+    }
+
+    try {
+      final querySnapshot = await _fs
+          .collection('licenses')
+          .where('userId', isEqualTo: user.uid)
+          .where('isActive', isEqualTo: true)
+          .get();
+
+      if (querySnapshot.docs.isEmpty) {
+        return SubscriptionResult(
+          isValid: false,
+          isExpired: true,
+          isExpiringSoon: false,
+          timeLeftFormatted: null,
+        );
+      }
+
+      final licenseDoc = querySnapshot.docs.first;
+      final data = licenseDoc.data();
+
+      final expiryTimestamp = data['expiryDate'] as Timestamp?;
+      if (expiryTimestamp == null) {
+        return SubscriptionResult(
+          isValid: false,
+          isExpired: true,
+          isExpiringSoon: false,
+          timeLeftFormatted: null,
+        );
+      }
+
+      final expiryDate = expiryTimestamp.toDate();
+      final now = DateTime.now();
+      final isExpired = now.isAfter(expiryDate);
+
+      // التحقق من البصمة ← إضافة هذا السطر
+      final isValid = await _checkDeviceFingerprint(licenseDoc.id);
+
+      // حساب الوقت المتبقي
+      String? formattedTimeLeft;
+      bool isExpiringSoon = false;
+
+      if (!isExpired) {
+        final difference = expiryDate.difference(now);
+        isExpiringSoon = difference.inDays <= 7;
+
+        final days = difference.inDays;
+        final hours = difference.inHours % 24;
+        final minutes = difference.inMinutes % 60;
+
+        final parts = <String>[];
+        if (days > 0) parts.add("$days ${'days'.tr()}");
+        if (hours > 0) parts.add("$hours ${'hours'.tr()}");
+        if (minutes > 0) parts.add("$minutes ${'minutes'.tr()}");
+
+        formattedTimeLeft = parts.join(' ');
+      }
+
+      return SubscriptionResult(
+        isValid: isValid, // ← استخدام نتيجة التحقق من البصمة
+        isExpired: isExpired,
+        isExpiringSoon: isExpiringSoon,
+        expiryDate: expiryDate,
+        timeLeftFormatted: formattedTimeLeft,
+      );
+    } catch (e) {
+      debugPrint('❌ Error checking subscription: $e');
+      return SubscriptionResult(
+        isValid: false,
+        isExpired: true,
+        isExpiringSoon: false,
+        timeLeftFormatted: null,
+      );
+    }
+  }
+
+  /*  Future<SubscriptionResult> checkUserSubscription() async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      return SubscriptionResult(
+        isValid: false,
+        isExpired: true,
+        isExpiringSoon: false,
+        timeLeftFormatted: null,
+      );
+    }
+
+    try {
+      // البحث في مجموعة licenses بدلاً من subscriptions
+      final querySnapshot = await _fs.collection('licenses')
+          .where('userId', isEqualTo: user.uid)
+          .where('isActive', isEqualTo: true)
+          .get();
+
+      if (querySnapshot.docs.isEmpty) {
+        return SubscriptionResult(
+          isValid: false,
+          isExpired: true,
+          isExpiringSoon: false,
+          timeLeftFormatted: null,
+        );
+      }
+
+      // الحصول على أول ترخيص فعال
+      final licenseDoc = querySnapshot.docs.first;
+      final data = licenseDoc.data();
+      
+      final expiryTimestamp = data['expiryDate'] as Timestamp?;
+      if (expiryTimestamp == null) {
+        return SubscriptionResult(
+          isValid: false,
+          isExpired: true,
+          isExpiringSoon: false,
+          timeLeftFormatted: null,
+        );
+      }
+
+      final expiryDate = expiryTimestamp.toDate();
+      final now = DateTime.now();
+      final isExpired = now.isAfter(expiryDate);
+      
+      // التحقق من البصمة (اختياري - يمكن إزالته إذا لم يكن مطلوبًا)
+      final isValid = await _checkDeviceFingerprint(licenseDoc.id);
+
+      // حساب الوقت المتبقي
+      String? formattedTimeLeft;
+      bool isExpiringSoon = false;
+
+      if (!isExpired) {
+        final difference = expiryDate.difference(now);
+        
+        // تحديد إذا كان الاشتراك على وشك الانتهاء (أقل من 7 أيام)
+        isExpiringSoon = difference.inDays <= 7;
+        
+        final days = difference.inDays;
+        final hours = difference.inHours % 24;
+        final minutes = difference.inMinutes % 60;
+
+        final parts = <String>[];
+        if (days > 0) parts.add("$days ${'days'.tr()}");
+        if (hours > 0) parts.add("$hours ${'hours'.tr()}");
+        if (minutes > 0) parts.add("$minutes ${'minutes'.tr()}");
+
+        formattedTimeLeft = parts.join(' ');
+        
+        // إذا لم يكن هناك أيام ولكن هناك ساعات أو دقائق
+        if (formattedTimeLeft.isEmpty && difference.inHours > 0) {
+          formattedTimeLeft = "${difference.inHours} ${'hours'.tr()}";
+        } else if (formattedTimeLeft.isEmpty) {
+          formattedTimeLeft = "${difference.inMinutes} ${'minutes'.tr()}";
+        }
+      }
+
+      return SubscriptionResult(
+        isValid: isValid,
+        isExpired: isExpired,
+        isExpiringSoon: isExpiringSoon,
+        expiryDate: expiryDate,
+        timeLeftFormatted: formattedTimeLeft,
+      );
+    } catch (e) {
+      debugPrint('❌ Error checking subscription: $e');
+      return SubscriptionResult(
+        isValid: false,
+        isExpired: true,
+        isExpiringSoon: false,
+        timeLeftFormatted: null,
+      );
+    }
+  }
+ */
+  /// التحقق من بصمة الجهاز (اختياري)
+  Future<bool> _checkDeviceFingerprint(String licenseId) async {
+    try {
+      final currentFingerprint = await DeviceFingerprint.generate();
+      final box = await Hive.openBox('auth');
+      final localFingerprint = box.get('fingerprint');
+
+      // إذا كانت البصمة المحلية مطابقة للبصمة الحالية
+      if (localFingerprint != null && localFingerprint == currentFingerprint) {
+        return true;
+      }
+
+      // التحقق من البصمة في الترخيص
+      final licenseDoc = await _fs.collection('licenses').doc(licenseId).get();
+      if (!licenseDoc.exists) return false;
+
+      final data = licenseDoc.data()!;
+      final devices = data['devices'] as List<dynamic>? ?? [];
+      //    final deviceIds = data['deviceIds'] as List<dynamic>? ?? [];
+      final maxDevices = data['maxDevices'] as int? ?? 1;
+
+      // البحث عن البصمة الحالية في الأجهزة المسجلة
+      final isDeviceRegistered = devices.any((device) =>
+          device is Map<String, dynamic> &&
+          device['fingerprint'] == currentFingerprint);
+
+      if (isDeviceRegistered) {
+        // حفظ البصمة محليًا
+        await box.put('fingerprint', currentFingerprint);
+        return true;
+      }
+
+      // إذا لم يكن الجهاز مسجلاً وهناك مساحة لأجهزة جديدة
+      if (devices.length < maxDevices) {
+        // إضافة الجهاز الجديد
+        final updatedDevices = [
+          ...devices,
+          {'fingerprint': currentFingerprint}
+        ];
+        await _fs.collection('licenses').doc(licenseId).update({
+          'devices': updatedDevices,
+          'deviceIds': FieldValue.arrayUnion([currentFingerprint]),
+        });
+
+        // حفظ البصمة محليًا
+        await box.put('fingerprint', currentFingerprint);
+        return true;
+      }
+
+      return false;
+    } catch (e) {
+      debugPrint('❌ Error checking device fingerprint: $e');
+      return false;
+    }
+  }
+
+  /// تمديد الاشتراك
+  Future<void> extendSubscription(
+      String licenseId, DateTime newExpiryDate) async {
+    final user = _auth.currentUser;
+    if (user == null) return;
+
+    await _fs.collection('licenses').doc(licenseId).update({
+      'expiryDate': Timestamp.fromDate(newExpiryDate),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  /// إلغاء الاشتراك
+  Future<void> cancelSubscription(String licenseId) async {
+    final user = _auth.currentUser;
+    if (user == null) return;
+
+    await _fs.collection('licenses').doc(licenseId).update({
+      'isActive': false,
+      'deactivatedAt': FieldValue.serverTimestamp(),
+    });
+
+    final box = await Hive.openBox('auth');
+    await box.delete('fingerprint');
   }
 }

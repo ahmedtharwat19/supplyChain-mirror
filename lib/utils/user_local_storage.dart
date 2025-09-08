@@ -790,6 +790,7 @@ class UserLocalStorage {
 
  */
 
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -849,7 +850,7 @@ class UserLocalStorage {
     List<String>? supplierIds,
     int? subscriptionDurationInDays,
     DateTime? createdAt,
-     DateTime? expiryDate, 
+    DateTime? expiryDate,
     bool? isActive,
   }) async {
     final nameToSave = (displayName?.trim().isNotEmpty ?? false)
@@ -906,17 +907,29 @@ class UserLocalStorage {
       await prefs.setString(_keyCreatedAt, userData['createdAt']);
     } */
     if (userData['createdAt'] != null) {
-  final createdAt = userData['createdAt'];
-  if (createdAt is DateTime) {
-    await prefs.setString(_keyCreatedAt, createdAt.toIso8601String());
-  } else if (createdAt is Timestamp) {
-    await prefs.setString(_keyCreatedAt, createdAt.toDate().toIso8601String());
-  } else if (createdAt is String) {
-    // لو هي String فعلاً، خزّنها كما هي
-    await prefs.setString(_keyCreatedAt, createdAt);
+      final createdAt = userData['createdAt'];
+      if (createdAt is DateTime) {
+        await prefs.setString(_keyCreatedAt, createdAt.toIso8601String());
+      } else if (createdAt is Timestamp) {
+        await prefs.setString(
+            _keyCreatedAt, createdAt.toDate().toIso8601String());
+      } else if (createdAt is String) {
+        // لو هي String فعلاً، خزّنها كما هي
+        await prefs.setString(_keyCreatedAt, createdAt);
+      }
+    }
+    
+  // أضف هذا الجزء لتخزين تاريخ الانتهاء
+  if (userData['expiryDate'] != null) {
+    final expiryDate = userData['expiryDate'];
+    if (expiryDate is DateTime) {
+      await prefs.setString('expiry_date', expiryDate.toIso8601String());
+    } else if (expiryDate is Timestamp) {
+      await prefs.setString('expiry_date', expiryDate.toDate().toIso8601String());
+    } else if (expiryDate is String) {
+      await prefs.setString('expiry_date', expiryDate);
+    }
   }
-}
-
     if (userData['isActive'] != null) {
       await prefs.setBool(_keyIsActive, userData['isActive']);
     }
@@ -971,7 +984,6 @@ class UserLocalStorage {
     await prefs.remove(_keySubscriptionDuration);
     await prefs.remove(_keyCreatedAt);
     await prefs.remove(_keyIsActive);
-
   }
 
   // ══════════════ Company & Factory Info ══════════════
@@ -1166,9 +1178,41 @@ class UserLocalStorage {
   }
 
   static Future<String?> getUserId() async {
-  final prefs = await _getPrefs();
-  return prefs?.getString(_keyUserId);
-}
+    final prefs = await _getPrefs();
+    return prefs?.getString(_keyUserId);
+  }
 
+// في ملف user_local_storage.dart
+  static Future<void> saveItemNames(Map<String, String> itemNames) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final encodedData = json.encode(itemNames);
+      await prefs.setString('cached_item_names', encodedData);
+    } catch (e) {
+      debugPrint('Error saving item names: $e');
+    }
+  }
 
+  static Future<Map<String, String>> getItemNames() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final encodedData = prefs.getString('cached_item_names');
+      if (encodedData != null) {
+        final Map<String, dynamic> decoded = json.decode(encodedData);
+        return decoded.map((key, value) => MapEntry(key, value.toString()));
+      }
+    } catch (e) {
+      debugPrint('Error getting item names: $e');
+    }
+    return {};
+  }
+
+  static Future<void> clearCachedData() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('cached_item_names');
+    } catch (e) {
+      debugPrint('Error clearing cached data: $e');
+    }
+  }
 }

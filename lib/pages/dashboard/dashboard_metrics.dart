@@ -159,7 +159,7 @@ final List<DashboardMetric> dashboardMetrics = [
     DashboardMetric(
     titleKey: 'reports',
     valueBuilder: (data) => (data['reports'] ?? 0).toString(),
-    icon: Icons.report,
+    icon: Icons.query_stats,
     color: Colors.red,
     route: '/reports',
     progressBuilder: (data) {

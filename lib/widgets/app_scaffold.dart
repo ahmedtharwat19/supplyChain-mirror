@@ -479,7 +479,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:puresip_purchasing/pages/dashboard/dashboard_metrics.dart';
 import 'package:puresip_purchasing/pages/dashboard/dashboard_page.dart';
-import 'package:puresip_purchasing/pages/settings_page.dart';
+//import 'package:puresip_purchasing/pages/settings_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:easy_localization/easy_localization.dart';
@@ -711,9 +711,9 @@ void _handleBackNavigation(BuildContext context) {
 
           const Divider(),
           _buildDrawerItem(
-            icon: Icons.settings,
+             icon: Icons.settings,
             title: tr('settings.title'),
-            onTap: () async {
+         /*   onTap: () async {
               Navigator.of(context).pop(); // إغلاق Drawer
               final result = await Navigator.of(context).push(
                 MaterialPageRoute(
@@ -728,7 +728,22 @@ void _handleBackNavigation(BuildContext context) {
                     context.findAncestorStateOfType<DashboardPageState>();
                 dashboardState?.loadSettings();
               }
-            },
+            }, */
+            onTap: () async {
+  Navigator.of(context).pop(); // إغلاق Drawer
+
+  final result = await context.push<bool>(
+    '/settings',
+    extra: dashboardMetrics.map((e) => e.titleKey).toList(),
+  );
+
+  if (!context.mounted) return;
+  if (result == true) {
+    final dashboardState = context.findAncestorStateOfType<DashboardPageState>();
+    dashboardState?.loadSettings();
+  }
+},
+
           ),
           const Divider(),
           _buildDrawerItem(

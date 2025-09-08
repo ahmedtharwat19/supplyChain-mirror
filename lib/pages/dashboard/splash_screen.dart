@@ -1,6 +1,380 @@
 import 'dart:async';
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:puresip_purchasing/services/subscription_notifier.dart';
+import 'package:puresip_purchasing/services/user_subscription_service.dart';
+import 'package:package_info_plus/package_info_plus.dart';
+import 'package:puresip_purchasing/utils/user_local_storage.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:puresip_purchasing/services/hive_service.dart';
+
+class SplashScreen extends StatefulWidget {
+  const SplashScreen({super.key});
+
+  @override
+  State<SplashScreen> createState() => _SplashScreenState();
+}
+
+class _SplashScreenState extends State<SplashScreen>
+    with TickerProviderStateMixin {
+  late AnimationController _fadeController;
+  late Animation<double> _fadeAnimation;
+  String _appVersion = '';
+  late AnimationController _versionController;
+  late Animation<Offset> _versionOffset;
+  final Connectivity _connectivity = Connectivity();
+  bool _isOnline = true;
+  StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAppVersion();
+    _startConnectivityListener();
+
+    _versionController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    );
+
+    _versionOffset = Tween<Offset>(
+      begin: const Offset(0, 0.3),
+      end: Offset.zero,
+    ).animate(
+      CurvedAnimation(parent: _versionController, curve: Curves.easeOut),
+    );
+
+    _versionController.forward();
+
+    _fadeController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 2),
+    );
+
+    _fadeAnimation = Tween<double>(begin: 0, end: 1).animate(_fadeController);
+
+    _fadeController.forward();
+
+    _fadeController.addStatusListener((status) async {
+      if (status == AnimationStatus.completed) {
+        await Future.delayed(const Duration(seconds: 1));
+        _checkUserAndStartApp();
+      }
+    });
+  }
+
+  // الاستماع لتغيرات حالة الاتصال - الإصلاح هنا
+  void _startConnectivityListener() {
+    _connectivitySubscription = _connectivity.onConnectivityChanged.listen(
+      (List<ConnectivityResult> results) {
+        final isOnline = results.any((result) => result != ConnectivityResult.none);
+        
+        setState(() {
+          _isOnline = isOnline;
+        });
+        
+        // إظهار/إخفاء شريط حالة الاتصال
+        if (!_isOnline && mounted) {
+          _showOfflineWarning();
+        } else if (mounted) {
+          // إخفاء الشريط عند عودة الاتصال
+          ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        }
+      },
+    );
+  }
+
+  void _showOfflineWarning() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('no_internet_warning'.tr()),
+          backgroundColor: Colors.orange,
+          duration: const Duration(hours: 1),
+          action: SnackBarAction(
+            label: 'dismiss'.tr(),
+            textColor: Colors.white,
+            onPressed: () {
+              ScaffoldMessenger.of(context).hideCurrentSnackBar();
+            },
+          ),
+        ),
+      );
+    });
+  }
+
+  Future<void> _loadAppVersion() async {
+    final info = await PackageInfo.fromPlatform();
+    setState(() {
+      _appVersion = 'v${info.version}.${info.buildNumber}';
+    });
+  }
+
+  // التحقق من وجود بيانات المستخدم في Hive
+  Future<bool> _checkUserExistsInHive() async {
+    try {
+      final userData = await UserLocalStorage.getUser();
+      debugPrint('Hive user check - Data: $userData');
+      return userData != null && userData['userId'] != null;
+    } catch (e) {
+      debugPrint('Error checking Hive user data: $e');
+      return false;
+    }
+  }
+
+  // التحقق من وجود ترخيص في Hive باستخدام HiveService
+  Future<bool> _checkLicenseInHive() async {
+    try {
+      final licenseKey = await HiveService.getLicense();
+      debugPrint('Hive license check - Key: $licenseKey');
+      
+      if (licenseKey != null && licenseKey.isNotEmpty) {
+        return _validateLicenseFormat(licenseKey);
+      }
+      
+      return false;
+    } catch (e) {
+      debugPrint('Error checking Hive license: $e');
+      return false;
+    }
+  }
+
+  // دالة مساعدة للتحقق من تنسيق الترخيص
+  bool _validateLicenseFormat(String licenseKey) {
+    return licenseKey.startsWith('LIC-') && licenseKey.length > 10;
+  }
+
+  // التحقق من الاتصال بالإنترنت - الإصلاح هنا
+  Future<bool> _checkInternetConnection() async {
+    try {
+      final connectivityResult = await _connectivity.checkConnectivity();
+      final isOnline = connectivityResult.any((result) => result != ConnectivityResult.none);
+
+      setState(() {
+        _isOnline = isOnline;
+      });
+      
+      if (!isOnline) {
+        _showOfflineWarning();
+      }
+      
+      return isOnline;
+    } catch (e) {
+      debugPrint('Error checking internet connection: $e');
+      return false;
+    }
+  }
+
+  // الدالة الرئيسية المعدلة
+  Future<void> _checkUserAndStartApp() async {
+    try {
+      // التحقق أولاً من وجود بيانات المستخدم في Hive
+      final hasUserInHive = await _checkUserExistsInHive();
+      final hasLicenseInHive = await _checkLicenseInHive();
+
+      debugPrint('''
+      Local Data Check:
+      - User in Hive: $hasUserInHive
+      - License in Hive: $hasLicenseInHive
+      ''');
+
+      if (!hasUserInHive) {
+        debugPrint('No user data in Hive, redirecting to login');
+        if (mounted) context.go('/login');
+        return;
+      }
+
+      // إذا كان هناك مستخدم وترخيص في Hive، انتقل مباشرة إلى Dashboard
+      if (hasUserInHive && hasLicenseInHive) {
+        debugPrint('Valid local data found, proceeding to dashboard');
+        if (mounted) context.go('/dashboard');
+        return;
+      }
+
+      // إذا كان هناك مستخدم ولكن لا يوجد ترخيص في Hive، تحقق من الإنترنت
+      final hasInternet = await _checkInternetConnection();
+
+      if (hasInternet) {
+        debugPrint('Internet available, checking online subscription...');
+        final subscriptionService = UserSubscriptionService();
+        final result = await subscriptionService.checkUserSubscription();
+
+        if (!mounted) return;
+
+        debugPrint('''
+        Online Subscription Check:
+        - isValid: ${result.isValid}
+        - isExpired: ${result.isExpired}
+        - Time Left: ${result.timeLeftFormatted}
+        ''');
+
+        if (result.isValid && !result.isExpired) {
+          // حفظ الترخيص في Hive للاستخدام المستقبلي
+          if (result.expiryDate != null) {
+            await _saveLicenseToHive(result);
+          }
+          
+          if (result.isExpiringSoon && mounted) {
+            SubscriptionNotifier.showWarning(
+              context,
+              timeLeft: result.timeLeftFormatted ?? '',
+            );
+          }
+
+          if (mounted) context.go('/dashboard');
+        } else {
+          debugPrint('Invalid or expired subscription, redirecting to license request');
+          if (mounted) context.go('/license/request');
+        }
+      } else {
+        // لا يوجد اتصال ولكن هناك مستخدم - انتقل إلى Dashboard في الوضع المحدود
+        debugPrint('No internet but user exists, proceeding to dashboard in limited mode');
+        if (mounted) context.go('/dashboard');
+        
+        // إظهار تحذير أن التطبيق يعمل بدون اتصال
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('offline_mode_warning'.tr()),
+              backgroundColor: Colors.blue,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        });
+      }
+    } catch (e) {
+      debugPrint('Error in _checkUserAndStartApp: $e');
+      
+      // في حالة الخطأ، حاول الذهاب إلى Dashboard إذا كان هناك مستخدم في Hive
+      final hasUserInHive = await _checkUserExistsInHive();
+      if (hasUserInHive && mounted) {
+        debugPrint('Error occurred but user exists in Hive, proceeding to dashboard');
+        context.go('/dashboard');
+      } else if (mounted) {
+        context.go('/login');
+      }
+    }
+  }
+
+  // حفظ الترخيص في Hive
+  Future<void> _saveLicenseToHive(SubscriptionResult result) async {
+    try {
+      if (result.expiryDate != null) {
+        final licenseInfo = 'LIC-${result.expiryDate!.millisecondsSinceEpoch}';
+        await HiveService.saveLicense(licenseInfo);
+        debugPrint('License data saved to Hive: $licenseInfo');
+      }
+    } catch (e) {
+      debugPrint('Error saving license to Hive: $e');
+    }
+  }
+
+  @override
+  void dispose() {
+    _fadeController.dispose();
+    _versionController.dispose();
+    _connectivitySubscription?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.white,
+      body: Stack(
+        children: [
+          FadeTransition(
+            opacity: _fadeAnimation,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Expanded(
+                  child: Center(
+                    child: Image.asset(
+                      'assets/images/splash_screen.jpg',
+                      width: 200,
+                      height: 200,
+                      fit: BoxFit.contain,
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 24),
+                  child: Column(
+                    children: [
+                      const Text(
+                        'Ahmed Tharwat tech.',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        'ALL RIGHTS ARE RESERVED',
+                        style: TextStyle(
+                          color: Colors.grey,
+                          fontWeight: FontWeight.w500,
+                          fontSize: 12,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      SlideTransition(
+                        position: _versionOffset,
+                        child: AnimatedOpacity(
+                          opacity: _appVersion.isNotEmpty ? 1.0 : 0.0,
+                          duration: const Duration(milliseconds: 500),
+                          child: Text(
+                            _appVersion,
+                            style: const TextStyle(
+                              color: Colors.black,
+                              fontWeight: FontWeight.w400,
+                              fontSize: 15,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          
+          // شريط حالة الاتصال في الأعلى
+          if (!_isOnline)
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: Container(
+                padding: const EdgeInsets.all(8),
+                color: Colors.orange,
+                child: Row(
+                  children: [
+                    const Icon(Icons.wifi_off, color: Colors.white, size: 16),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'no_internet_warning'.tr(),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/* import 'dart:async';
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:puresip_purchasing/services/subscription_notifier.dart';
 import 'package:puresip_purchasing/services/user_subscription_service.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:puresip_purchasing/utils/user_local_storage.dart';
@@ -24,7 +398,7 @@ class _SplashScreenState extends State<SplashScreen>
   void initState() {
     super.initState();
     _loadAppVersion();
-    
+
     _versionController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 800),
@@ -67,9 +441,9 @@ class _SplashScreenState extends State<SplashScreen>
   Future<bool> _checkUserExists() async {
     try {
       final userId = await UserLocalStorage.getUserId();
-      
+
       debugPrint('User check - ID: $userId');
-      
+
       // إذا لم يكن هناك معرف مستخدم، يعتبر غير مسجل
       return userId != null && userId.isNotEmpty;
     } catch (e) {
@@ -83,17 +457,17 @@ class _SplashScreenState extends State<SplashScreen>
     try {
       // التحقق أولاً من وجود بيانات المستخدم
       final userExists = await _checkUserExists();
-      
+
       if (!mounted) return;
-      
+
       if (!userExists) {
         debugPrint('No user data found, redirecting to login');
         context.go('/login');
         return;
       }
-      
+
       debugPrint('User data found, checking subscription...');
-      
+
       // إذا كان المستخدم موجوداً، التحقق من الاشتراك
       final subscriptionService = UserSubscriptionService();
       final result = await subscriptionService.checkUserSubscription();
@@ -104,7 +478,7 @@ class _SplashScreenState extends State<SplashScreen>
       Subscription Check Results:
       - isValid: ${result.isValid}
       - isExpired: ${result.isExpired}
-      - Days Left: ${result.daysLeft}
+      - Days Left: ${result.timeLeftFormatted}
     ''');
 
       if (!result.isValid || result.isExpired) {
@@ -120,12 +494,12 @@ class _SplashScreenState extends State<SplashScreen>
         return;
       }
 
-      if (result.daysLeft <= 30) {
+      if (result.isExpiringSoon) {
         if (!mounted) return;
-        // SubscriptionNotifier.showWarning(
-        //   context,
-        //   daysLeft: result.daysLeft,
-        // );
+        SubscriptionNotifier.showWarning(
+          context,
+          timeLeft: result.timeLeftFormatted ?? '',
+        );
       }
 
       if (!mounted) return;
@@ -136,7 +510,7 @@ class _SplashScreenState extends State<SplashScreen>
       context.go('/login');
     }
   }
- 
+
   @override
   void dispose() {
     _fadeController.dispose();
@@ -204,7 +578,7 @@ class _SplashScreenState extends State<SplashScreen>
       ),
     );
   }
-}
+} */
 
 /* import 'dart:async';
 import 'package:flutter/material.dart';

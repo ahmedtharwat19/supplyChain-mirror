@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/services.dart';
+import 'package:puresip_purchasing/utils/user_local_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:puresip_purchasing/widgets/app_scaffold.dart';
 //import 'package:flutter/system.dart';
@@ -51,17 +52,46 @@ class _StockMovementsPageState extends State<StockMovementsPage> {
   pw.Font? _cachedCairoRegular;
   pw.Font? _cachedCairoBold;
 
-  @override
-  void initState() {
-    super.initState();
-    _initializePage();
-    _loadUserCompaniesFromFirestore();
-    _loadUserCompanyIds();
+@override
+void initState() {
+  super.initState();
+  _initializePage();
+  _loadUserCompaniesFromFirestore();
+  _loadUserCompanyIds();
 
-    final now = DateTime.now();
-    startDate = DateTime(now.year, now.month, now.day - 30);
-    endDate = now;
+  final now = DateTime.now();
+  startDate = DateTime(now.year, now.month, now.day - 30);
+  endDate = now;
+
+  // التحميل المسبق للبيانات
+  _preloadData();
+}
+
+Future<void> _preloadData() async {
+  try {
+    // تحميل أسماء العناصر مسبقاً
+    await _loadItemNames();
+    
+    // تحميل الشركات والمصانع مسبقاً
+    if (userCompanyIds.isNotEmpty) {
+      await _loadCompaniesWithMovements();
+      if (selectedCompanyId != null) {
+        await _loadFactoriesWithMovements();
+        if (selectedFactoryId != null) {
+          await _loadItemsWithMovements();
+          await _loadInventory();
+        }
+      }
+    }
+    
+    setState(() => isLoading = false);
+  } catch (e) {
+    debugPrint('[ERROR] Preloading data failed: $e');
+    setState(() => isLoading = false);
   }
+}
+
+
 
   // دالة لتحميل خط Cairo Regular
   Future<pw.Font> _loadCairoRegular() async {
@@ -122,6 +152,7 @@ class _StockMovementsPageState extends State<StockMovementsPage> {
   }
 
   Future<void> _initializePage() async {
+   // updateAllStockMovements;
     debugPrint('[DEBUG] Starting _initializePage');
 
     final prefs = await SharedPreferences.getInstance();
@@ -263,7 +294,7 @@ class _StockMovementsPageState extends State<StockMovementsPage> {
 
       for (final factoryDoc in facSnaps.docs) {
         final factoryId = factoryDoc.id;
-        
+
         // التحقق من وجود حركات لهذا المصنع في الشركة المحددة
         final movementsSnapshot = await FirebaseFirestore.instance
             .collection('companies')
@@ -334,8 +365,9 @@ class _StockMovementsPageState extends State<StockMovementsPage> {
 
           if (itemDoc.exists) {
             final itemData = itemDoc.data()!;
-            final itemCategory = itemData['category']?.toString() ?? 'raw_material';
-            
+            final itemCategory =
+                itemData['category']?.toString() ?? 'raw_material';
+
             itemsWithMovements.add({
               'id': itemId,
               'nameAr': itemData['nameAr'] ?? itemId,
@@ -368,7 +400,9 @@ class _StockMovementsPageState extends State<StockMovementsPage> {
       });
     } else {
       setState(() {
-        items = allItems.where((item) => item['category'] == selectedCategory).toList();
+        items = allItems
+            .where((item) => item['category'] == selectedCategory)
+            .toList();
       });
     }
 
@@ -417,9 +451,21 @@ class _StockMovementsPageState extends State<StockMovementsPage> {
     }
   }
 
-  Future<void> _loadItemNames() async {
-    final itemsSnap =
-        await FirebaseFirestore.instance.collection('items').get();
+Future<void> _loadItemNames() async {
+  try {
+    // استخدام التخزين المؤقت لتجنب إعادة التحميل
+    final cachedNames = await UserLocalStorage.getItemNames();
+    if (cachedNames.isNotEmpty) {
+      setState(() {
+        itemNames = cachedNames;
+      });
+      return;
+    }
+
+    final itemsSnap = await FirebaseFirestore.instance
+        .collection('items')
+        .get()
+        .timeout(const Duration(seconds: 30));
 
     final names = <String, String>{};
     for (var doc in itemsSnap.docs) {
@@ -428,240 +474,268 @@ class _StockMovementsPageState extends State<StockMovementsPage> {
           ? (data['nameAr'] ?? 'Unknown'.tr())
           : (data['nameEn'] ?? 'Unknown'.tr());
     }
+    
+    // حفظ في التخزين المؤقت
+    await UserLocalStorage.saveItemNames(names);
+    
     setState(() {
       itemNames = names;
     });
+  } catch (e) {
+    debugPrint('[ERROR] Loading item names: $e');
+    // استخدام البيانات المخزنة مؤقتاً إذا فشل التحميل
+    final cachedNames = await UserLocalStorage.getItemNames();
+    setState(() {
+      itemNames = cachedNames;
+    });
+  }
+}
+
+
+Widget _buildMovementsTable(List<QueryDocumentSnapshot> docs) {
+  // تجميع البيانات حسب المنتج
+  final Map<String, List<Map<String, dynamic>>> itemMovements = {};
+
+  for (var doc in docs) {
+    try {
+      final data = doc.data() as Map<String, dynamic>;
+      
+      final itemId = data['itemId']?.toString() ?? '';
+      final type = data['type']?.toString() ?? 'unknown';
+      
+      // تحويل الكمية إلى double بشكل آمن
+      double quantity = 0;
+      final quantityValue = data['quantity'];
+      if (quantityValue is int) {
+        quantity = quantityValue.toDouble();
+      } else if (quantityValue is double) {
+        quantity = quantityValue;
+      } else if (quantityValue is String) {
+        quantity = double.tryParse(quantityValue) ?? 0;
+      } else if (quantityValue is num) {
+        quantity = quantityValue.toDouble();
+      }
+      
+      final timestamp = data['date'] as Timestamp?;
+      final date = timestamp != null ? timestamp.toDate() : DateTime.now();
+
+      final movementInfo = MovementUtils.getMovementTypeInfo(type, quantity);
+
+      if (!itemMovements.containsKey(itemId)) {
+        itemMovements[itemId] = [];
+      }
+
+      // إضافة الحركة
+      itemMovements[itemId]!.add({
+        'date': date,
+        'type': type,
+        'in': movementInfo['in'],
+        'out': movementInfo['out'],
+        'type_text': movementInfo['type_text'],
+        'quantity': quantity,
+        'documentId': doc.id,
+      });
+    } catch (e) {
+      debugPrint('[ERROR] Processing movement: $e');
+    }
   }
 
-  Widget _buildMovementsTable(List<QueryDocumentSnapshot> docs) {
-    // تجميع البيانات حسب المنتج
-    final Map<String, List<Map<String, dynamic>>> itemMovements = {};
+  if (!mounted) {
+    return const SizedBox.shrink();
+  }
 
-    for (var doc in docs) {
-      try {
-        final data = doc.data() as Map<String, dynamic>;
-        
-        // استخدام itemId بدلاً من itemId (التصحيح الرئيسي)
-        final itemId = data['itemId']?.toString() ?? '';
-        final type = data['type']?.toString() ?? 'unknown';
-        
-        // تحويل الكمية إلى double بشكل آمن
-        double quantity = 0;
-        final quantityValue = data['quantity'];
-        if (quantityValue is int) {
-          quantity = quantityValue.toDouble();
-        } else if (quantityValue is double) {
-          quantity = quantityValue;
-        } else if (quantityValue is String) {
-          quantity = double.tryParse(quantityValue) ?? 0;
-        } else if (quantityValue is num) {
-          quantity = quantityValue.toDouble();
-        }
-        
-        final timestamp = data['date'] as Timestamp?;
-        final date = timestamp != null ? timestamp.toDate() : DateTime.now();
-
-        final movementInfo = MovementUtils.getMovementTypeInfo(type, quantity);
-
-        if (!itemMovements.containsKey(itemId)) {
-          itemMovements[itemId] = [];
-        }
-
-        // إضافة الحركة
-        itemMovements[itemId]!.add({
-          'date': date,
-          'type': type,
-          'in': movementInfo['in'],
-          'out': movementInfo['out'],
-          'type_text': movementInfo['type_text'],
-          'quantity': quantity,
-        });
-      } catch (e) {
-        debugPrint('[ERROR] Processing movement: $e');
-        // طباعة تفاصيل المستند للمساعدة في التصحيح
-        debugPrint('Document data: ${doc.data()}');
-        
-        // تحليل الخطأ بشكل أكثر تفصيلاً
-        if (e is TypeError) {
-          debugPrint('Type error details: ${e.toString()}');
-          final data = doc.data() as Map<String, dynamic>;
-          debugPrint('itemId type: ${data['itemId']?.runtimeType}');
-          debugPrint('type type: ${data['type']?.runtimeType}');
-          debugPrint('quantity type: ${data['quantity']?.runtimeType}');
-          debugPrint('date type: ${data['date']?.runtimeType}');
-        }
+  return ListView.builder(
+    itemCount: itemMovements.length,
+    itemBuilder: (context, index) {
+      if (!mounted) {
+        return const SizedBox.shrink();
       }
-    }
 
-    // إذا تم التخلص من الـ Widget، نرجع widget فارغ
-    if (!mounted) {
-      return const SizedBox.shrink();
-    }
+      final itemId = itemMovements.keys.elementAt(index);
+      final movements = itemMovements[itemId]!;
+      final itemName = itemNames[itemId] ?? 'Unknown Item'.tr();
+      final currentStock = itemStocks[itemId] ?? 0;
 
-    return ListView.builder(
-      itemCount: itemMovements.length,
-      itemBuilder: (context, index) {
-        // تحقق مرة أخرى في كل مرة يتم فيها بناء عنصر
-        if (!mounted) {
-          return const SizedBox.shrink();
-        }
+      // ترتيب الحركات من الأقدم إلى الأحدث لحساب الرصيد بشكل صحيح
+      movements.sort((a, b) => a['date'].compareTo(b['date']));
+      
+      // حساب الرصيد أول الفترة (من المخزون الحالي والحركات)
+      // يجب أن يكون حساب الرصيد أول المدة من البيانات التاريخية وليس المخزون الحالي
+      
+      // أولاً: حساب صافي الحركات خلال الفترة
+      double netMovement = 0;
+      for (var movement in movements) {
+        netMovement += movement['in'] - movement['out'];
+      }
+      
+      // الرصيد أول الفترة = الرصيد الحالي - صافي الحركات خلال الفترة
+      double openingBalance = currentStock - netMovement;
+      
+      double runningBalance = openingBalance;
+      final movementsWithBalance = [];
+      
+      for (var movement in movements) {
+        runningBalance = runningBalance + movement['in'] - movement['out'];
+        movementsWithBalance.add({
+          ...movement,
+          'balance': runningBalance,
+        });
+      }
+      
+      final closingBalance = runningBalance;
 
-        final itemId = itemMovements.keys.elementAt(index);
-        final movements = itemMovements[itemId]!;
-        final itemName = itemNames[itemId] ?? 'Unknown Item'.tr();
-        final currentStock = itemStocks[itemId] ?? 0;
+      // تطبيق الترتيب المطلوب (أحدث أولاً أو أقدم أولاً)
+      final displayMovements = sortOrder == 'desc' 
+          ? movementsWithBalance.reversed.toList()
+          : movementsWithBalance;
 
-        // إصلاح حساب الرصيد: يجب أن نبدأ من الصفر ونضيف الحركات بالترتيب الزمني
-        double runningBalance = 0;
-        final movementsWithBalance = [];
-        
-        // ترتيب الحركات من الأقدم إلى الأحدث لحساب الرصيد بشكل صحيح
-        movements.sort((a, b) => a['date'].compareTo(b['date']));
-        
-        for (var movement in movements) {
-          runningBalance = runningBalance + movement['in'] - movement['out'];
-          movementsWithBalance.add({
-            ...movement,
-            'balance': runningBalance,
-          });
-        }
-
-        // عكس القائمة لعرض الأحدث أولاً مع الحفاظ على الرصيد الصحيح
-        final reversedMovements = movementsWithBalance.reversed.toList();
-
-        return Card(
-          margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // عنوان المنتج والرصيد الحالي
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Flexible(
-                      child: Text(
-                        '${'item'.tr()}: $itemName',
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    Text(
-                      '${'current_balance'.tr()}: $currentStock',
+      return Card(
+        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // عنوان المنتج والرصيد الحالي
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Flexible(
+                    child: Text(
+                      '${'item'.tr()}: $itemName',
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
-                        color: Colors.blue,
+                        fontSize: 16,
                       ),
+                      overflow: TextOverflow.ellipsis,
                     ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-
-                // جدول الحركات مع تمرير مزدوج
-                SizedBox(
-                  height: 300, // ارتفاع ثابت للجدول
-                  child: Scrollbar(
-                    child: SingleChildScrollView(
-                      scrollDirection: Axis.vertical,
-                      child: SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: DataTable(
-                          columnSpacing: 16,
-                          dataRowMinHeight: 40,
-                          dataRowMaxHeight: 60,
-                          headingRowHeight: 40,
-                          columns: [
-                            const DataColumn(
-                                label: Text('#',
-                                    style: TextStyle(fontWeight: FontWeight.bold)),
-                                numeric: true),
-                            DataColumn(
-                              label: Text('date'.tr(),
-                                  style: const TextStyle(fontWeight: FontWeight.bold)),
-                              tooltip: 'movement_date'.tr(),
-                            ),
-                            DataColumn(
-                              label: Text('movement_type'.tr(),
-                                  style: const TextStyle(fontWeight: FontWeight.bold)),
-                              tooltip: 'type_of_movement'.tr(),
-                            ),
-                            DataColumn(
-                                label: Text('in'.tr(),
-                                    style: const TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.green)),
-                                numeric: true,
-                                tooltip: 'quantity_in'.tr()),
-                            DataColumn(
-                                label: Text('out'.tr(),
-                                    style: const TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.red)),
-                                numeric: true,
-                                tooltip: 'quantity_out'.tr()),
-                            DataColumn(
-                                label: Text('balance'.tr(),
-                                    style: const TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.blue)),
-                                numeric: true,
-                                tooltip: 'running_balance'.tr()),
-                          ],
-                          rows: List<DataRow>.generate(reversedMovements.length, (index) {
-                            final movement = reversedMovements[index];
-                            return DataRow(
-                              cells: [
-                                DataCell(Text((index + 1).toString())),
-                                DataCell(Text(_formatDate(movement['date']))),
-                                DataCell(Text(movement['type_text'])),
-                                DataCell(Text(
-                                  movement['in'] > 0
-                                      ? movement['in'].toStringAsFixed(2)
-                                      : '-',
-                                  style: TextStyle(
-                                    color: movement['in'] > 0
-                                        ? Colors.green
-                                        : Colors.grey,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                )),
-                                DataCell(Text(
-                                  movement['out'] > 0
-                                      ? movement['out'].toStringAsFixed(2)
-                                      : '-',
-                                  style: TextStyle(
-                                    color: movement['out'] > 0
-                                        ? Colors.red
-                                        : Colors.grey,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                )),
-                                DataCell(Text(
-                                  movement['balance'].toStringAsFixed(2),
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.blue,
-                                  ),
-                                )),
-                              ],
-                            );
-                          }),
+                  ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        '${'opening_balance'.tr()}: ${openingBalance.toStringAsFixed(2)}',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: openingBalance >= 0 ? Colors.blue : Colors.red,
                         ),
+                      ),
+                      Text(
+                        '${'closing_balance'.tr()}: ${closingBalance.toStringAsFixed(2)}',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: closingBalance >= 0 ? Colors.green : Colors.red,
+                        ),
+                      ),
+                      Text(
+                        '${'current_stock'.tr()}: ${currentStock.toStringAsFixed(2)}',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.orange,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+
+              // جدول الحركات مع تمرير مزدوج
+              SizedBox(
+                height: 300,
+                child: Scrollbar(
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.vertical,
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: DataTable(
+                        columnSpacing: 16,
+                        dataRowMinHeight: 40,
+                        dataRowMaxHeight: 60,
+                        headingRowHeight: 40,
+                        columns: [
+                          const DataColumn(
+                              label: Text('#',
+                                  style: TextStyle(fontWeight: FontWeight.bold)),
+                              numeric: true),
+                          DataColumn(
+                            label: Text('date'.tr(),
+                                style: const TextStyle(fontWeight: FontWeight.bold)),
+                          ),
+                          DataColumn(
+                            label: Text('movement_type'.tr(),
+                                style: const TextStyle(fontWeight: FontWeight.bold)),
+                          ),
+                          DataColumn(
+                              label: Text('in'.tr(),
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.green)),
+                              numeric: true),
+                          DataColumn(
+                              label: Text('out'.tr(),
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.red)),
+                              numeric: true),
+                          DataColumn(
+                              label: Text('balance'.tr(),
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.blue)),
+                              numeric: true),
+                        ],
+                        rows: List<DataRow>.generate(displayMovements.length, (index) {
+                          final movement = displayMovements[index];
+                          return DataRow(
+                            cells: [
+                              DataCell(Text((index + 1).toString())),
+                              DataCell(Text(_formatDate(movement['date']))),
+                              DataCell(Text(movement['type_text'])),
+                              DataCell(Text(
+                                movement['in'] > 0
+                                    ? movement['in'].toStringAsFixed(2)
+                                    : '-',
+                                style: TextStyle(
+                                  color: movement['in'] > 0
+                                      ? Colors.green
+                                      : Colors.grey,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              )),
+                              DataCell(Text(
+                                movement['out'] > 0
+                                    ? movement['out'].toStringAsFixed(2)
+                                    : '-',
+                                style: TextStyle(
+                                  color: movement['out'] > 0
+                                      ? Colors.red
+                                      : Colors.grey,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              )),
+                              DataCell(Text(
+                                movement['balance'].toStringAsFixed(2),
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: movement['balance'] >= 0 ? Colors.blue : Colors.red,
+                                ),
+                              )),
+                            ],
+                          );
+                        }),
                       ),
                     ),
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-        );
-      },
-    );
-  }
+        ),
+      );
+    },
+  );
+}
 
   Query<Map<String, dynamic>> _buildMovementsQuery() {
     if (selectedCompanyId == null || selectedFactoryId == null) {
@@ -751,8 +825,8 @@ class _StockMovementsPageState extends State<StockMovementsPage> {
                   if (selectedCategory != null)
                     _buildPdfInfoRow(
                         'category'.tr(),
-                        selectedCategory == 'raw_material' 
-                            ? 'raw_materials'.tr() 
+                        selectedCategory == 'raw_material'
+                            ? 'raw_materials'.tr()
                             : 'packaging'.tr(),
                         cairoRegular),
                   _buildPdfInfoRow('generated_on'.tr(),
@@ -793,160 +867,219 @@ class _StockMovementsPageState extends State<StockMovementsPage> {
     }
   }
 
+
   pw.Widget _buildPdfTable(
-      List<QueryDocumentSnapshot> docs, pw.Font regularFont, pw.Font boldFont) {
-    // تجميع الحركات حسب المنتج
-    final Map<String, List<Map<String, dynamic>>> itemMovements = {};
+    List<QueryDocumentSnapshot> docs, pw.Font regularFont, pw.Font boldFont) {
+  // تجميع الحركات حسب المنتج مع حساب الرصيد
+  final Map<String, Map<String, dynamic>> itemMovementsData = {};
 
-    for (var doc in docs) {
-      try {
-        final docData = doc.data() as Map<String, dynamic>;
-        final itemId = docData['itemId']?.toString() ?? '';
-        final type = docData['type']?.toString() ?? 'unknown';
-        final movementInfo = MovementUtils.getMovementTypeInfo(
-            type, (docData['quantity'] ?? 0) as double);
-        final timestamp = docData['date'] as Timestamp?;
-        final date = timestamp != null ? _formatDate(timestamp.toDate()) : '';
-
-        if (!itemMovements.containsKey(itemId)) {
-          itemMovements[itemId] = [];
-        }
-
-        itemMovements[itemId]!.add({
-          'date': date,
-          'type': type,
-          'in': movementInfo['in'],
-          'out': movementInfo['out'],
-          'type_text': movementInfo['type_text'],
-        });
-      } catch (e) {
-        debugPrint('[ERROR] Building PDF table: $e');
+  for (var doc in docs) {
+    try {
+      final docData = doc.data() as Map<String, dynamic>;
+      final itemId = docData['itemId']?.toString() ?? '';
+      final type = docData['type']?.toString() ?? 'unknown';
+      
+      double quantity = 0;
+      final quantityValue = docData['quantity'];
+      if (quantityValue is int) {
+        quantity = quantityValue.toDouble();
+      } else if (quantityValue is double) {
+        quantity = quantityValue;
+      } else if (quantityValue is String) {
+        quantity = double.tryParse(quantityValue) ?? 0;
       }
-    }
+      
+      final movementInfo = MovementUtils.getMovementTypeInfo(type, quantity);
+      final timestamp = docData['date'] as Timestamp?;
+      final date = timestamp != null ? _formatDate(timestamp.toDate()) : '';
 
-    return pw.Column(
-      children: [
-        for (final itemId in itemMovements.keys)
-          pw.Column(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
-            children: [
-              // عنوان المنتج
-              pw.Padding(
-                padding: const pw.EdgeInsets.only(bottom: 8),
-                child: pw.Text(
-                  '${'item'.tr()}: ${itemNames[itemId] ?? 'Unknown'}',
+      if (!itemMovementsData.containsKey(itemId)) {
+        itemMovementsData[itemId] = {
+          'name': itemNames[itemId] ?? 'Unknown',
+          'movements': [],
+          'currentStock': itemStocks[itemId] ?? 0,
+        };
+      }
+
+      itemMovementsData[itemId]!['movements']!.add({
+        'date': date,
+        'type': type,
+        'in': movementInfo['in'],
+        'out': movementInfo['out'],
+        'type_text': movementInfo['type_text'],
+        'quantity': quantity,
+      });
+    } catch (e) {
+      debugPrint('[ERROR] Building PDF table: $e');
+    }
+  }
+
+  // حساب الأرصدة لكل منتج
+  for (final itemId in itemMovementsData.keys) {
+    final movements = itemMovementsData[itemId]!['movements'] as List;
+    final currentStock = itemMovementsData[itemId]!['currentStock'] as double;
+    
+    // حساب صافي الحركات خلال الفترة
+    double netMovement = 0;
+    for (var movement in movements) {
+      netMovement += movement['in'] - movement['out'];
+    }
+    
+    // الرصيد أول الفترة = الرصيد الحالي - صافي الحركات خلال الفترة
+    double openingBalance = currentStock - netMovement;
+    
+    // حساب الرصيد آخر الفترة
+    double runningBalance = openingBalance;
+    for (var movement in movements) {
+      runningBalance = runningBalance + movement['in'] - movement['out'];
+      movement['balance'] = runningBalance;
+    }
+    
+    itemMovementsData[itemId]!['openingBalance'] = openingBalance;
+    itemMovementsData[itemId]!['closingBalance'] = runningBalance;
+  }
+
+  return pw.Column(
+    children: [
+      for (final itemId in itemMovementsData.keys)
+        pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            // عنوان المنتج والأرصدة
+            pw.Row(
+              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+              children: [
+                pw.Text(
+                  '${'item'.tr()}: ${itemMovementsData[itemId]!['name']}',
                   style: pw.TextStyle(
                     fontWeight: pw.FontWeight.bold,
                     fontSize: 14,
                     font: boldFont,
                   ),
                 ),
-              ),
-
-              // جدول الحركات لهذا المنتج
-              pw.Table(
-                border: const pw.TableBorder(
-                  left: pw.BorderSide(),
-                  right: pw.BorderSide(),
-                  top: pw.BorderSide(),
-                  bottom: pw.BorderSide(),
-                  horizontalInside: pw.BorderSide(),
-                  verticalInside: pw.BorderSide(),
+                pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.end,
+                  children: [
+                    pw.Text(
+                      '${'opening_balance'.tr()}: ${itemMovementsData[itemId]!['openingBalance'].toStringAsFixed(2)}',
+                      style: pw.TextStyle(
+                        fontWeight: pw.FontWeight.bold,
+                        fontSize: 10,
+                        font: boldFont,
+                        color: (itemMovementsData[itemId]!['openingBalance'] as double) >= 0 
+                            ? PdfColors.blue 
+                            : PdfColors.red,
+                      ),
+                    ),
+                    pw.Text(
+                      '${'closing_balance'.tr()}: ${itemMovementsData[itemId]!['closingBalance'].toStringAsFixed(2)}',
+                      style: pw.TextStyle(
+                        fontWeight: pw.FontWeight.bold,
+                        fontSize: 10,
+                        font: boldFont,
+                        color: (itemMovementsData[itemId]!['closingBalance'] as double) >= 0 
+                            ? PdfColors.green 
+                            : PdfColors.red,
+                      ),
+                    ),
+                    pw.Text(
+                      '${'current_stock'.tr()}: ${itemMovementsData[itemId]!['currentStock'].toStringAsFixed(2)}',
+                      style: pw.TextStyle(
+                        fontWeight: pw.FontWeight.bold,
+                        fontSize: 10,
+                        font: boldFont,
+                        color: PdfColors.orange,
+                      ),
+                    ),
+                  ],
                 ),
-                columnWidths: _isArabic
-                    ? {
-                        0: const pw.FlexColumnWidth(1.5),
-                        1: const pw.FlexColumnWidth(1),
-                        2: const pw.FlexColumnWidth(1),
-                        3: const pw.FlexColumnWidth(1),
-                        4: const pw.FlexColumnWidth(1),
-                        5: const pw.FlexColumnWidth(0.5),
-                      }
-                    : {
-                        0: const pw.FlexColumnWidth(0.5),
-                        1: const pw.FlexColumnWidth(1),
-                        2: const pw.FlexColumnWidth(1),
-                        3: const pw.FlexColumnWidth(1),
-                        4: const pw.FlexColumnWidth(1),
-                        5: const pw.FlexColumnWidth(1.5),
-                      },
-                children: [
-                  // رأس الجدول
-                  pw.TableRow(
-                    decoration:
-                        const pw.BoxDecoration(color: PdfColors.grey200),
-                    children: _isArabic
-                        ? [
-                            _buildPdfHeaderCell('balance'.tr(), boldFont),
-                            _buildPdfHeaderCell('out'.tr(), boldFont),
-                            _buildPdfHeaderCell('in'.tr(), boldFont),
-                            _buildPdfHeaderCell('movement_type'.tr(), boldFont),
-                            _buildPdfHeaderCell('date'.tr(), boldFont),
-                            _buildPdfHeaderCell('#', boldFont),
-                          ]
-                        : [
-                            _buildPdfHeaderCell('#', boldFont),
-                            _buildPdfHeaderCell('date'.tr(), boldFont),
-                            _buildPdfHeaderCell('movement_type'.tr(), boldFont),
-                            _buildPdfHeaderCell('in'.tr(), boldFont),
-                            _buildPdfHeaderCell('out'.tr(), boldFont),
-                            _buildPdfHeaderCell('balance'.tr(), boldFont),
-                          ],
-                  ),
-                  // بيانات الجدول
-                  ..._buildItemTableRows(
-                      itemMovements[itemId]!, regularFont),
-                ],
+              ],
+            ),
+            pw.SizedBox(height: 8),
+
+            // جدول الحركات لهذا المنتج
+            pw.Table(
+              border: const pw.TableBorder(
+                left: pw.BorderSide(),
+                right: pw.BorderSide(),
+                top: pw.BorderSide(),
+                bottom: pw.BorderSide(),
+                horizontalInside: pw.BorderSide(),
+                verticalInside: pw.BorderSide(),
               ),
-              pw.SizedBox(height: 16),
-            ],
+              columnWidths: {
+                0: const pw.FlexColumnWidth(0.5),
+                1: const pw.FlexColumnWidth(1),
+                2: const pw.FlexColumnWidth(1.2),
+                3: const pw.FlexColumnWidth(1),
+                4: const pw.FlexColumnWidth(1),
+                5: const pw.FlexColumnWidth(1.2),
+              },
+              children: [
+                // رأس الجدول
+                pw.TableRow(
+                  decoration: const pw.BoxDecoration(color: PdfColors.grey200),
+                  children: [
+                    _buildPdfHeaderCell('#', boldFont),
+                    _buildPdfHeaderCell('date'.tr(), boldFont),
+                    _buildPdfHeaderCell('movement_type'.tr(), boldFont),
+                    _buildPdfHeaderCell('in'.tr(), boldFont),
+                    _buildPdfHeaderCell('out'.tr(), boldFont),
+                    _buildPdfHeaderCell('balance'.tr(), boldFont),
+                  ],
+                ),
+                // بيانات الجدول
+                ..._buildItemTableRows(
+                    (itemMovementsData[itemId]!['movements'] as List).cast<Map<String, dynamic>>(), regularFont),
+              ],
+            ),
+            pw.SizedBox(height: 16),
+          ],
+        ),
+    ],
+  );
+}
+
+
+List<pw.TableRow> _buildItemTableRows(
+    List<Map<String, dynamic>> movements, pw.Font font) {
+  final List<pw.TableRow> rows = [];
+
+  // ترتيب الحركات حسب التاريخ
+  movements.sort((a, b) => a['date'].compareTo(b['date']));
+
+  int index = 1;
+  for (final movement in movements) {
+    final balance = movement['balance'] as double;
+    
+    rows.add(
+      pw.TableRow(
+        children: [
+          _buildPdfDataCell((index++).toString(), font),
+          _buildPdfDataCell(movement['date'], font),
+          _buildPdfDataCell(movement['type_text'], font),
+          _buildPdfDataCell(
+            movement['in'] > 0 ? movement['in'].toStringAsFixed(2) : '-', 
+            font,
+            color: movement['in'] > 0 ? PdfColors.green : PdfColors.grey
           ),
-      ],
+          _buildPdfDataCell(
+            movement['out'] > 0 ? movement['out'].toStringAsFixed(2) : '-', 
+            font,
+            color: movement['out'] > 0 ? PdfColors.red : PdfColors.grey
+          ),
+          _buildPdfDataCell(
+            balance.toStringAsFixed(2), 
+            font,
+            color: balance >= 0 ? PdfColors.blue : PdfColors.red
+          ),
+        ],
+      ),
     );
   }
 
-  List<pw.TableRow> _buildItemTableRows(
-      List<Map<String, dynamic>> movements, pw.Font font) {
-    final List<pw.TableRow> rows = [];
-
-    // حساب الرصيد التدريجي
-    double runningBalance = 0;
-    final movementsWithBalance = movements.map((movement) {
-      runningBalance =
-          (runningBalance - movement['out'] + movement['in']).toDouble();
-      return {
-        ...movement,
-        'balance': runningBalance,
-      };
-    }).toList();
-
-    int index = 1;
-    for (final movement in movementsWithBalance) {
-      rows.add(
-        pw.TableRow(
-          children: _isArabic
-              ? [
-                  _buildPdfDataCell(movement['balance'].toString(), font),
-                  _buildPdfDataCell(movement['out'].toString(), font),
-                  _buildPdfDataCell(movement['in'].toString(), font),
-                  _buildPdfDataCell(movement['type_text'], font),
-                  _buildPdfDataCell(movement['date'], font),
-                  _buildPdfDataCell((index++).toString(), font),
-                ]
-              : [
-                  _buildPdfDataCell((index++).toString(), font),
-                  _buildPdfDataCell(movement['date'], font),
-                  _buildPdfDataCell(movement['type_text'], font),
-                  _buildPdfDataCell(movement['in'].toString(), font),
-                  _buildPdfDataCell(movement['out'].toString(), font),
-                  _buildPdfDataCell(movement['balance'].toString(), font),
-                ],
-        ),
-      );
-    }
-
-    return rows;
-  }
+  return rows;
+}
 
   pw.Widget _buildPdfInfoRow(String label, String value, pw.Font font) {
     return pw.Row(
@@ -976,16 +1109,20 @@ class _StockMovementsPageState extends State<StockMovementsPage> {
   }
 
   pw.Padding _buildPdfDataCell(String text, pw.Font font,
-      {pw.TextAlign align = pw.TextAlign.center}) {
-    return pw.Padding(
-      padding: const pw.EdgeInsets.all(6),
-      child: pw.Text(
-        text,
-        style: pw.TextStyle(fontSize: 9, font: font),
-        textAlign: align,
+    {pw.TextAlign align = pw.TextAlign.center, PdfColor? color}) {
+  return pw.Padding(
+    padding: const pw.EdgeInsets.all(6),
+    child: pw.Text(
+      text,
+      style: pw.TextStyle(
+        fontSize: 9, 
+        font: font,
+        color: color,
       ),
-    );
-  }
+      textAlign: align,
+    ),
+  );
+}
 
   Future<void> _saveAndSharePdf(pw.Document pdf, String fileName) async {
     try {
@@ -1023,6 +1160,35 @@ class _StockMovementsPageState extends State<StockMovementsPage> {
     }
   }
 
+
+
+/* Future<void> updateAllStockMovements() async {
+  final FirebaseFirestore firestore = FirebaseFirestore.instance;
+
+  final String companyId = selectedCompanyId!; // ID الشركة
+  final CollectionReference stockMovementsRef = firestore
+      .collection('companies')
+      .doc(companyId)
+      .collection('stock_movements');
+
+  try {
+    final QuerySnapshot snapshot = await stockMovementsRef.get();
+
+    for (final DocumentSnapshot doc in snapshot.docs) {
+      await doc.reference.update({
+        'batchId': 'batch_xyz',
+        'isSynced': true,
+        'newBalance': 120,
+        'previousBalance': 0,
+      });
+    }
+
+    debugPrint('تم تحديث جميع الوثائق بنجاح.');
+  } catch (e) {
+    debugPrint('حدث خطأ أثناء التحديث: $e');
+  }
+}
+ */
   Future<void> _selectDate(BuildContext context, bool isStartDate) async {
     final DateTime? picked = await showDatePicker(
       context: context,
@@ -1044,11 +1210,20 @@ class _StockMovementsPageState extends State<StockMovementsPage> {
 
   @override
   Widget build(BuildContext context) {
-    if (isLoading) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
-    }
+  if (isLoading) {
+    return Scaffold(
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const CircularProgressIndicator(),
+            const SizedBox(height: 16),
+            Text('loading_data'.tr()),
+          ],
+        ),
+      ),
+    );
+  }
     if (userCompanyIds.isEmpty) {
       return Scaffold(
         appBar: AppBar(title: Text('stock_movements'.tr())),
@@ -1099,6 +1274,7 @@ class _StockMovementsPageState extends State<StockMovementsPage> {
                         allItems = [];
                       });
                       if (val != null) await _loadFactoriesWithMovements();
+                  //    updateAllStockMovements();
                     },
                   ),
                 ),
@@ -1123,7 +1299,7 @@ class _StockMovementsPageState extends State<StockMovementsPage> {
               ],
             ),
             const SizedBox(height: 8),
-            
+
             // الصف الثاني: الفئة والمنتج والترتيب
             Row(
               children: [
@@ -1309,3 +1485,828 @@ class _StockMovementsPageState extends State<StockMovementsPage> {
     );
   }
 }
+
+
+/* pw.Widget _buildPdfTable(
+    List<QueryDocumentSnapshot> docs, pw.Font regularFont, pw.Font boldFont) {
+  // تجميع الحركات حسب المنتج مع حساب الرصيد
+  final Map<String, Map<String, dynamic>> itemMovementsData = {};
+
+  for (var doc in docs) {
+    try {
+      final docData = doc.data() as Map<String, dynamic>;
+      final itemId = docData['itemId']?.toString() ?? '';
+      final type = docData['type']?.toString() ?? 'unknown';
+      
+      double quantity = 0;
+      final quantityValue = docData['quantity'];
+      if (quantityValue is int) {
+        quantity = quantityValue.toDouble();
+      } else if (quantityValue is double) {
+        quantity = quantityValue;
+      } else if (quantityValue is String) {
+        quantity = double.tryParse(quantityValue) ?? 0;
+      }
+      
+      final movementInfo = MovementUtils.getMovementTypeInfo(type, quantity);
+      final timestamp = docData['date'] as Timestamp?;
+      final date = timestamp != null ? _formatDate(timestamp.toDate()) : '';
+
+      if (!itemMovementsData.containsKey(itemId)) {
+        itemMovementsData[itemId] = {
+          'name': itemNames[itemId] ?? 'Unknown',
+          'movements': [],
+          'openingBalance': 0.0,
+          'closingBalance': 0.0,
+        };
+      }
+
+      itemMovementsData[itemId]!['movements']!.add({
+        'date': date,
+        'type': type,
+        'in': movementInfo['in'],
+        'out': movementInfo['out'],
+        'type_text': movementInfo['type_text'],
+      });
+    } catch (e) {
+      debugPrint('[ERROR] Building PDF table: $e');
+    }
+  }
+
+  // حساب الأرصدة لكل منتج
+  for (final itemId in itemMovementsData.keys) {
+    final movements = itemMovementsData[itemId]!['movements'] as List;
+    final currentStock = itemStocks[itemId] ?? 0;
+    
+    // حساب الرصيد أول الفترة
+    double openingBalance = currentStock;
+    for (var movement in movements) {
+      openingBalance = openingBalance - movement['in'] + movement['out'];
+    }
+    
+    // حساب الرصيد آخر الفترة
+    double runningBalance = openingBalance;
+    for (var movement in movements) {
+      runningBalance = runningBalance + movement['in'] - movement['out'];
+      movement['balance'] = runningBalance;
+    }
+    
+    itemMovementsData[itemId]!['openingBalance'] = openingBalance;
+    itemMovementsData[itemId]!['closingBalance'] = runningBalance;
+  }
+
+  return pw.Column(
+    children: [
+      for (final itemId in itemMovementsData.keys)
+        pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            // عنوان المنتج والأرصدة
+            pw.Row(
+              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+              children: [
+                pw.Text(
+                  '${'item'.tr()}: ${itemMovementsData[itemId]!['name']}',
+                  style: pw.TextStyle(
+                    fontWeight: pw.FontWeight.bold,
+                    fontSize: 14,
+                    font: boldFont,
+                  ),
+                ),
+                pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.end,
+                  children: [
+                    pw.Text(
+                      '${'opening_balance'.tr()}: ${itemMovementsData[itemId]!['openingBalance'].toStringAsFixed(2)}',
+                      style: pw.TextStyle(
+                        fontWeight: pw.FontWeight.bold,
+                        fontSize: 10,
+                        font: boldFont,
+                      ),
+                    ),
+                    pw.Text(
+                      '${'closing_balance'.tr()}: ${itemMovementsData[itemId]!['closingBalance'].toStringAsFixed(2)}',
+                      style: pw.TextStyle(
+                        fontWeight: pw.FontWeight.bold,
+                        fontSize: 10,
+                        font: boldFont,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            pw.SizedBox(height: 8),
+
+            // جدول الحركات لهذا المنتج
+            pw.Table(
+              border: const pw.TableBorder(
+                left: pw.BorderSide(),
+                right: pw.BorderSide(),
+                top: pw.BorderSide(),
+                bottom: pw.BorderSide(),
+                horizontalInside: pw.BorderSide(),
+                verticalInside: pw.BorderSide(),
+              ),
+              columnWidths: _isArabic
+                  ? {
+                      0: const pw.FlexColumnWidth(1.5),
+                      1: const pw.FlexColumnWidth(1),
+                      2: const pw.FlexColumnWidth(1),
+                      3: const pw.FlexColumnWidth(1),
+                      4: const pw.FlexColumnWidth(1),
+                      5: const pw.FlexColumnWidth(0.5),
+                    }
+                  : {
+                      0: const pw.FlexColumnWidth(0.5),
+                      1: const pw.FlexColumnWidth(1),
+                      2: const pw.FlexColumnWidth(1),
+                      3: const pw.FlexColumnWidth(1),
+                      4: const pw.FlexColumnWidth(1),
+                      5: const pw.FlexColumnWidth(1.5),
+                    },
+              children: [
+                // رأس الجدول
+                pw.TableRow(
+                  decoration: const pw.BoxDecoration(color: PdfColors.grey200),
+                  children: _isArabic
+                      ? [
+                          _buildPdfHeaderCell('balance'.tr(), boldFont),
+                          _buildPdfHeaderCell('out'.tr(), boldFont),
+                          _buildPdfHeaderCell('in'.tr(), boldFont),
+                          _buildPdfHeaderCell('movement_type'.tr(), boldFont),
+                          _buildPdfHeaderCell('date'.tr(), boldFont),
+                          _buildPdfHeaderCell('#', boldFont),
+                        ]
+                      : [
+                          _buildPdfHeaderCell('#', boldFont),
+                          _buildPdfHeaderCell('date'.tr(), boldFont),
+                          _buildPdfHeaderCell('movement_type'.tr(), boldFont),
+                          _buildPdfHeaderCell('in'.tr(), boldFont),
+                          _buildPdfHeaderCell('out'.tr(), boldFont),
+                          _buildPdfHeaderCell('balance'.tr(), boldFont),
+                        ],
+                ),
+                // بيانات الجدول
+                ..._buildItemTableRows(
+                    (itemMovementsData[itemId]!['movements'] as List).cast<Map<String, dynamic>>(), regularFont),
+              ],
+            ),
+            pw.SizedBox(height: 16),
+          ],
+        ),
+    ],
+  );
+}
+ */
+/*   pw.Widget _buildPdfTable(
+      List<QueryDocumentSnapshot> docs, pw.Font regularFont, pw.Font boldFont) {
+    // تجميع الحركات حسب المنتج
+    final Map<String, List<Map<String, dynamic>>> itemMovements = {};
+
+    for (var doc in docs) {
+      try {
+        final docData = doc.data() as Map<String, dynamic>;
+        final itemId = docData['itemId']?.toString() ?? '';
+        final type = docData['type']?.toString() ?? 'unknown';
+        final movementInfo = MovementUtils.getMovementTypeInfo(
+            type, (docData['quantity'] ?? 0) as double);
+        final timestamp = docData['date'] as Timestamp?;
+        final date = timestamp != null ? _formatDate(timestamp.toDate()) : '';
+
+        if (!itemMovements.containsKey(itemId)) {
+          itemMovements[itemId] = [];
+        }
+
+        itemMovements[itemId]!.add({
+          'date': date,
+          'type': type,
+          'in': movementInfo['in'],
+          'out': movementInfo['out'],
+          'type_text': movementInfo['type_text'],
+        });
+      } catch (e) {
+        debugPrint('[ERROR] Building PDF table: $e');
+      }
+    }
+
+    return pw.Column(
+      children: [
+        for (final itemId in itemMovements.keys)
+          pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              // عنوان المنتج
+              pw.Padding(
+                padding: const pw.EdgeInsets.only(bottom: 8),
+                child: pw.Text(
+                  '${'item'.tr()}: ${itemNames[itemId] ?? 'Unknown'}',
+                  style: pw.TextStyle(
+                    fontWeight: pw.FontWeight.bold,
+                    fontSize: 14,
+                    font: boldFont,
+                  ),
+                ),
+              ),
+
+              // جدول الحركات لهذا المنتج
+              pw.Table(
+                border: const pw.TableBorder(
+                  left: pw.BorderSide(),
+                  right: pw.BorderSide(),
+                  top: pw.BorderSide(),
+                  bottom: pw.BorderSide(),
+                  horizontalInside: pw.BorderSide(),
+                  verticalInside: pw.BorderSide(),
+                ),
+                columnWidths: _isArabic
+                    ? {
+                        0: const pw.FlexColumnWidth(1.5),
+                        1: const pw.FlexColumnWidth(1),
+                        2: const pw.FlexColumnWidth(1),
+                        3: const pw.FlexColumnWidth(1),
+                        4: const pw.FlexColumnWidth(1),
+                        5: const pw.FlexColumnWidth(0.5),
+                      }
+                    : {
+                        0: const pw.FlexColumnWidth(0.5),
+                        1: const pw.FlexColumnWidth(1),
+                        2: const pw.FlexColumnWidth(1),
+                        3: const pw.FlexColumnWidth(1),
+                        4: const pw.FlexColumnWidth(1),
+                        5: const pw.FlexColumnWidth(1.5),
+                      },
+                children: [
+                  // رأس الجدول
+                  pw.TableRow(
+                    decoration:
+                        const pw.BoxDecoration(color: PdfColors.grey200),
+                    children: _isArabic
+                        ? [
+                            _buildPdfHeaderCell('balance'.tr(), boldFont),
+                            _buildPdfHeaderCell('out'.tr(), boldFont),
+                            _buildPdfHeaderCell('in'.tr(), boldFont),
+                            _buildPdfHeaderCell('movement_type'.tr(), boldFont),
+                            _buildPdfHeaderCell('date'.tr(), boldFont),
+                            _buildPdfHeaderCell('#', boldFont),
+                          ]
+                        : [
+                            _buildPdfHeaderCell('#', boldFont),
+                            _buildPdfHeaderCell('date'.tr(), boldFont),
+                            _buildPdfHeaderCell('movement_type'.tr(), boldFont),
+                            _buildPdfHeaderCell('in'.tr(), boldFont),
+                            _buildPdfHeaderCell('out'.tr(), boldFont),
+                            _buildPdfHeaderCell('balance'.tr(), boldFont),
+                          ],
+                  ),
+                  // بيانات الجدول
+                  ..._buildItemTableRows(itemMovements[itemId]!, regularFont),
+                ],
+              ),
+              pw.SizedBox(height: 16),
+            ],
+          ),
+      ],
+    );
+  }
+ */
+/*   List<pw.TableRow> _buildItemTableRows(
+      List<Map<String, dynamic>> movements, pw.Font font) {
+    final List<pw.TableRow> rows = [];
+
+    // حساب الرصيد التدريجي
+    double runningBalance = 0;
+    final movementsWithBalance = movements.map((movement) {
+      runningBalance =
+          (runningBalance - movement['out'] + movement['in']).toDouble();
+      return {
+        ...movement,
+        'balance': runningBalance,
+      };
+    }).toList();
+
+    int index = 1;
+    for (final movement in movementsWithBalance) {
+      rows.add(
+        pw.TableRow(
+          children: _isArabic
+              ? [
+                  _buildPdfDataCell(movement['balance'].toString(), font),
+                  _buildPdfDataCell(movement['out'].toString(), font),
+                  _buildPdfDataCell(movement['in'].toString(), font),
+                  _buildPdfDataCell(movement['type_text'], font),
+                  _buildPdfDataCell(movement['date'], font),
+                  _buildPdfDataCell((index++).toString(), font),
+                ]
+              : [
+                  _buildPdfDataCell((index++).toString(), font),
+                  _buildPdfDataCell(movement['date'], font),
+                  _buildPdfDataCell(movement['type_text'], font),
+                  _buildPdfDataCell(movement['in'].toString(), font),
+                  _buildPdfDataCell(movement['out'].toString(), font),
+                  _buildPdfDataCell(movement['balance'].toString(), font),
+                ],
+        ),
+      );
+    }
+
+    return rows;
+  }
+ */
+
+/*   Future<void> _loadItemNames() async {
+    final itemsSnap =
+        await FirebaseFirestore.instance.collection('items').get();
+
+    final names = <String, String>{};
+    for (var doc in itemsSnap.docs) {
+      final data = doc.data();
+      names[doc.id] = _isArabic
+          ? (data['nameAr'] ?? 'Unknown'.tr())
+          : (data['nameEn'] ?? 'Unknown'.tr());
+    }
+    setState(() {
+      itemNames = names;
+    });
+  } */
+
+/*   Widget _buildMovementsTable(List<QueryDocumentSnapshot> docs) {
+    // تجميع البيانات حسب المنتج
+    final Map<String, List<Map<String, dynamic>>> itemMovements = {};
+
+    for (var doc in docs) {
+      try {
+        final data = doc.data() as Map<String, dynamic>;
+
+        // استخدام itemId بدلاً من itemId (التصحيح الرئيسي)
+        final itemId = data['itemId']?.toString() ?? '';
+        final type = data['type']?.toString() ?? 'unknown';
+
+        // تحويل الكمية إلى double بشكل آمن
+        double quantity = 0;
+        final quantityValue = data['quantity'];
+        if (quantityValue is int) {
+          quantity = quantityValue.toDouble();
+        } else if (quantityValue is double) {
+          quantity = quantityValue;
+        } else if (quantityValue is String) {
+          quantity = double.tryParse(quantityValue) ?? 0;
+        } else if (quantityValue is num) {
+          quantity = quantityValue.toDouble();
+        }
+
+        final timestamp = data['date'] as Timestamp?;
+        final date = timestamp != null ? timestamp.toDate() : DateTime.now();
+
+        final movementInfo = MovementUtils.getMovementTypeInfo(type, quantity);
+
+        if (!itemMovements.containsKey(itemId)) {
+          itemMovements[itemId] = [];
+        }
+
+        // إضافة الحركة
+        itemMovements[itemId]!.add({
+          'date': date,
+          'type': type,
+          'in': movementInfo['in'],
+          'out': movementInfo['out'],
+          'type_text': movementInfo['type_text'],
+          'quantity': quantity,
+        });
+      } catch (e) {
+        debugPrint('[ERROR] Processing movement: $e');
+        // طباعة تفاصيل المستند للمساعدة في التصحيح
+        debugPrint('Document data: ${doc.data()}');
+
+        // تحليل الخطأ بشكل أكثر تفصيلاً
+        if (e is TypeError) {
+          debugPrint('Type error details: ${e.toString()}');
+          final data = doc.data() as Map<String, dynamic>;
+          debugPrint('itemId type: ${data['itemId']?.runtimeType}');
+          debugPrint('type type: ${data['type']?.runtimeType}');
+          debugPrint('quantity type: ${data['quantity']?.runtimeType}');
+          debugPrint('date type: ${data['date']?.runtimeType}');
+        }
+      }
+    }
+
+    // إذا تم التخلص من الـ Widget، نرجع widget فارغ
+    if (!mounted) {
+      return const SizedBox.shrink();
+    }
+
+    return ListView.builder(
+      itemCount: itemMovements.length,
+      itemBuilder: (context, index) {
+        // تحقق مرة أخرى في كل مرة يتم فيها بناء عنصر
+        if (!mounted) {
+          return const SizedBox.shrink();
+        }
+
+        final itemId = itemMovements.keys.elementAt(index);
+        final movements = itemMovements[itemId]!;
+        final itemName = itemNames[itemId] ?? 'Unknown Item'.tr();
+        final currentStock = itemStocks[itemId] ?? 0;
+
+        // إصلاح حساب الرصيد: يجب أن نبدأ من الصفر ونضيف الحركات بالترتيب الزمني
+        double runningBalance = 0;
+        final movementsWithBalance = [];
+
+        // ترتيب الحركات من الأقدم إلى الأحدث لحساب الرصيد بشكل صحيح
+        movements.sort((a, b) => a['date'].compareTo(b['date']));
+
+        for (var movement in movements) {
+          runningBalance = runningBalance + movement['in'] - movement['out'];
+          movementsWithBalance.add({
+            ...movement,
+            'balance': runningBalance,
+          });
+        }
+
+        // عكس القائمة لعرض الأحدث أولاً مع الحفاظ على الرصيد الصحيح
+        final reversedMovements = movementsWithBalance.reversed.toList();
+
+        return Card(
+          margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // عنوان المنتج والرصيد الحالي
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Flexible(
+                      child: Text(
+                        '${'item'.tr()}: $itemName',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    Text(
+                      '${'current_balance'.tr()}: $currentStock',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.blue,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+
+                // جدول الحركات مع تمرير مزدوج
+                SizedBox(
+                  height: 300, // ارتفاع ثابت للجدول
+                  child: Scrollbar(
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.vertical,
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: DataTable(
+                          columnSpacing: 16,
+                          dataRowMinHeight: 40,
+                          dataRowMaxHeight: 60,
+                          headingRowHeight: 40,
+                          columns: [
+                            const DataColumn(
+                                label: Text('#',
+                                    style:
+                                        TextStyle(fontWeight: FontWeight.bold)),
+                                numeric: true),
+                            DataColumn(
+                              label: Text('date'.tr(),
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.bold)),
+                              tooltip: 'movement_date'.tr(),
+                            ),
+                            DataColumn(
+                              label: Text('movement_type'.tr(),
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.bold)),
+                              tooltip: 'type_of_movement'.tr(),
+                            ),
+                            DataColumn(
+                                label: Text('in'.tr(),
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.green)),
+                                numeric: true,
+                                tooltip: 'quantity_in'.tr()),
+                            DataColumn(
+                                label: Text('out'.tr(),
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.red)),
+                                numeric: true,
+                                tooltip: 'quantity_out'.tr()),
+                            DataColumn(
+                                label: Text('balance'.tr(),
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.blue)),
+                                numeric: true,
+                                tooltip: 'running_balance'.tr()),
+                          ],
+                          rows: List<DataRow>.generate(reversedMovements.length,
+                              (index) {
+                            final movement = reversedMovements[index];
+                            return DataRow(
+                              cells: [
+                                DataCell(Text((index + 1).toString())),
+                                DataCell(Text(_formatDate(movement['date']))),
+                                DataCell(Text(movement['type_text'])),
+                                DataCell(Text(
+                                  movement['in'] > 0
+                                      ? movement['in'].toStringAsFixed(2)
+                                      : '-',
+                                  style: TextStyle(
+                                    color: movement['in'] > 0
+                                        ? Colors.green
+                                        : Colors.grey,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                )),
+                                DataCell(Text(
+                                  movement['out'] > 0
+                                      ? movement['out'].toStringAsFixed(2)
+                                      : '-',
+                                  style: TextStyle(
+                                    color: movement['out'] > 0
+                                        ? Colors.red
+                                        : Colors.grey,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                )),
+                                DataCell(Text(
+                                  movement['balance'].toStringAsFixed(2),
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.blue,
+                                  ),
+                                )),
+                              ],
+                            );
+                          }),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+ */
+
+/* Widget _buildMovementsTable(List<QueryDocumentSnapshot> docs) {
+  // تجميع البيانات حسب المنتج
+  final Map<String, List<Map<String, dynamic>>> itemMovements = {};
+
+  for (var doc in docs) {
+    try {
+      final data = doc.data() as Map<String, dynamic>;
+      
+      final itemId = data['itemId']?.toString() ?? '';
+      final type = data['type']?.toString() ?? 'unknown';
+      
+      // تحويل الكمية إلى double بشكل آمن
+      double quantity = 0;
+      final quantityValue = data['quantity'];
+      if (quantityValue is int) {
+        quantity = quantityValue.toDouble();
+      } else if (quantityValue is double) {
+        quantity = quantityValue;
+      } else if (quantityValue is String) {
+        quantity = double.tryParse(quantityValue) ?? 0;
+      } else if (quantityValue is num) {
+        quantity = quantityValue.toDouble();
+      }
+      
+      final timestamp = data['date'] as Timestamp?;
+      final date = timestamp != null ? timestamp.toDate() : DateTime.now();
+
+      final movementInfo = MovementUtils.getMovementTypeInfo(type, quantity);
+
+      if (!itemMovements.containsKey(itemId)) {
+        itemMovements[itemId] = [];
+      }
+
+      // إضافة الحركة
+      itemMovements[itemId]!.add({
+        'date': date,
+        'type': type,
+        'in': movementInfo['in'],
+        'out': movementInfo['out'],
+        'type_text': movementInfo['type_text'],
+        'quantity': quantity,
+        'documentId': doc.id, // حفظ معرف المستند للترتيب
+      });
+    } catch (e) {
+      debugPrint('[ERROR] Processing movement: $e');
+    }
+  }
+
+  if (!mounted) {
+    return const SizedBox.shrink();
+  }
+
+  return ListView.builder(
+    itemCount: itemMovements.length,
+    itemBuilder: (context, index) {
+      if (!mounted) {
+        return const SizedBox.shrink();
+      }
+
+      final itemId = itemMovements.keys.elementAt(index);
+      final movements = itemMovements[itemId]!;
+      final itemName = itemNames[itemId] ?? 'Unknown Item'.tr();
+      final currentStock = itemStocks[itemId] ?? 0;
+
+      // ترتيب الحركات من الأقدم إلى الأحدث لحساب الرصيد بشكل صحيح
+      movements.sort((a, b) => a['date'].compareTo(b['date']));
+      
+      // حساب الرصيد أول الفترة (من المخزون الحالي والحركات)
+      double openingBalance = currentStock;
+      for (var movement in movements) {
+        openingBalance = openingBalance - movement['in'] + movement['out'];
+      }
+      
+      double runningBalance = openingBalance;
+      final movementsWithBalance = [];
+      
+      for (var movement in movements) {
+        runningBalance = runningBalance + movement['in'] - movement['out'];
+        movementsWithBalance.add({
+          ...movement,
+          'balance': runningBalance,
+        });
+      }
+      
+      final closingBalance = runningBalance;
+
+      // تطبيق الترتيب المطلوب (أحدث أولاً أو أقدم أولاً)
+      final displayMovements = sortOrder == 'desc' 
+          ? movementsWithBalance.reversed.toList()
+          : movementsWithBalance;
+
+      return Card(
+        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // عنوان المنتج والرصيد الحالي
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Flexible(
+                    child: Text(
+                      '${'item'.tr()}: $itemName',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        '${'opening_balance'.tr()}: ${openingBalance.toStringAsFixed(2)}',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.blue,
+                        ),
+                      ),
+                      Text(
+                        '${'closing_balance'.tr()}: ${closingBalance.toStringAsFixed(2)}',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.green,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+
+              // جدول الحركات مع تمرير مزدوج
+              SizedBox(
+                height: 300,
+                child: Scrollbar(
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.vertical,
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: DataTable(
+                        columnSpacing: 16,
+                        dataRowMinHeight: 40,
+                        dataRowMaxHeight: 60,
+                        headingRowHeight: 40,
+                        columns: [
+                          const DataColumn(
+                              label: Text('#',
+                                  style: TextStyle(fontWeight: FontWeight.bold)),
+                              numeric: true),
+                          DataColumn(
+                            label: Text('date'.tr(),
+                                style: const TextStyle(fontWeight: FontWeight.bold)),
+                          ),
+                          DataColumn(
+                            label: Text('movement_type'.tr(),
+                                style: const TextStyle(fontWeight: FontWeight.bold)),
+                          ),
+                          DataColumn(
+                              label: Text('in'.tr(),
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.green)),
+                              numeric: true),
+                          DataColumn(
+                              label: Text('out'.tr(),
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.red)),
+                              numeric: true),
+                          DataColumn(
+                              label: Text('balance'.tr(),
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.blue)),
+                              numeric: true),
+                        ],
+                        rows: List<DataRow>.generate(displayMovements.length, (index) {
+                          final movement = displayMovements[index];
+                          return DataRow(
+                            cells: [
+                              DataCell(Text((index + 1).toString())),
+                              DataCell(Text(_formatDate(movement['date']))),
+                              DataCell(Text(movement['type_text'])),
+                              DataCell(Text(
+                                movement['in'] > 0
+                                    ? movement['in'].toStringAsFixed(2)
+                                    : '-',
+                                style: TextStyle(
+                                  color: movement['in'] > 0
+                                      ? Colors.green
+                                      : Colors.grey,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              )),
+                              DataCell(Text(
+                                movement['out'] > 0
+                                    ? movement['out'].toStringAsFixed(2)
+                                    : '-',
+                                style: TextStyle(
+                                  color: movement['out'] > 0
+                                      ? Colors.red
+                                      : Colors.grey,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              )),
+                              DataCell(Text(
+                                movement['balance'].toStringAsFixed(2),
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.blue,
+                                ),
+                              )),
+                            ],
+                          );
+                        }),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
+}
+ */
+
+/*   pw.Padding _buildPdfDataCell(String text, pw.Font font,
+      {pw.TextAlign align = pw.TextAlign.center}) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.all(6),
+      child: pw.Text(
+        text,
+        style: pw.TextStyle(fontSize: 9, font: font),
+        textAlign: align,
+      ),
+    );
+  }
+ */

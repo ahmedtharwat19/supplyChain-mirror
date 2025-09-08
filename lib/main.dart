@@ -15,6 +15,7 @@ import 'services/license_service.dart';
 import 'notifications/license_notifications.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:provider/provider.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 
 // دالة خلفية لمعالجة رسائل FCM
 @pragma('vm:entry-point')
@@ -80,6 +81,11 @@ Future<void> main() async {
 
   await EasyLocalization.ensureInitialized(); // يجب أن يتم أولًا
 
+  await Hive.initFlutter();
+
+ await Hive.openBox('userData');
+  await Hive.openBox('licenseBox'); // الصندوق الذي تستخدمه HiveService
+  
   try {
     // تهيئة Firebase أولًا لأنها قد تستخدم في ما يلي
     await _initializeFirebase();
@@ -100,12 +106,12 @@ Future<void> main() async {
       fallbackLocale: const Locale('ar'),
       child: MultiProvider(
         providers: [
-           Provider<FirestoreService>(create: (_) => FirestoreService()), 
+          Provider<FirestoreService>(create: (_) => FirestoreService()),
           Provider<FinishedProductService>(
               create: (_) => FinishedProductService()),
           ChangeNotifierProvider(create: (_) => CompanyService()),
           ChangeNotifierProvider(create: (_) => FactoryService()),
-         ChangeNotifierProvider(create: (_) => CompositionService()),
+          ChangeNotifierProvider(create: (_) => CompositionService()),
           Provider<ManufacturingService>(
             create: (_) => ManufacturingService(),
           ),
@@ -135,9 +141,9 @@ class MyApp extends StatelessWidget {
       localizationsDelegates: context.localizationDelegates,
       routerConfig: appRouter,
       builder: (context, child) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-    // يمكن تنفيذ منطق لاحق هنا بعد البناء
-  });
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          // يمكن تنفيذ منطق لاحق هنا بعد البناء
+        });
         return MediaQuery(
           data:
               MediaQuery.of(context).copyWith(textScaler: TextScaler.noScaling),
@@ -178,7 +184,6 @@ class MyApp extends StatelessWidget {
     );
   }
 }
-
 
 /* import 'package:easy_localization/easy_localization.dart';
 import 'package:firebase_core/firebase_core.dart';
