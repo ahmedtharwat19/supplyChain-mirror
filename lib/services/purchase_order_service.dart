@@ -10,11 +10,11 @@ class PurchaseOrderService {
   Future<void> createPurchaseOrder(PurchaseOrder order) async {
     // await _collection.doc(order.id).set(order.toFirestore());
     try {
-      debugPrint('📦 Saving order: ${order.toFirestore()}');
+      safeDebugPrint('📦 Saving order: ${order.toFirestore()}');
       await _collection.doc(order.id).set(order.toFirestore());
-      debugPrint('✅ Order saved.');
+      safeDebugPrint('✅ Order saved.');
     } catch (e) {
-      debugPrint('❌ Error saving order: $e');
+      safeDebugPrint('❌ Error saving order: $e');
       rethrow;
     }
   }
@@ -47,10 +47,11 @@ class PurchaseOrderService {
 }
  */
 
-import 'package:flutter/foundation.dart';
+//import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/purchase_order.dart';
 import 'firestore_service.dart'; // مهم: استيراد الخدمة
+import 'package:puresip_purchasing/debug_helper.dart';
 
 class PurchaseOrderRepository {
   static final _firestore = FirebaseFirestore.instance;
@@ -70,13 +71,13 @@ class PurchaseOrderRepository {
         id: _collection.doc().id, // إنشاء ID تلقائي
       );
 
-      debugPrint('📦 Saving order: ${orderWithPo.toFirestore()}');
+      safeDebugPrint('📦 Saving order: ${orderWithPo.toFirestore()}');
 
       await _collection.doc(orderWithPo.id).set(orderWithPo.toFirestore());
 
-      debugPrint('✅ Order saved.');
+      safeDebugPrint('✅ Order saved.');
     } catch (e) {
-      debugPrint('❌ Error saving order: $e');
+      safeDebugPrint('❌ Error saving order: $e');
       rethrow;
     }
   }

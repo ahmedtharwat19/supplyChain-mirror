@@ -1,9 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/material.dart';
+//import 'package:flutter/material.dart';
 import 'package:hive/hive.dart';
 import 'package:puresip_purchasing/models/license_status.dart';
 import 'device_fingerprint.dart';
+import 'package:puresip_purchasing/debug_helper.dart';
 
 class LicenseException implements Exception {
   final String message;
@@ -57,7 +58,7 @@ class LicenseService {
 
       return null;
     } catch (e) {
-      debugPrint('Error getting expiry date: $e');
+      safeDebugPrint('Error getting expiry date: $e');
       return null;
     }
   }
@@ -120,14 +121,14 @@ class LicenseService {
               .get();
           await _fixLicenses(userLicenses.docs);
         } catch (e) {
-          debugPrint(
+          safeDebugPrint(
               'User cannot query licenses, trying individual documents...');
           // حل بديل: حاول الحصول على كل ترخيص على حدة
           await _fixUserLicensesIndividually(user.uid);
         }
       }
     } catch (e) {
-      debugPrint('Error fixing licenses: $e');
+      safeDebugPrint('Error fixing licenses: $e');
     }
   }
 
@@ -168,7 +169,7 @@ class LicenseService {
         }
 
         await ref.update({'expiryDate': Timestamp.fromDate(date)});
-        debugPrint('Fixed license: ${ref.id}');
+        safeDebugPrint('Fixed license: ${ref.id}');
       }
     }
   }
@@ -188,7 +189,7 @@ class LicenseService {
         }
       }
     } catch (e) {
-      debugPrint('Error fixing user licenses individually: $e');
+      safeDebugPrint('Error fixing user licenses individually: $e');
     }
   }
 
@@ -198,7 +199,7 @@ class LicenseService {
       final doc = await _firestore.collection('users').doc(userId).get();
       return doc.data()?['isAdmin'] == true;
     } catch (e) {
-      debugPrint('Error checking admin status: $e');
+      safeDebugPrint('Error checking admin status: $e');
       return false;
     }
   }
@@ -299,8 +300,8 @@ class LicenseService {
   Future<LicenseStatus> checkLicenseStatus(String licenseKey) async {
     try {
       final user = FirebaseAuth.instance.currentUser;
-      debugPrint('Current user UID: ${user?.uid}');
-      debugPrint('Checking license: $licenseKey');
+      safeDebugPrint('Current user UID: ${user?.uid}');
+      safeDebugPrint('Checking license: $licenseKey');
       final box = await Hive.openBox(_deviceBoxName);
 
       String? currentFingerprint = box.get('fingerprint');
@@ -314,7 +315,7 @@ class LicenseService {
             await _firestore.collection('licenses').doc(licenseKey).get();
 
         if (!doc.exists) {
-          debugPrint('License document does not exist');
+          safeDebugPrint('License document does not exist');
           return LicenseStatus.invalid(
             reason: "License not found",
             isOffline: false,
@@ -323,7 +324,7 @@ class LicenseService {
 
         final data = doc.data();
         if (data == null) {
-          debugPrint('License document data is null');
+          safeDebugPrint('License document data is null');
           return LicenseStatus.invalid(
             reason: "License data is null",
             isOffline: false,
@@ -332,9 +333,9 @@ class LicenseService {
 
         // تحقق من مطابقة userId
         final licenseUserId = data['userId'];
-        debugPrint('License user ID: $licenseUserId');
-        debugPrint('Current user UID: ${user?.uid}');
-        debugPrint('User match: ${licenseUserId == user?.uid}');
+        safeDebugPrint('License user ID: $licenseUserId');
+        safeDebugPrint('Current user UID: ${user?.uid}');
+        safeDebugPrint('User match: ${licenseUserId == user?.uid}');
 
         // معالجة expiryDate بأنواعه المختلفة
         dynamic expiryDateValue = data['expiryDate'];
@@ -347,26 +348,26 @@ class LicenseService {
         } else if (expiryDateValue is String) {
           expiryDate = DateTime.parse(expiryDateValue);
         } else {
-          debugPrint('Unknown expiryDate type: ${expiryDateValue.runtimeType}');
+          safeDebugPrint('Unknown expiryDate type: ${expiryDateValue.runtimeType}');
           return LicenseStatus.invalid(
             reason: "Invalid expiry date format",
             isOffline: false,
           );
         }
 
-        debugPrint('Expiry date: $expiryDate');
-        debugPrint('Current time: ${DateTime.now()}');
+        safeDebugPrint('Expiry date: $expiryDate');
+        safeDebugPrint('Current time: ${DateTime.now()}');
 
         final maxDevices = data['maxDevices'] ?? 1;
         final devices = List<Map<String, dynamic>>.from(data['devices'] ?? []);
         final isActive = data['isActive'] ?? false;
 
-        debugPrint('License isActive: $isActive');
-        debugPrint('Max devices: $maxDevices');
-        debugPrint('Registered devices: ${devices.length}');
+        safeDebugPrint('License isActive: $isActive');
+        safeDebugPrint('Max devices: $maxDevices');
+        safeDebugPrint('Registered devices: ${devices.length}');
 
         if (!isActive) {
-          debugPrint('License is not active');
+          safeDebugPrint('License is not active');
           return LicenseStatus.invalid(
             reason: "License inactive",
             isOffline: false,
@@ -374,7 +375,7 @@ class LicenseService {
         }
 
         if (expiryDate.isBefore(DateTime.now())) {
-          debugPrint('License expired: $expiryDate');
+          safeDebugPrint('License expired: $expiryDate');
           return LicenseStatus.invalid(
             reason: "License expired",
             isOffline: false,
@@ -383,7 +384,7 @@ class LicenseService {
 
         final isRegistered =
             devices.any((d) => d['fingerprint'] == currentFingerprint);
-        debugPrint('Device is registered: $isRegistered');
+        safeDebugPrint('Device is registered: $isRegistered');
 
         if (!isRegistered) {
           if (devices.length < maxDevices) {
@@ -393,7 +394,7 @@ class LicenseService {
               ]),
             });
           } else {
-            debugPrint('Device limit exceeded');
+            safeDebugPrint('Device limit exceeded');
             return LicenseStatus.invalid(
               reason: "Device limit exceeded",
               isOffline: false,
@@ -411,7 +412,7 @@ class LicenseService {
           'usedDevices': devices.length,
         });
 
-        debugPrint('License is valid. Days left: ${durationLeft.inDays}');
+        safeDebugPrint('License is valid. Days left: ${durationLeft.inDays}');
 
         return LicenseStatus.valid(
           licenseKey: licenseKey,
@@ -457,7 +458,7 @@ class LicenseService {
       }
 
 /*       } catch (e) {
-        debugPrint('Online license check failed: $e');
+        safeDebugPrint('Online license check failed: $e');
         final cached = box.get('license_cache');
 
         if (cached != null) {
@@ -489,7 +490,7 @@ class LicenseService {
         );
       } */
     } catch (e) {
-      debugPrint('License check overall error: $e');
+      safeDebugPrint('License check overall error: $e');
       return LicenseStatus.invalid(
         reason: "Error: $e",
         isOffline: true,
@@ -528,7 +529,7 @@ class LicenseService {
 
       return query.docs.isNotEmpty;
     } catch (e) {
-      debugPrint('License request check failed: $e');
+      safeDebugPrint('License request check failed: $e');
       return false;
     }
   }
@@ -562,7 +563,7 @@ class LicenseService {
 
       return await checkLicenseStatus(licenseKey);
     } catch (e) {
-      debugPrint('Error getting user license status: $e');
+      safeDebugPrint('Error getting user license status: $e');
       return LicenseStatus.invalid(
         reason: "Error checking license: $e",
         isOffline: true,

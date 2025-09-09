@@ -154,7 +154,7 @@ class _AddFactoryPageState extends State<AddFactoryPage> {
           .showSnackBar(SnackBar(content: Text(tr('factory_added_successfully'))));
       context.pop();
     } catch (e) {
-      debugPrint('Error adding factory: $e');
+      safeDebugPrint('Error adding factory: $e');
       if (!mounted) return;
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text('${tr('error_occurred')}: $e')));
@@ -360,7 +360,7 @@ class _AddFactoryPageState extends State<AddFactoryPage> {
           SnackBar(content: Text(tr('factory_added_successfully'))));
       context.pop();
     } catch (e) {
-      debugPrint('Error adding factory: $e');
+      safeDebugPrint('Error adding factory: $e');
       if (!mounted) return;
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text('${tr('error_occurred')}: $e')));
@@ -377,6 +377,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/services.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:puresip_purchasing/utils/user_local_storage.dart';
+import 'package:puresip_purchasing/debug_helper.dart';
 
 class AddFactoryPage extends StatefulWidget {
   const AddFactoryPage({super.key});
@@ -414,7 +415,7 @@ class _AddFactoryPageState extends State<AddFactoryPage> {
 
     final userData = await UserLocalStorage.getUser();
     final ids = List<String>.from(userData?['companyIds'] ?? []);
-    debugPrint('📦 companyIds from local: $ids'); // ✅ للتأكد
+    safeDebugPrint('📦 companyIds from local: $ids'); // ✅ للتأكد
     if (ids.isEmpty) return;
     try {
       final snapshot = await FirebaseFirestore.instance
@@ -429,14 +430,14 @@ class _AddFactoryPageState extends State<AddFactoryPage> {
         };
       }).toList();
 
-      debugPrint('✅ Loaded companies: $loadedCompanies'); // ✅ للتأكد
+      safeDebugPrint('✅ Loaded companies: $loadedCompanies'); // ✅ للتأكد
 
       setState(() {
         _companies.clear();
         _companies.addAll(loadedCompanies);
       });
     } catch (e) {
-      debugPrint('❌ Error loading companies: $e');
+      safeDebugPrint('❌ Error loading companies: $e');
     }
   }
  */
@@ -452,7 +453,7 @@ class _AddFactoryPageState extends State<AddFactoryPage> {
         .get();
     final List<String> ids =
         List<String>.from(userDoc.data()?['companyIds'] ?? []);
-    debugPrint('📦 companyIds from Firestore user doc: $ids');
+    safeDebugPrint('📦 companyIds from Firestore user doc: $ids');
 
     if (ids.isEmpty) return;
 
@@ -470,7 +471,7 @@ class _AddFactoryPageState extends State<AddFactoryPage> {
             })
         .toList();
 
-    debugPrint('✅ Loaded companies count: ${loaded.length}');
+    safeDebugPrint('✅ Loaded companies count: ${loaded.length}');
     setState(() => _companies = loaded);
   }
 

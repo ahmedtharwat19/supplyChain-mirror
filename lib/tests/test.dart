@@ -7,12 +7,12 @@
       final managerName = _managerNameController.text.trim();
       final managerPhone = _managerPhoneController.text.trim();
 
-      debugPrint('Starting company add process...');
-      debugPrint(
+      safeDebugPrint('Starting company add process...');
+      safeDebugPrint(
           'Inputs: nameAr="$nameAr", nameEn="$nameEn", address="$address"');
 
       if (nameAr.isEmpty || nameEn.isEmpty || address.isEmpty) {
-        debugPrint('Validation failed: required fields missing.');
+        safeDebugPrint('Validation failed: required fields missing.');
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('requierd_fields'.tr())),
         );
@@ -20,7 +20,7 @@
       }
 
       if (_base64Logo == null || _base64Logo!.isEmpty) {
-        debugPrint('Validation failed: logo is missing.');
+        safeDebugPrint('Validation failed: logo is missing.');
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('please_select_logo'.tr())),
         );
@@ -30,11 +30,11 @@
       setState(() => _isLoading = true);
 
       try {
-        debugPrint('Checking duplicate...');
+        safeDebugPrint('Checking duplicate...');
         final isDuplicate = await _isCompanyDuplicate(nameAr, nameEn);
         if (isDuplicate) {
           if (!mounted) return;
-          debugPrint('Duplicate company detected, aborting add.');
+          safeDebugPrint('Duplicate company detected, aborting add.');
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('⚠️ ${tr('company_already_exists')}')),
           );
@@ -45,14 +45,14 @@
         final user = FirebaseAuth.instance.currentUser;
         if (user == null) {
           if (!mounted) return;
-          debugPrint('No authenticated user found.');
+          safeDebugPrint('No authenticated user found.');
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('login_first'.tr())),
           );
           setState(() => _isLoading = false);
           return;
         }
-        debugPrint('Authenticated user: ${user.uid}');
+        safeDebugPrint('Authenticated user: ${user.uid}');
 
         final companyData = {
           'nameAr': nameAr,
@@ -64,7 +64,7 @@
           'userId': user.uid,
           'createdAt': Timestamp.now(),
         };
-        debugPrint('Company data prepared.');
+        safeDebugPrint('Company data prepared.');
 
         final firestore = FirebaseFirestore.instance;
         final user = FirebaseAuth.instance.currentUser!;
@@ -93,20 +93,20 @@
           }
         });
 
-        //  debugPrint('Company added with id: ${userSnap}');
+        //  safeDebugPrint('Company added with id: ${userSnap}');
 
         final userDocRef =
             FirebaseFirestore.instance.collection('users').doc(user.uid);
         final userDoc = await userDocRef.get();
-        debugPrint('Fetched user doc for company update.');
+        safeDebugPrint('Fetched user doc for company update.');
 
         if (userDoc.exists) {
-          debugPrint('User doc exists, updating companyIds array...');
+          safeDebugPrint('User doc exists, updating companyIds array...');
           await userDocRef.update({
             'companyIds': FieldValue.arrayUnion([docRef.id]),
           });
         } else {
-          debugPrint('User doc does not exist, creating new with companyIds...');
+          safeDebugPrint('User doc does not exist, creating new with companyIds...');
           await userDocRef.set({
             'companyIds': [docRef.id],
           });
@@ -114,7 +114,7 @@
 
         if (!mounted) return;
 
-        debugPrint('Company added and user updated successfully.');
+        safeDebugPrint('Company added and user updated successfully.');
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('company_added_successfully'.tr())),
@@ -134,11 +134,11 @@
           path: '/company-added/${docRef.id}',
           queryParameters: {'nameEn': nameEn},
         );
-        debugPrint('Navigating to company added page: $uri');
+        safeDebugPrint('Navigating to company added page: $uri');
         context.go(uri.toString());
       } catch (e, stacktrace) {
-        debugPrint('Error while adding company: $e');
-        debugPrint(stacktrace.toString());
+        safeDebugPrint('Error while adding company: $e');
+        safeDebugPrint(stacktrace.toString());
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('${tr('error_while_adding_company')}: $e')),

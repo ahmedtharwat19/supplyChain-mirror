@@ -149,16 +149,16 @@ class _AddSupplierPageState extends State<AddSupplierPage> {
       );
 
       await docRef.set(supplier.toMap());
-      //debugPrint('✅ Supplier added with ID: $supplierId');
+      //safeDebugPrint('✅ Supplier added with ID: $supplierId');
 
       final userDocRef =
           FirebaseFirestore.instance.collection('users').doc(userId);
       await userDocRef.update({
         'supplierIds': FieldValue.arrayUnion([supplierId]),
       }).then((_) {
-        //debugPrint('✅ supplierIds updated for user $userId');
+        //safeDebugPrint('✅ supplierIds updated for user $userId');
       }).catchError((error) {
-        //debugPrint('❌ Failed to update supplierIds: $error');
+        //safeDebugPrint('❌ Failed to update supplierIds: $error');
       });
 
       if (!mounted) return;
@@ -167,7 +167,7 @@ class _AddSupplierPageState extends State<AddSupplierPage> {
       );
       Navigator.of(context).pop();
     } catch (e) {
-      //debugPrint('❌ Error adding supplier: $e');
+      //safeDebugPrint('❌ Error adding supplier: $e');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('${tr('error_occurred')}: $e')),
@@ -597,7 +597,7 @@ class _AddSupplierPageState extends State<AddSupplierPage> {
       final isActive = userDoc.data()?['isActive'] ?? false;
       return isActive == true;
     } catch (e) {
-      //debugPrint('Error checking user active status: $e');
+      //safeDebugPrint('Error checking user active status: $e');
       return false;
     }
   }
@@ -712,7 +712,7 @@ class _AddSupplierPageState extends State<AddSupplierPage> {
         context.pop();
       }
     } catch (e) {
-      //debugPrint('Error adding supplier: $e');
+      //safeDebugPrint('Error adding supplier: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('${tr('error_occurred')}: $e')),

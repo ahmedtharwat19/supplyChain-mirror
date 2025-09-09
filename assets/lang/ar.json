@@ -785,7 +785,12 @@
   "minutes": "دقيقة",
   "seconds": "ثانية",
   "license": "الترخيص",
-
+ "device_added_successfully": "تمت إضافة الجهاز بنجاح",
+    "request_device_button": "طلب جهاز جديد",
+   "device_limit_title": "تم الوصول إلى حد الأجهزة",
+  "max_devices_reached": "لقد وصلت إلى الحد الأقصى للأجهزة المسموحة ({max}). يرجى التواصل مع المدير لإضافة جهاز جديد أو استخدام أحد أجهزتك المسجلة.",
+  "device_check_error": "خطأ في التحقق من الجهاز. يرجى المحاولة مرة أخرى.",
+ "request_sent_to_admin": "تم إرسال طلبك إلى الإدارة.",
 
   "offline_mode_warning_ar": "يعمل في وضع عدم الاتصال باستخدام البيانات المحلية",
   "subscription_expired_message_date": "انتهت صلاحية اشتراكك في {date}. يرجى التجديد لمواصلة استخدام الخدمة.",

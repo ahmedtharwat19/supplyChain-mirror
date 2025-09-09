@@ -4,6 +4,7 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:puresip_purchasing/utils/user_local_storage.dart';
 import 'package:puresip_purchasing/widgets/app_scaffold.dart';
+import 'package:puresip_purchasing/debug_helper.dart';
 
 class PurchaseOrdersAnalysisPage extends StatefulWidget {
   const PurchaseOrdersAnalysisPage({super.key});
@@ -35,12 +36,12 @@ class _PurchaseOrdersAnalysisPageState extends State<PurchaseOrdersAnalysisPage>
       final userDoc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
       
       if (!userDoc.exists) {
-        debugPrint('User document does not exist');
+        safeDebugPrint('User document does not exist');
         return;
       }
 
       final companyIds = List<String>.from(userDoc.data()?['companyIds'] ?? []);
-      debugPrint('User companies: $companyIds');
+      safeDebugPrint('User companies: $companyIds');
 
       List<Map<String, String>> companies = [];
 
@@ -66,7 +67,7 @@ class _PurchaseOrdersAnalysisPageState extends State<PurchaseOrdersAnalysisPage>
         selectedCompany = 'all';
       });
     } catch (e) {
-      debugPrint('Error loading user info: $e');
+      safeDebugPrint('Error loading user info: $e');
     }
   }
 
@@ -86,7 +87,7 @@ class _PurchaseOrdersAnalysisPageState extends State<PurchaseOrdersAnalysisPage>
 
       return supplierNames;
     } catch (e) {
-      debugPrint('Error loading supplier names: $e');
+      safeDebugPrint('Error loading supplier names: $e');
       return {};
     }
   }
@@ -243,7 +244,7 @@ class _PurchaseOrdersAnalysisPageState extends State<PurchaseOrdersAnalysisPage>
                       }
                       
                       if (snapshot.hasError) {
-                        debugPrint('Stream error: ${snapshot.error}');
+                        safeDebugPrint('Stream error: ${snapshot.error}');
                         return Center(
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
@@ -338,7 +339,7 @@ class _PurchaseOrdersAnalysisPageState extends State<PurchaseOrdersAnalysisPage>
                           }
                           
                           if (supplierSnapshot.hasError) {
-                            debugPrint('Supplier error: ${supplierSnapshot.error}');
+                            safeDebugPrint('Supplier error: ${supplierSnapshot.error}');
                             return Center(
                               child: Text('error_loading_suppliers'.tr()),
                             );

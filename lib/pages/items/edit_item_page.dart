@@ -4,6 +4,8 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/services.dart';
 import 'package:puresip_purchasing/models/item.dart';
 import 'package:puresip_purchasing/utils/user_local_storage.dart';
+import 'package:puresip_purchasing/debug_helper.dart';
+
 
 class EditItemPage extends StatefulWidget {
   final String itemId;
@@ -63,10 +65,10 @@ class _EditItemPageState extends State<EditItemPage> {
       _unit = Item.allowedUnits.contains(item.unit)
           ? item.unit
           : Item.allowedUnits.first;
-      debugPrint('Fetched category: ${item.category}');
-      debugPrint('Fetched unit: ${item.unit}');
-      debugPrint('Allowed categories: ${Item.allowedCategories}');
-      debugPrint('Allowed units: ${Item.allowedUnits}');
+      safeDebugPrint('Fetched category: ${item.category}');
+      safeDebugPrint('Fetched unit: ${item.unit}');
+      safeDebugPrint('Allowed categories: ${Item.allowedCategories}');
+      safeDebugPrint('Allowed units: ${Item.allowedUnits}');
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

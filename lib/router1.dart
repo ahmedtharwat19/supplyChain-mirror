@@ -274,7 +274,7 @@ redirect: (context, state) async {
     // تحقق من حالة الترخيص
     final licenseStatus = await _licenseService.getCurrentUserLicenseStatus();
 
-    debugPrint('''
+    safeDebugPrint('''
     Auth State:
     User: ${user.uid}
     Is Admin: $isAdmin
@@ -296,7 +296,7 @@ redirect: (context, state) async {
 
     // 6. لو الترخيص غير صالح لكن أوفلاين وعندنا كاش → السماح
     if (licenseStatus.isOffline) {
-      debugPrint("✅ Offline mode with cached license, staying on $currentPath");
+      safeDebugPrint("✅ Offline mode with cached license, staying on $currentPath");
       return null;
     }
 
@@ -312,7 +312,7 @@ redirect: (context, state) async {
 
     return null;
   } catch (e) {
-    debugPrint('Router Error: $e');
+    safeDebugPrint('Router Error: $e');
     return '/login';
   }
 });
@@ -323,18 +323,18 @@ Future<bool> _checkIfAdmin(String userId) async {
         await FirebaseFirestore.instance.collection('users').doc(userId).get();
 
     if (!docSnapshot.exists) {
-      debugPrint('[AdminCheck] User document does not exist: $userId');
+      safeDebugPrint('[AdminCheck] User document does not exist: $userId');
       return false;
     }
 
     final data = docSnapshot.data();
     final isAdmin = data?['isAdmin'] == true;
 
-    debugPrint('[AdminCheck] User $userId isAdmin: $isAdmin');
+    safeDebugPrint('[AdminCheck] User $userId isAdmin: $isAdmin');
     return isAdmin;
   } catch (e, stack) {
-    debugPrint('[AdminCheck] Error checking admin status: $e');
-    debugPrint(stack.toString());
+    safeDebugPrint('[AdminCheck] Error checking admin status: $e');
+    safeDebugPrint(stack.toString());
     return false;
   }
 }
@@ -353,7 +353,7 @@ Future<bool> _hasUserLicenseRequest() async {
 
     return querySnapshot.docs.isNotEmpty;
   } catch (e) {
-    debugPrint('User license request check failed: $e');
+    safeDebugPrint('User license request check failed: $e');
     return false;
   }
 }
@@ -372,7 +372,7 @@ Future<bool> _hasLicenseRequests() async {
 
     return querySnapshot.docs.isNotEmpty;
   } catch (e) {
-    debugPrint('License request check failed: $e');
+    safeDebugPrint('License request check failed: $e');
     return false;
   }
 }

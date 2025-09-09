@@ -20,6 +20,7 @@ import 'package:puresip_purchasing/pages/purchasing/Purchasing_orders_crud/edit_
 import 'package:puresip_purchasing/services/order_service.dart';
 import 'package:puresip_purchasing/services/license_service.dart';
 import 'package:puresip_purchasing/widgets/auth/admin_license_management.dart';
+import 'package:puresip_purchasing/widgets/auth/user_device_request_page.dart';
 import 'package:puresip_purchasing/widgets/auth/user_license_request.dart';
 
 import 'pages/dashboard/splash_screen.dart';
@@ -37,6 +38,7 @@ import 'pages/purchasing/Purchasing_orders_crud/purchase_order_details_page.dart
 import 'pages/purchasing/Purchasing_orders_crud/add_purchase_order_page.dart';
 import 'pages/items/items_page.dart';
 import 'package:puresip_purchasing/pages/settings_page.dart';
+import 'package:puresip_purchasing/debug_helper.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 final _licenseService = LicenseService();
@@ -187,6 +189,11 @@ final GoRouter appRouter = GoRouter(
       builder: (context, state) =>
           EditFactoryPage(factoryId: state.pathParameters['id']!),
     ),
+    // في router.dart
+    GoRoute(
+      path: '/device-request',
+      builder: (context, state) => const DeviceRequestPage(),
+    ),
     GoRoute(
         path: '/license/request',
         builder: (context, state) => const UserLicenseRequestPage()),
@@ -222,7 +229,7 @@ final GoRouter appRouter = GoRouter(
 
       final licenseStatus = await _licenseService.getCurrentUserLicenseStatus();
 
-      debugPrint('''
+      safeDebugPrint('''
       Auth State:
       User: ${user.uid}
       Is Admin: $isAdmin
@@ -241,7 +248,7 @@ final GoRouter appRouter = GoRouter(
       }
 
       if (licenseStatus.isOffline && licenseStatus.expiryDate != null) {
-        debugPrint(
+        safeDebugPrint(
             "✅ Offline mode with cached license, staying on $currentPath");
         return null;
       }
@@ -256,7 +263,7 @@ final GoRouter appRouter = GoRouter(
 
       return null;
     } catch (e) {
-      debugPrint('Router Error: $e');
+      safeDebugPrint('Router Error: $e');
       return '/login';
     }
   },
@@ -270,7 +277,7 @@ Future<bool> _checkIfAdmin(String userId) async {
     if (!docSnapshot.exists) return false;
     return docSnapshot.data()?['isAdmin'] == true;
   } catch (e) {
-    debugPrint('[AdminCheck] Error: $e');
+    safeDebugPrint('[AdminCheck] Error: $e');
     return false;
   }
 }
@@ -289,7 +296,7 @@ Future<bool> _hasUserLicenseRequest() async {
 
     return querySnapshot.docs.isNotEmpty;
   } catch (e) {
-    debugPrint('User license request check failed: $e');
+    safeDebugPrint('User license request check failed: $e');
     return false;
   }
 }
@@ -308,7 +315,7 @@ Future<bool> _hasLicenseRequests() async {
 
     return querySnapshot.docs.isNotEmpty;
   } catch (e) {
-    debugPrint('License request check failed: $e');
+    safeDebugPrint('License request check failed: $e');
     return false;
   }
 }
@@ -351,7 +358,7 @@ Future<bool> _hasLicenseRequests() async {
         final licenseStatus =
             await _licenseService.getCurrentUserLicenseStatus();
 
-        debugPrint('''
+        safeDebugPrint('''
       Auth State:
       User: ${user.uid}
       Is Admin: $isAdmin
@@ -385,7 +392,7 @@ Future<bool> _hasLicenseRequests() async {
 // هنا الترخيص غير صالح
 // لو النت مقطوع لكن عندنا كاش صالح → السماح
         if (licenseStatus.isOffline) {
-          debugPrint(
+          safeDebugPrint(
               "Offline mode with cached license, staying on $currentPath");
           return null;
         }
@@ -406,7 +413,7 @@ Future<bool> _hasLicenseRequests() async {
 
         return null;
       } catch (e) {
-        debugPrint('Router Error: $e');
+        safeDebugPrint('Router Error: $e');
         return '/login';
       }
     });
@@ -466,7 +473,7 @@ Future<bool> _hasLicenseRequests() async {
             .get();
 
         if (!userDoc.exists) {
-          debugPrint('User document does not exist');
+          safeDebugPrint('User document does not exist');
           return '/license/request';
         }
 
@@ -474,15 +481,15 @@ Future<bool> _hasLicenseRequests() async {
         final licenseKey = data?['licenseKey'];
 
         if (licenseKey == null || licenseKey.isEmpty) {
-          debugPrint('No license key found for user');
+          safeDebugPrint('No license key found for user');
           return '/license/request';
         }
 
-        debugPrint('License key found: $licenseKey');
+        safeDebugPrint('License key found: $licenseKey');
         final licenseStatus =
             await _licenseService.checkLicenseStatus(licenseKey);
 
-        debugPrint('''
+        safeDebugPrint('''
               Auth State:
               User: ${user.uid}
               Is Admin: $isAdmin
@@ -511,7 +518,7 @@ Future<bool> _hasLicenseRequests() async {
 
         return null; // السماح بباقي الصفحات
       } catch (e) {
-        debugPrint('Router Error: $e');
+        safeDebugPrint('Router Error: $e');
         return '/login';
       }
     });

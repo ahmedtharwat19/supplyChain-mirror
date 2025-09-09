@@ -3,6 +3,7 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:puresip_purchasing/models/manufacturing_order_model.dart';
 import 'package:puresip_purchasing/models/finished_product.dart';
+import 'package:puresip_purchasing/debug_helper.dart';
 
 class ManufacturingService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -14,9 +15,9 @@ class ManufacturingService {
       orderData['id'] = docRef.id;
       
       await docRef.set(orderData);
-      debugPrint('Manufacturing order created successfully with ID: ${docRef.id}');
+      safeDebugPrint('Manufacturing order created successfully with ID: ${docRef.id}');
     } catch (e) {
-      debugPrint('Error creating manufacturing order: $e');
+      safeDebugPrint('Error creating manufacturing order: $e');
       rethrow;
     }
   }
@@ -30,9 +31,9 @@ class ManufacturingService {
       final newOrder = order.copyWith(id: docRef.id);
       
       await docRef.set(newOrder.toMap());
-      debugPrint('Manufacturing order created successfully with ID: ${docRef.id}');
+      safeDebugPrint('Manufacturing order created successfully with ID: ${docRef.id}');
     } catch (e) {
-      debugPrint('Error creating manufacturing order: $e');
+      safeDebugPrint('Error creating manufacturing order: $e');
       rethrow;
     }
   }
@@ -301,7 +302,7 @@ final bool isArabic = Localizations.localeOf(localContext).languageCode == 'ar';
 
       if (targetOrder != null) {
   // Use it, e.g.:
-        debugPrint("Target order found: ${targetOrder.id}");
+        safeDebugPrint("Target order found: ${targetOrder.id}");
   // Or perform some action with it
 }
 
@@ -339,7 +340,7 @@ final bool isArabic = Localizations.localeOf(localContext).languageCode == 'ar';
         'packagingMaterials': updatedPackagingMaterials,
       });
 
-      debugPrint('Updated packaging materials for order: $orderId');
+      safeDebugPrint('Updated packaging materials for order: $orderId');
     }
 
     if (!localContext.mounted) return;
@@ -348,7 +349,7 @@ final bool isArabic = Localizations.localeOf(localContext).languageCode == 'ar';
     );
 
   } catch (e) {
-    debugPrint('Error in manufacturing process: $e');
+    safeDebugPrint('Error in manufacturing process: $e');
     if (!localContext.mounted) return;
     ScaffoldMessenger.of(localContext).showSnackBar(
       SnackBar(content: Text('${'error'.tr()}: $e')),
@@ -563,7 +564,7 @@ final bool isArabic = Localizations.localeOf(localContext).languageCode == 'ar';
     );
 
   } catch (e) {
-    debugPrint('Error in manufacturing process: $e');
+    safeDebugPrint('Error in manufacturing process: $e');
     if (!localContext.mounted) return;
     ScaffoldMessenger.of(localContext).showSnackBar(
       SnackBar(content: Text('${'error'.tr()}: $e')),

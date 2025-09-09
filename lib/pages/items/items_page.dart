@@ -19,18 +19,18 @@ class _ItemsPageState extends State<ItemsPage> {
 @override
 void initState() {
   super.initState();
-  debugPrint("🚀 initState: Starting to load user...");
+  safeDebugPrint("🚀 initState: Starting to load user...");
   _loadUser();
 }
 
 Future<void> _loadUser() async {
   final user = await UserLocalStorage.getUser();
-  debugPrint("👤 Loaded user: $user");
+  safeDebugPrint("👤 Loaded user: $user");
 
   if (!mounted) return;
 
   if (user == null) {
-    debugPrint("⚠️ No user found in local storage.");
+    safeDebugPrint("⚠️ No user found in local storage.");
     setState(() {
       isLoading = false;
     });
@@ -42,34 +42,34 @@ Future<void> _loadUser() async {
     isLoading = false;
   });
 
-  debugPrint("✅ User ID set to: $userId");
+  safeDebugPrint("✅ User ID set to: $userId");
 }
 
 
 
 Future<List<QueryDocumentSnapshot>> _fetchUserItems() async {
   if (userId == null) {
-    debugPrint("❌ Cannot fetch items: userId is null");
+    safeDebugPrint("❌ Cannot fetch items: userId is null");
     return [];
   }
 
   try {
-    debugPrint("📦 Fetching items for user: $userId...");
+    safeDebugPrint("📦 Fetching items for user: $userId...");
     final snapshot = await FirebaseFirestore.instance
         .collection('items')
         .where('userId', isEqualTo: userId)
         .orderBy('createdAt', descending: true)
         .get();
 
-    debugPrint("📦 Retrieved ${snapshot.docs.length} items for user: $userId");
+    safeDebugPrint("📦 Retrieved ${snapshot.docs.length} items for user: $userId");
 
     for (var doc in snapshot.docs) {
-      debugPrint("✅ Item: ${doc.data()}");
+      safeDebugPrint("✅ Item: ${doc.data()}");
     }
 
     return snapshot.docs;
   } catch (e) {
-    debugPrint("❌ Error fetching items: $e");
+    safeDebugPrint("❌ Error fetching items: $e");
     return [];
   }
 }
@@ -77,24 +77,24 @@ Future<List<QueryDocumentSnapshot>> _fetchUserItems() async {
 Future<List<String>> _getSupplierNames(List<dynamic> supplierIds) async {
   try {
     if (supplierIds.isEmpty) {
-      debugPrint("ℹ️ No supplier IDs provided.");
+      safeDebugPrint("ℹ️ No supplier IDs provided.");
       return [];
     }
 
-    debugPrint("🔍 Fetching supplier names for IDs: $supplierIds");
+    safeDebugPrint("🔍 Fetching supplier names for IDs: $supplierIds");
 
     final suppliersSnapshot = await FirebaseFirestore.instance
         .collection('vendors')
         .where(FieldPath.documentId, whereIn: supplierIds)
         .get();
 
-    debugPrint("✅ Fetched ${suppliersSnapshot.docs.length} suppliers.");
+    safeDebugPrint("✅ Fetched ${suppliersSnapshot.docs.length} suppliers.");
 
     return suppliersSnapshot.docs
         .map((doc) => doc.data()['name']?.toString() ?? 'N/A')
         .toList();
   } catch (e) {
-    debugPrint("❌ Error fetching supplier names: $e");
+    safeDebugPrint("❌ Error fetching supplier names: $e");
     return ['Error loading suppliers'];
   }
 }
@@ -130,19 +130,19 @@ Future<List<String>> _getSupplierNames(List<dynamic> supplierIds) async {
         future: _fetchUserItems(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-             debugPrint("⏳ Waiting for items to load...");
+             safeDebugPrint("⏳ Waiting for items to load...");
             return Center(child: Text(tr('loading_items')));
           }
           if (snapshot.hasError) {
 
-            debugPrint("❌ Error loading items: ${snapshot.error}");
+            safeDebugPrint("❌ Error loading items: ${snapshot.error}");
 
             return Center(
               
                 child: Text('${tr('error_occurred')}: ${snapshot.error}'));
           }
           final items = snapshot.data ?? [];
-          debugPrint("📋 Final item count in UI: ${items.length}");
+          safeDebugPrint("📋 Final item count in UI: ${items.length}");
           if (items.isEmpty) {
             return Center(child: Text(tr('no_items_found')));
           }
@@ -654,6 +654,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:go_router/go_router.dart';
 import '../../widgets/app_scaffold.dart';
+import 'package:puresip_purchasing/debug_helper.dart';
+
 
 class ItemsPage extends StatefulWidget {
   const ItemsPage({super.key});
@@ -727,7 +729,7 @@ class _ItemsPageState extends State<ItemsPage> {
           SnackBar(content: Text('${tr('error_occurred')}: $e')),
           
         );
-        debugPrint("❌ Error fetching items: $e");
+        safeDebugPrint("❌ Error fetching items: $e");
       }
     }
   }

@@ -670,12 +670,12 @@ class _UserLicenseRequestPageState extends State<UserLicenseRequestPage> {
       if (!mounted) return;
 
       final data = docSnapshot.data() as Map<String, dynamic>?;
-      debugPrint('License Request Data: $data'); // تحقق من البيانات
+      safeDebugPrint('License Request Data: $data'); // تحقق من البيانات
 
       if (data != null) {
         final status = data['status'] as String?;
         if (status == 'approved') {
-          debugPrint('License approved, navigating to dashboard');
+          safeDebugPrint('License approved, navigating to dashboard');
 
           // عند الموافقة، تحويل المستخدم للوحة التحكم
           context.go('/dashboard');
@@ -1042,7 +1042,7 @@ class _UserLicenseRequestPageState extends State<UserLicenseRequestPage> {
         );
       }
     }, onError: (e) {
-      debugPrint('licenseRequest stream error: $e');
+      safeDebugPrint('licenseRequest stream error: $e');
     });
   }
 
@@ -1667,7 +1667,7 @@ class _UserLicenseRequestPageState extends State<UserLicenseRequestPage> {
       final deviceIds = licenseDoc.data()?['deviceIds'] as List? ?? [];
       return deviceIds.length;
     } catch (e) {
-      debugPrint('Error getting device count: $e');
+      safeDebugPrint('Error getting device count: $e');
       return 0;
     }
   }
@@ -1916,6 +1916,7 @@ import 'package:go_router/go_router.dart';
 import 'package:uuid/uuid.dart';
 import '../../services/license_service.dart';
 import 'package:collection/collection.dart';
+import 'package:puresip_purchasing/debug_helper.dart';
 
 class UserLicenseRequestPage extends StatefulWidget {
   const UserLicenseRequestPage({super.key});
@@ -1983,7 +1984,7 @@ class _UserLicenseRequestPageState extends State<UserLicenseRequestPage> {
 
       if (licenseDoc == null) {
         // لا يوجد ترخيص على الإطلاق، توجه المستخدم لطلب ترخيص
-        debugPrint('user license page : No License found ...');
+        safeDebugPrint('user license page : No License found ...');
         context.go('/license/request');
         return;
       }
@@ -1992,17 +1993,17 @@ class _UserLicenseRequestPageState extends State<UserLicenseRequestPage> {
       final expiryDate = (licenseDoc.get('expiryDate') as Timestamp?)?.toDate();
       final nowUtc = DateTime.now().toUtc();
       final isExpired = expiryDate != null && expiryDate.isBefore(nowUtc);
-      debugPrint('expiryDate: $expiryDate');
-      debugPrint('nowUtc: $nowUtc');
-      debugPrint('isExpired: $isExpired');
-      debugPrint('isActive: $isActive');
+      safeDebugPrint('expiryDate: $expiryDate');
+      safeDebugPrint('nowUtc: $nowUtc');
+      safeDebugPrint('isExpired: $isExpired');
+      safeDebugPrint('isActive: $isActive');
 
       // final isExpired =
       //     expiryDate != null && expiryDate.isBefore(DateTime.now());
 
       if (!isActive || isExpired) {
         // الترخيص ملغي أو منتهي
-        debugPrint('user license page : Licesne is canseled or expired...');
+        safeDebugPrint('user license page : Licesne is canseled or expired...');
         context.go('/license/request');
       }
     });
@@ -2133,7 +2134,7 @@ class _UserLicenseRequestPageState extends State<UserLicenseRequestPage> {
       setState(() => _currentDeviceId = deviceId);
     }
   } catch (e) {
-    debugPrint('Error loading device ID: $e');
+    safeDebugPrint('Error loading device ID: $e');
     if (mounted) {
       setState(() => _currentDeviceId = 'error_${_uuid.v4()}');
     }

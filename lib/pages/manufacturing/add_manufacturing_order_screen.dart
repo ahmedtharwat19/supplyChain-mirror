@@ -7,6 +7,8 @@ import 'package:puresip_purchasing/models/company.dart';
 import 'package:puresip_purchasing/models/factory.dart';
 import 'package:puresip_purchasing/models/finished_product.dart';
 import 'package:puresip_purchasing/pages/manufacturing/services/manufacturing_service.dart';
+import 'package:puresip_purchasing/debug_helper.dart';
+
 
 class AddManufacturingOrderScreen extends StatefulWidget {
   const AddManufacturingOrderScreen({super.key});
@@ -73,7 +75,7 @@ class AddManufacturingOrderScreenState
         _userCompanies = companies;
       });
     } catch (e) {
-      debugPrint('Error loading companies: $e');
+      safeDebugPrint('Error loading companies: $e');
     }
   }
 
@@ -102,7 +104,7 @@ class AddManufacturingOrderScreenState
         _loadingFactories = false;
       });
     } catch (e) {
-      debugPrint('Error loading factories: $e');
+      safeDebugPrint('Error loading factories: $e');
       setState(() {
         _loadingFactories = false;
       });
@@ -133,7 +135,7 @@ class AddManufacturingOrderScreenState
         _loadingProducts = false;
       });
     } catch (e) {
-      debugPrint('Error loading products: $e');
+      safeDebugPrint('Error loading products: $e');
       setState(() {
         _loadingProducts = false;
       });
@@ -214,8 +216,8 @@ Future<void> _calculateInventoryNeeds() async {
       }
     }
 
-    debugPrint('Found ${rawMaterials.length} raw materials');
-    debugPrint('Found ${packagingMaterials.length} packaging materials');
+    safeDebugPrint('Found ${rawMaterials.length} raw materials');
+    safeDebugPrint('Found ${packagingMaterials.length} packaging materials');
 
     // 4. جمع كل المواد في قائمة واحدة
     List<_InventoryCheckItem> checkItems = [];
@@ -296,16 +298,16 @@ Future<void> _calculateInventoryNeeds() async {
             currentInventory = (inventoryData['availableQuantity'] ?? 0).toDouble();
           }
           
-          debugPrint('Inventory found for ${item.itemId}: $currentInventory');
+          safeDebugPrint('Inventory found for ${item.itemId}: $currentInventory');
         } else {
-          debugPrint('No inventory found for ${item.itemId} in factory ${_selectedFactory!.id}');
+          safeDebugPrint('No inventory found for ${item.itemId} in factory ${_selectedFactory!.id}');
         }
 
         item.currentInventory = currentInventory;
         item.difference = currentInventory - item.plannedQuantity;
 
       } catch (e) {
-        debugPrint('Error fetching data for ${item.itemId}: $e');
+        safeDebugPrint('Error fetching data for ${item.itemId}: $e');
         item.itemName = 'Error Loading';
         item.currentInventory = 0;
         item.difference = -item.plannedQuantity;
@@ -325,7 +327,7 @@ Future<void> _calculateInventoryNeeds() async {
     }
 
   } catch (e) {
-    debugPrint('Error calculating inventory needs: $e');
+    safeDebugPrint('Error calculating inventory needs: $e');
     setState(() {
       _checkingInventory = false;
     });
@@ -403,8 +405,8 @@ Future<void> _calculateInventoryNeeds() async {
       }
     }
 
-    debugPrint('Found ${rawMaterials.length} raw materials');
-    debugPrint('Found ${packagingMaterials.length} packaging materials');
+    safeDebugPrint('Found ${rawMaterials.length} raw materials');
+    safeDebugPrint('Found ${packagingMaterials.length} packaging materials');
 
     // 4. جمع كل المواد في قائمة واحدة
     List<_InventoryCheckItem> checkItems = [];
@@ -422,7 +424,7 @@ Future<void> _calculateInventoryNeeds() async {
           plannedQuantity: qtyPerUnit * totalRunsQuantity,
         ));
         
-        debugPrint('Raw Material: ID: $itemId, Qty: $qtyPerUnit');
+        safeDebugPrint('Raw Material: ID: $itemId, Qty: $qtyPerUnit');
       }
     }
 
@@ -439,7 +441,7 @@ Future<void> _calculateInventoryNeeds() async {
           plannedQuantity: qtyPerUnit * totalRunsQuantity,
         ));
         
-        debugPrint('Packaging Material: ID: $itemId, Qty: $qtyPerUnit');
+        safeDebugPrint('Packaging Material: ID: $itemId, Qty: $qtyPerUnit');
       }
     }
 
@@ -478,16 +480,16 @@ Future<void> _calculateInventoryNeeds() async {
           item.currentInventory = currentInventory;
           item.difference = currentInventory - item.plannedQuantity;
           
-          debugPrint('Item ${item.itemId}: $itemName, Stock: $currentInventory');
+          safeDebugPrint('Item ${item.itemId}: $itemName, Stock: $currentInventory');
         } else {
           item.itemName = 'Item Not Found';
           item.currentInventory = 0;
           item.difference = -item.plannedQuantity;
-          debugPrint('Item ${item.itemId} not found in items collection');
+          safeDebugPrint('Item ${item.itemId} not found in items collection');
         }
 
       } catch (e) {
-        debugPrint('Error fetching item data for ${item.itemId}: $e');
+        safeDebugPrint('Error fetching item data for ${item.itemId}: $e');
         item.itemName = 'Error Loading';
         item.currentInventory = 0;
         item.difference = -item.plannedQuantity;
@@ -507,7 +509,7 @@ Future<void> _calculateInventoryNeeds() async {
     }
 
   } catch (e) {
-    debugPrint('Error calculating inventory needs: $e');
+    safeDebugPrint('Error calculating inventory needs: $e');
     setState(() {
       _checkingInventory = false;
     });
@@ -560,7 +562,7 @@ Future<void> _calculateInventoryNeeds() async {
       final productData = productDoc.data()!;
 
       // 3. تحقق من هيكل البيانات - أضف هذا للتصحيح
-      debugPrint('Product data structure: ${productData.keys}');
+      safeDebugPrint('Product data structure: ${productData.keys}');
 
       // 4. جلب قائمة المواد من الحقل materials أو items
       List<Map<String, dynamic>> materials = [];
@@ -589,7 +591,7 @@ Future<void> _calculateInventoryNeeds() async {
         }
       }
 
-      debugPrint('Found ${materials.length} materials in product');
+      safeDebugPrint('Found ${materials.length} materials in product');
 
       // 5. جمع كل المواد في قائمة واحدة
       List<_InventoryCheckItem> checkItems = [];
@@ -610,10 +612,10 @@ Future<void> _calculateInventoryNeeds() async {
             plannedQuantity: qtyPerUnit * totalRunsQuantity,
           ));
 
-          debugPrint(
+          safeDebugPrint(
               'Material: $itemName (ID: $itemId), Qty per unit: $qtyPerUnit');
         } else {
-          debugPrint('Skipping material without ID: $item');
+          safeDebugPrint('Skipping material without ID: $item');
         }
       }
 
@@ -645,7 +647,7 @@ Future<void> _calculateInventoryNeeds() async {
             // إذا كانت المادة raw_material، احسب الكمية المتاحة
             final category = itemData?['category']?.toString();
             if (category == 'raw_material') {
-              debugPrint(
+              safeDebugPrint(
                   'Raw material found: ${itemData?['nameEn']} - Stock: $currentInventory');
             }
           }
@@ -653,10 +655,10 @@ Future<void> _calculateInventoryNeeds() async {
           item.currentInventory = currentInventory;
           item.difference = currentInventory - item.plannedQuantity;
 
-          debugPrint(
+          safeDebugPrint(
               'Item ${item.itemId}: planned=${item.plannedQuantity}, current=${item.currentInventory}');
         } catch (e) {
-          debugPrint('Error fetching item data for ${item.itemId}: $e');
+          safeDebugPrint('Error fetching item data for ${item.itemId}: $e');
           item.currentInventory = 0;
           item.difference = -item.plannedQuantity;
         }
@@ -674,7 +676,7 @@ Future<void> _calculateInventoryNeeds() async {
             SnackBar(content: Text('manufacturing.no_materials_found'.tr())));
       }
     } catch (e) {
-      debugPrint('Error calculating inventory needs: $e');
+      safeDebugPrint('Error calculating inventory needs: $e');
       setState(() {
         _checkingInventory = false;
       });
@@ -780,7 +782,7 @@ Future<void> _calculateInventoryNeeds() async {
         _checkingInventory = false;
       });
     } catch (e) {
-      debugPrint('Error calculating inventory needs: $e');
+      safeDebugPrint('Error calculating inventory needs: $e');
       setState(() {
         _checkingInventory = false;
       });
@@ -881,7 +883,7 @@ Future<void> _calculateInventoryNeeds() async {
       if (!mounted) return;
       Navigator.of(context).pop();
     } catch (e) {
-      debugPrint('Error saving manufacturing order: $e');
+      safeDebugPrint('Error saving manufacturing order: $e');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error: ${e.toString()}')));
@@ -982,7 +984,7 @@ Future<void> _calculateInventoryNeeds() async {
       if (!mounted) return;
       Navigator.of(context).pop();
     } catch (e) {
-      debugPrint('Error saving manufacturing order: $e');
+      safeDebugPrint('Error saving manufacturing order: $e');
       if (!mounted) return;
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text('Error: ${e.toString()}')));
@@ -1088,7 +1090,7 @@ Future<void> _calculateInventoryNeeds() async {
     if (!mounted) return;
     Navigator.of(context).pop();
   } catch (e) {
-    debugPrint('Error saving manufacturing order: $e');
+    safeDebugPrint('Error saving manufacturing order: $e');
     if (!mounted) return;
     ScaffoldMessenger.of(context)
         .showSnackBar(SnackBar(content: Text('Error: ${e.toString()}')));
@@ -1213,7 +1215,7 @@ Future<void> _calculateInventoryNeeds() async {
     if (!mounted) return;
     Navigator.of(context).pop();
   } catch (e) {
-    debugPrint('Error saving manufacturing order: $e');
+    safeDebugPrint('Error saving manufacturing order: $e');
     if (!mounted) return;
     ScaffoldMessenger.of(context)
         .showSnackBar(SnackBar(content: Text('Error: ${e.toString()}')));

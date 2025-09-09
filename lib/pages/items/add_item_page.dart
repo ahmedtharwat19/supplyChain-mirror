@@ -114,7 +114,7 @@ class _AddItemPageState extends State<AddItemPage> {
 
       if (mounted) context.pop();
     } catch (e) {
-      debugPrint('Error saving item: $e');
+      safeDebugPrint('Error saving item: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('${tr('error_occurred')}: $e')),
       );
@@ -227,7 +227,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:go_router/go_router.dart';
 import 'package:puresip_purchasing/utils/user_local_storage.dart';
-
+import 'package:puresip_purchasing/debug_helper.dart';
 import '../../models/item.dart';
 
 class AddItemPage extends StatefulWidget {
@@ -300,12 +300,12 @@ class _AddItemPageState extends State<AddItemPage> {
     try {
       final user = await UserLocalStorage.getUser();
       final userId = user?['userId'];
-      debugPrint('Local User ID: $userId');
+      safeDebugPrint('Local User ID: $userId');
 
     //       final authUser = FirebaseAuth.instance.currentUser;
     // final userId = authUser?.uid;
 
-    // debugPrint('🔥 Auth UID: $userId');
+    // safeDebugPrint('🔥 Auth UID: $userId');
       if (userId == null) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
@@ -325,8 +325,8 @@ class _AddItemPageState extends State<AddItemPage> {
         Item.fieldUnitPrice: double.tryParse(_priceController.text.trim()) ?? 0,
         Item.fieldCreatedAt: FieldValue.serverTimestamp(),
       };
-      debugPrint("🔥 Auth UID: ${FirebaseAuth.instance.currentUser?.uid}");
-      debugPrint("📦 itemData['userId']: ${itemData[Item.fieldUserId]}");
+      safeDebugPrint("🔥 Auth UID: ${FirebaseAuth.instance.currentUser?.uid}");
+      safeDebugPrint("📦 itemData['userId']: ${itemData[Item.fieldUserId]}");
 
       final collection = FirebaseFirestore.instance.collection('items');
 
@@ -346,7 +346,7 @@ class _AddItemPageState extends State<AddItemPage> {
 
       if (mounted) context.pop();
     } catch (e) {
-      debugPrint('Error saving item: $e');
+      safeDebugPrint('Error saving item: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('${tr('error_occurred')}: $e')),
       );

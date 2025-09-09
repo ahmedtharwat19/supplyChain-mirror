@@ -459,9 +459,17 @@
   "subscription_warning_message": "Your subscription will expire in {time_left}. Renew now to avoid service interruption.",
   "dismiss": "Dismiss",
   "renew": "Renew",
-
-
+  "max_devices_reached": "You have reached the maximum number of devices ({max}). Please contact admin to add a new device or use one of your registered devices.",
+  
+  "request_sent_to_admin": "Your request has been sent to the admin.",
  
+ 
+
+
+  "device_limit_title": "Device Limit Reached",
+  "request_device_button": "Request New Device",
+  "device_check_error": "Error checking device. Please try again.",
+   "device_added_successfully": "Device added successfully",
   "offline_mode_warning": "Working in offline mode with local data",
   "edit_order": "Edit Purchase Order",
   "order_updated": "Order updated successfully",

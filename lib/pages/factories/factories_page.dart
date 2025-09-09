@@ -462,6 +462,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:puresip_purchasing/widgets/app_scaffold.dart';
+import 'package:puresip_purchasing/debug_helper.dart';
 
 class FactoriesPage extends StatefulWidget {
   const FactoriesPage({super.key});
@@ -513,7 +514,7 @@ class _FactoriesPageState extends State<FactoriesPage> {
     final data = doc.data();
     userFactoryIds = (data?['factoryIds'] as List?)?.cast<String>() ?? [];
 
-    debugPrint(
+    safeDebugPrint(
         'Loaded factory IDs for user: $userFactoryIds'); // <<< طباعة معرفات المصانع هنا
 
     setState(() {
@@ -691,14 +692,14 @@ class _FactoriesPageState extends State<FactoriesPage> {
     }
 
     if (userFactoryIds.isEmpty) {
-      debugPrint('User has no factories linked.');
+      safeDebugPrint('User has no factories linked.');
       return Scaffold(
         appBar: AppBar(title: Text(tr('factories_list'))),
         body: Center(child: Text(tr('no_factories_linked'))),
       );
     }
 
-    debugPrint(
+    safeDebugPrint(
         'Building StreamBuilder with userFactoryIds: $userFactoryIds'); // <<< طباعة هنا
 
     return AppScaffold(
@@ -731,7 +732,7 @@ class _FactoriesPageState extends State<FactoriesPage> {
                   return const Center(child: CircularProgressIndicator());
                 }
                 if (snap.hasError) {
-                  debugPrint('StreamBuilder error: ${snap.error}');
+                  safeDebugPrint('StreamBuilder error: ${snap.error}');
                   return Center(
                       child: Text('${tr('error_occurred')}: ${snap.error}'));
                 }
@@ -745,7 +746,7 @@ class _FactoriesPageState extends State<FactoriesPage> {
                       nameEn.contains(searchQuery);
                 }).toList();
 
-                debugPrint('Factories fetched: ${factories.length}');
+                safeDebugPrint('Factories fetched: ${factories.length}');
 
                 if (factories.isEmpty) {
                   return Center(child: Text(tr('no_match_search')));

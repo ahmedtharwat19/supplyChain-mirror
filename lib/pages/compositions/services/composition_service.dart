@@ -2,6 +2,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:puresip_purchasing/models/product_composition_model.dart';
+import 'package:puresip_purchasing/debug_helper.dart';
 
 class CompositionService with ChangeNotifier { // Add with ChangeNotifier
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -20,7 +21,7 @@ class CompositionService with ChangeNotifier { // Add with ChangeNotifier
         })
         .handleError((error) {
           if (kDebugMode) {
-            print('Error loading composition: $error');
+            safeDebugPrint('Error loading composition: $error');
           }
           return null;
         });
@@ -41,7 +42,7 @@ class CompositionService with ChangeNotifier { // Add with ChangeNotifier
       notifyListeners(); // This will notify listeners when composition is saved
     } catch (e) {
       if (kDebugMode) {
-        print('Error saving composition: $e');
+        safeDebugPrint('Error saving composition: $e');
       }
       rethrow;
     }
@@ -60,7 +61,7 @@ class CompositionService with ChangeNotifier { // Add with ChangeNotifier
       notifyListeners(); // This will notify listeners when composition is deleted
     } catch (e) {
       if (kDebugMode) {
-        print('Error deleting composition: $e');
+        safeDebugPrint('Error deleting composition: $e');
       }
       rethrow;
     }

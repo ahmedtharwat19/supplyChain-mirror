@@ -13,7 +13,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import 'dart:io';
 import '../stock_movements/services/movement_utils.dart';
-
+import 'package:puresip_purchasing/debug_helper.dart';
 // للويب فقط - استيراد مكتبات dart:html بشكل مشروط
 import 'package:universal_html/html.dart' as html;
 
@@ -86,7 +86,7 @@ Future<void> _preloadData() async {
     
     setState(() => isLoading = false);
   } catch (e) {
-    debugPrint('[ERROR] Preloading data failed: $e');
+    safeDebugPrint('[ERROR] Preloading data failed: $e');
     setState(() => isLoading = false);
   }
 }
@@ -102,7 +102,7 @@ Future<void> _preloadData() async {
       _cachedCairoRegular = pw.Font.ttf(fontData);
       return _cachedCairoRegular!;
     } catch (e) {
-      debugPrint('Error loading Cairo Regular font: $e');
+      safeDebugPrint('Error loading Cairo Regular font: $e');
       return pw.Font.courier();
     }
   }
@@ -116,7 +116,7 @@ Future<void> _preloadData() async {
       _cachedCairoBold = pw.Font.ttf(fontData);
       return _cachedCairoBold!;
     } catch (e) {
-      debugPrint('Error loading Cairo Bold font: $e');
+      safeDebugPrint('Error loading Cairo Bold font: $e');
       return pw.Font.courierBold();
     }
   }
@@ -147,13 +147,13 @@ Future<void> _preloadData() async {
         }
       }
     } catch (e) {
-      debugPrint('[ERROR] Failed to load companies from Firestore: $e');
+      safeDebugPrint('[ERROR] Failed to load companies from Firestore: $e');
     }
   }
 
   Future<void> _initializePage() async {
    // updateAllStockMovements;
-    debugPrint('[DEBUG] Starting _initializePage');
+    safeDebugPrint('[DEBUG] Starting _initializePage');
 
     final prefs = await SharedPreferences.getInstance();
     final cachedIds = prefs.getStringList('userCompanyIds');
@@ -189,17 +189,17 @@ Future<void> _preloadData() async {
       if (userDoc.exists) {
         final data = userDoc.data()!;
         userCompanyIds = (data['companyIds'] as List?)?.cast<String>() ?? [];
-        debugPrint(
+        safeDebugPrint(
             '[DEBUG] userCompanyIds loaded from Firestore: $userCompanyIds');
 
         final prefs = await SharedPreferences.getInstance();
         await prefs.setStringList('userCompanyIds', userCompanyIds);
       } else {
         userCompanyIds = [];
-        debugPrint('[DEBUG] User document not found');
+        safeDebugPrint('[DEBUG] User document not found');
       }
     } catch (e) {
-      debugPrint('[ERROR] Failed to load userCompanyIds: $e');
+      safeDebugPrint('[ERROR] Failed to load userCompanyIds: $e');
       userCompanyIds = [];
     }
   }
@@ -223,15 +223,15 @@ Future<void> _preloadData() async {
 
   // دالة جديدة: تحميل الشركات التي تحتوي على حركات للمستخدم
   Future<void> _loadCompaniesWithMovements() async {
-    debugPrint(
+    safeDebugPrint(
         '[DEBUG] Starting _loadCompaniesWithMovements with userCompanyIds: $userCompanyIds');
 
     if (userCompanyIds.isEmpty) {
-      debugPrint('[DEBUG] No company IDs available');
+      safeDebugPrint('[DEBUG] No company IDs available');
       await _loadUserCompaniesFromFirestore();
 
       if (userCompanyIds.isEmpty) {
-        debugPrint('[DEBUG] Still no company IDs after retry');
+        safeDebugPrint('[DEBUG] Still no company IDs after retry');
         return;
       }
     }
@@ -274,8 +274,8 @@ Future<void> _preloadData() async {
         await _loadFactoriesWithMovements();
       }
     } catch (e, stack) {
-      debugPrint('[ERROR] Failed to load companies with movements: $e');
-      debugPrint(stack.toString());
+      safeDebugPrint('[ERROR] Failed to load companies with movements: $e');
+      safeDebugPrint(stack.toString());
     }
   }
 
@@ -327,7 +327,7 @@ Future<void> _preloadData() async {
         await _loadItemsWithMovements();
       }
     } catch (e) {
-      debugPrint('[ERROR] Failed to load factories with movements: $e');
+      safeDebugPrint('[ERROR] Failed to load factories with movements: $e');
     }
   }
 
@@ -376,7 +376,7 @@ Future<void> _preloadData() async {
             });
           }
         } catch (e) {
-          debugPrint('[ERROR] Loading item $itemId: $e');
+          safeDebugPrint('[ERROR] Loading item $itemId: $e');
         }
       }
 
@@ -388,7 +388,7 @@ Future<void> _preloadData() async {
 
       await _loadInventory();
     } catch (e) {
-      debugPrint('[ERROR] Failed to load items with movements: $e');
+      safeDebugPrint('[ERROR] Failed to load items with movements: $e');
     }
   }
 
@@ -437,12 +437,12 @@ Future<void> _preloadData() async {
               ? quantity
               : (quantity is num ? quantity.toDouble() : 0));
         } catch (e) {
-          debugPrint('[ERROR] Processing inventory item ${doc.id}: $e');
+          safeDebugPrint('[ERROR] Processing inventory item ${doc.id}: $e');
         }
       }
       setState(() => itemStocks = stocks);
     } catch (e) {
-      debugPrint('[ERROR] Loading inventory: $e');
+      safeDebugPrint('[ERROR] Loading inventory: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('error_loading_inventory'.tr())),
@@ -482,7 +482,7 @@ Future<void> _loadItemNames() async {
       itemNames = names;
     });
   } catch (e) {
-    debugPrint('[ERROR] Loading item names: $e');
+    safeDebugPrint('[ERROR] Loading item names: $e');
     // استخدام البيانات المخزنة مؤقتاً إذا فشل التحميل
     final cachedNames = await UserLocalStorage.getItemNames();
     setState(() {
@@ -536,7 +536,7 @@ Widget _buildMovementsTable(List<QueryDocumentSnapshot> docs) {
         'documentId': doc.id,
       });
     } catch (e) {
-      debugPrint('[ERROR] Processing movement: $e');
+      safeDebugPrint('[ERROR] Processing movement: $e');
     }
   }
 
@@ -854,7 +854,7 @@ Widget _buildMovementsTable(List<QueryDocumentSnapshot> docs) {
 
       await _saveAndSharePdf(pdf, fileName);
     } catch (e) {
-      debugPrint('[ERROR] PDF export failed: $e');
+      safeDebugPrint('[ERROR] PDF export failed: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('pdf_export_failed'.tr())),
@@ -910,7 +910,7 @@ Widget _buildMovementsTable(List<QueryDocumentSnapshot> docs) {
         'quantity': quantity,
       });
     } catch (e) {
-      debugPrint('[ERROR] Building PDF table: $e');
+      safeDebugPrint('[ERROR] Building PDF table: $e');
     }
   }
 
@@ -1155,7 +1155,7 @@ List<pw.TableRow> _buildItemTableRows(
         );
       }
     } catch (e) {
-      debugPrint('Error saving/sharing PDF: $e');
+      safeDebugPrint('Error saving/sharing PDF: $e');
       rethrow;
     }
   }
@@ -1183,9 +1183,9 @@ List<pw.TableRow> _buildItemTableRows(
       });
     }
 
-    debugPrint('تم تحديث جميع الوثائق بنجاح.');
+    safeDebugPrint('تم تحديث جميع الوثائق بنجاح.');
   } catch (e) {
-    debugPrint('حدث خطأ أثناء التحديث: $e');
+    safeDebugPrint('حدث خطأ أثناء التحديث: $e');
   }
 }
  */
@@ -1529,7 +1529,7 @@ List<pw.TableRow> _buildItemTableRows(
         'type_text': movementInfo['type_text'],
       });
     } catch (e) {
-      debugPrint('[ERROR] Building PDF table: $e');
+      safeDebugPrint('[ERROR] Building PDF table: $e');
     }
   }
 
@@ -1686,7 +1686,7 @@ List<pw.TableRow> _buildItemTableRows(
           'type_text': movementInfo['type_text'],
         });
       } catch (e) {
-        debugPrint('[ERROR] Building PDF table: $e');
+        safeDebugPrint('[ERROR] Building PDF table: $e');
       }
     }
 
@@ -1874,18 +1874,18 @@ List<pw.TableRow> _buildItemTableRows(
           'quantity': quantity,
         });
       } catch (e) {
-        debugPrint('[ERROR] Processing movement: $e');
+        safeDebugPrint('[ERROR] Processing movement: $e');
         // طباعة تفاصيل المستند للمساعدة في التصحيح
-        debugPrint('Document data: ${doc.data()}');
+        safeDebugPrint('Document data: ${doc.data()}');
 
         // تحليل الخطأ بشكل أكثر تفصيلاً
         if (e is TypeError) {
-          debugPrint('Type error details: ${e.toString()}');
+          safeDebugPrint('Type error details: ${e.toString()}');
           final data = doc.data() as Map<String, dynamic>;
-          debugPrint('itemId type: ${data['itemId']?.runtimeType}');
-          debugPrint('type type: ${data['type']?.runtimeType}');
-          debugPrint('quantity type: ${data['quantity']?.runtimeType}');
-          debugPrint('date type: ${data['date']?.runtimeType}');
+          safeDebugPrint('itemId type: ${data['itemId']?.runtimeType}');
+          safeDebugPrint('type type: ${data['type']?.runtimeType}');
+          safeDebugPrint('quantity type: ${data['quantity']?.runtimeType}');
+          safeDebugPrint('date type: ${data['date']?.runtimeType}');
         }
       }
     }
@@ -2109,7 +2109,7 @@ List<pw.TableRow> _buildItemTableRows(
         'documentId': doc.id, // حفظ معرف المستند للترتيب
       });
     } catch (e) {
-      debugPrint('[ERROR] Processing movement: $e');
+      safeDebugPrint('[ERROR] Processing movement: $e');
     }
   }
 

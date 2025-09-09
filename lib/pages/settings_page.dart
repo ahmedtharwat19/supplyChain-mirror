@@ -250,6 +250,7 @@ import 'package:puresip_purchasing/pages/dashboard/dashboard_metrics.dart';
 import 'package:puresip_purchasing/widgets/app_scaffold.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:easy_localization/easy_localization.dart';
+import 'package:puresip_purchasing/debug_helper.dart';
 
 const String prefDashboardView = 'dashboard_view';
 const String prefSelectedCards = 'selected_cards';
@@ -338,7 +339,7 @@ class _SettingsPageState extends State<SettingsPage> {
     }
     await prefs.setStringList(prefSelectedCards, _selectedCards.toList());
 
-    debugPrint('Saving settings: view=$_selectedView, cards=$_selectedCards');
+    safeDebugPrint('Saving settings: view=$_selectedView, cards=$_selectedCards');
 
     if (mounted && showMessage) {
       ScaffoldMessenger.of(context).showSnackBar(

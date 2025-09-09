@@ -29,7 +29,7 @@ class UserLocalStorage {
     try {
       return await SharedPreferences.getInstance();
     } catch (e) {
-      debugPrint('❌ SharedPreferences error: $e');
+      safeDebugPrint('❌ SharedPreferences error: $e');
       return null;
     }
   }
@@ -471,7 +471,7 @@ class UserLocalStorage {
     try {
       return await SharedPreferences.getInstance();
     } catch (e) {
-      debugPrint('❌ SharedPreferences error: $e');
+      safeDebugPrint('❌ SharedPreferences error: $e');
       return null;
     }
   }
@@ -791,9 +791,11 @@ class UserLocalStorage {
  */
 
 import 'dart:convert';
-import 'package:flutter/foundation.dart';
+//import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:puresip_purchasing/debug_helper.dart';
+
 
 class UserLocalStorage {
   // ══════════════ Keys ══════════════
@@ -834,7 +836,7 @@ class UserLocalStorage {
     try {
       return await SharedPreferences.getInstance();
     } catch (e) {
-      debugPrint('❌ SharedPreferences error: $e');
+      safeDebugPrint('❌ SharedPreferences error: $e');
       return null;
     }
   }
@@ -1152,7 +1154,7 @@ class UserLocalStorage {
     try {
       return DateTime.parse(isoString);
     } catch (e) {
-      debugPrint('❌ Failed to parse lastLogin: $e');
+      safeDebugPrint('❌ Failed to parse lastLogin: $e');
       return null;
     }
   }
@@ -1189,7 +1191,7 @@ class UserLocalStorage {
       final encodedData = json.encode(itemNames);
       await prefs.setString('cached_item_names', encodedData);
     } catch (e) {
-      debugPrint('Error saving item names: $e');
+      safeDebugPrint('Error saving item names: $e');
     }
   }
 
@@ -1202,7 +1204,7 @@ class UserLocalStorage {
         return decoded.map((key, value) => MapEntry(key, value.toString()));
       }
     } catch (e) {
-      debugPrint('Error getting item names: $e');
+      safeDebugPrint('Error getting item names: $e');
     }
     return {};
   }
@@ -1212,7 +1214,7 @@ class UserLocalStorage {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove('cached_item_names');
     } catch (e) {
-      debugPrint('Error clearing cached data: $e');
+      safeDebugPrint('Error clearing cached data: $e');
     }
   }
 }

@@ -261,6 +261,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:go_router/go_router.dart';
+import 'package:puresip_purchasing/debug_helper.dart';
 
 class EditCompanyPage extends StatefulWidget {
   final String companyId;
@@ -342,7 +343,7 @@ class _EditCompanyPageState extends State<EditCompanyPage> {
         }
       }
     } catch (e) {
-      debugPrint('❌ خطأ في جلب بيانات الشركة: $e');
+      safeDebugPrint('❌ خطأ في جلب بيانات الشركة: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(tr('error_loading_company'))),
@@ -367,7 +368,7 @@ class _EditCompanyPageState extends State<EditCompanyPage> {
       final isActive = userDoc.data()?['isActive'] ?? false;
       return isActive == true;
     } catch (e) {
-      debugPrint('❌ خطأ في التحقق من حالة المستخدم: $e');
+      safeDebugPrint('❌ خطأ في التحقق من حالة المستخدم: $e');
       return false;
     }
   }
@@ -426,7 +427,7 @@ class _EditCompanyPageState extends State<EditCompanyPage> {
       final pickedFile = await picker.pickImage(source: ImageSource.gallery);
 
       if (pickedFile == null) {
-        debugPrint('❌ لم يتم اختيار صورة');
+        safeDebugPrint('❌ لم يتم اختيار صورة');
         return;
       }
 
@@ -440,9 +441,9 @@ class _EditCompanyPageState extends State<EditCompanyPage> {
         _base64Logo = base64Encode(bytes);
       }
       setState(() {});
-      debugPrint('✅ تم اختيار الشعار بنجاح');
+      safeDebugPrint('✅ تم اختيار الشعار بنجاح');
     } catch (e) {
-      debugPrint('❌ خطأ أثناء اختيار الشعار: $e');
+      safeDebugPrint('❌ خطأ أثناء اختيار الشعار: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(tr('error_selecting_logo'))),
@@ -507,7 +508,7 @@ class _EditCompanyPageState extends State<EditCompanyPage> {
         context.pop();
       }
     } catch (e) {
-      debugPrint('❌ خطأ أثناء تحديث الشركة: $e');
+      safeDebugPrint('❌ خطأ أثناء تحديث الشركة: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(tr('error_while_updating_company'))),

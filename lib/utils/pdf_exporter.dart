@@ -1,7 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
-import 'package:flutter/material.dart';
-import 'package:flutter/widgets.dart';
+// import 'package:flutter/material.dart';
+// import 'package:flutter/widgets.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:flutter/services.dart';
@@ -10,7 +10,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
 import 'package:qr_flutter/qr_flutter.dart';
 import 'dart:convert';
-
+import 'package:puresip_purchasing/debug_helper.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class PdfExporter {
@@ -51,7 +51,7 @@ class PdfExporter {
     final qrData = _generateQrData(
         poNumber, orderData, supplierData, companyData, itemData, isArabic);
     // طباعة البيانات للتأكد من أنها غير فارغة
-    debugPrint('QR Data: $qrData');
+    safeDebugPrint('QR Data: $qrData');
 
     final qrImage = await _generateRealQrImage(qrData, 600);
 
@@ -59,10 +59,10 @@ class PdfExporter {
     final latinFont = await _getLatinFont();
     final arabicAmount = _convertNumberToArabicWords(7);
     final ctext = getCurrencyText(7, isArabic);
-    debugPrint('المبلغ كتابة: $arabicAmount $ctext فقط لا غير');
+    safeDebugPrint('المبلغ كتابة: $arabicAmount $ctext فقط لا غير');
     final arabicAmount1 = _convertNumberToArabicWords(1);
     final ctext1 = getCurrencyText(1, isArabic);
-    debugPrint('المبلغ كتابة: $arabicAmount1 $ctext1 فقط لا غير');
+    safeDebugPrint('المبلغ كتابة: $arabicAmount1 $ctext1 فقط لا غير');
     pdf.addPage(
       pw.Page(
         theme: pw.ThemeData.withFont(
@@ -131,7 +131,7 @@ class PdfExporter {
         child: pw.Image(qrImage),
       );
     } catch (e) {
-      debugPrint('Error generating QR: $e');
+      safeDebugPrint('Error generating QR: $e');
       return _generateQrPlaceholder();
     }
   }
@@ -160,7 +160,7 @@ class PdfExporter {
     Map<String, dynamic> itemData,
     bool isArabic,
   ) {
-    debugPrint('itemData structure: ${itemData.toString()}');
+    safeDebugPrint('itemData structure: ${itemData.toString()}');
     final poNumber = orderData['poNumber']?.toString().isNotEmpty == true
         ? orderData['poNumber'].toString()
         : orderId;
@@ -222,7 +222,7 @@ ${isArabic ? 'المجموع النهائي' : 'Total'}: ${_formatCurrency(order
     try {
       return base64.decode(base64Logo.split(',').last);
     } catch (e) {
-      debugPrint('Error decoding logo: $e');
+      safeDebugPrint('Error decoding logo: $e');
       return null;
     }
   }
@@ -689,7 +689,7 @@ ${isArabic ? 'المجموع النهائي' : 'Total'}: ${_formatCurrency(order
         ],
       );
     } catch (e) {
-      debugPrint('Error converting number to words: $e');
+      safeDebugPrint('Error converting number to words: $e');
       return pw.TableRow(children: [
         pw.Padding(
           padding: const pw.EdgeInsets.all(8),
@@ -771,7 +771,7 @@ ${isArabic ? 'المجموع النهائي' : 'Total'}: ${_formatCurrency(order
           : await rootBundle.load('assets/fonts/Tajawal-Regular.ttf');
       return pw.Font.ttf(fontData);
     } catch (e) {
-      debugPrint('Error loading Arabic font: $e');
+      safeDebugPrint('Error loading Arabic font: $e');
       return pw.Font.courier();
     }
   }
@@ -786,7 +786,7 @@ ${isArabic ? 'المجموع النهائي' : 'Total'}: ${_formatCurrency(order
           : await rootBundle.load('assets/fonts/Roboto-Regular.ttf');
       return pw.Font.ttf(fontData);
     } catch (e) {
-      debugPrint('Error loading Latin font: $e');
+      safeDebugPrint('Error loading Latin font: $e');
       return pw.Font.helvetica();
     }
   }

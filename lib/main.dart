@@ -16,6 +16,7 @@ import 'notifications/license_notifications.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:provider/provider.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:puresip_purchasing/debug_helper.dart';
 
 // دالة خلفية لمعالجة رسائل FCM
 @pragma('vm:entry-point')
@@ -40,10 +41,10 @@ Future<void> _initializeFirebase() async {
       await licenseService.initialize();
       await LicenseNotifications.initialize();
 
-      debugPrint('Firebase initialization completed');
+      safeDebugPrint('Firebase initialization completed');
     }
   } catch (e) {
-    debugPrint('Firebase initialization error: $e');
+    safeDebugPrint('Firebase initialization error: $e');
     rethrow;
   }
 }
@@ -62,7 +63,7 @@ Future<void> _requestPermissions() async {
         await Permission.manageExternalStorage.request();
       }
     } catch (e) {
-      debugPrint('Permission request error: $e');
+      safeDebugPrint('Permission request error: $e');
     }
   }
 }
@@ -70,9 +71,9 @@ Future<void> _requestPermissions() async {
 Future<void> _loadAppResources() async {
   try {
     await Future.delayed(const Duration(milliseconds: 200));
-    debugPrint('App resources loaded successfully');
+    safeDebugPrint('App resources loaded successfully');
   } catch (e) {
-    debugPrint('Resource loading error: $e');
+    safeDebugPrint('Resource loading error: $e');
   }
 }
 
@@ -96,7 +97,7 @@ Future<void> main() async {
     // ثم تحميل الموارد الأخرى
     await _loadAppResources();
   } catch (e) {
-    debugPrint('Initialization failed: $e');
+    safeDebugPrint('Initialization failed: $e');
   }
 
   runApp(
@@ -128,7 +129,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // اختبار الترجمة هنا للتأكد من عملها
-    //debugPrint('Translation test - manufacturing.shelf_life: ${'manufacturing.shelf_life'.tr()}');
+    //safeDebugPrint('Translation test - manufacturing.shelf_life: ${'manufacturing.shelf_life'.tr()}');
 
     return MaterialApp.router(
       key: ValueKey(context.locale.languageCode),
@@ -209,10 +210,10 @@ import 'package:provider/provider.dart';
       await LicenseService().initializeForAdmin();
       await LicenseNotifications.initialize();
       
-      debugPrint('Firebase initialization completed');
+      safeDebugPrint('Firebase initialization completed');
     }
   } catch (e) {
-    debugPrint('Firebase initialization error: $e');
+    safeDebugPrint('Firebase initialization error: $e');
     rethrow;
   }
 }
@@ -240,10 +241,10 @@ Future<void> _initializeFirebase() async {
 
       await LicenseNotifications.initialize();
 
-      debugPrint('Firebase initialization completed');
+      safeDebugPrint('Firebase initialization completed');
     }
   } catch (e) {
-    debugPrint('Firebase initialization error: $e');
+    safeDebugPrint('Firebase initialization error: $e');
     rethrow;
   }
 }
@@ -262,7 +263,7 @@ Future<void> _requestPermissions() async {
         await Permission.manageExternalStorage.request();
       }
     } catch (e) {
-      debugPrint('Permission request error: $e');
+      safeDebugPrint('Permission request error: $e');
     }
   }
 }
@@ -274,9 +275,9 @@ Future<void> _loadAppResources() async {
       // يمكن إضافة المزيد من عمليات التحميل هنا
       Future.delayed(const Duration(milliseconds: 200)),
     ]);
-    debugPrint('App resources loaded successfully');
+    safeDebugPrint('App resources loaded successfully');
   } catch (e) {
-    debugPrint('Resource loading error: $e');
+    safeDebugPrint('Resource loading error: $e');
   }
 }
 
@@ -298,7 +299,7 @@ Future<void> main() async {
       _loadAppResources(),
     ]);
   } catch (e) {
-    debugPrint('Initialization failed: $e');
+    safeDebugPrint('Initialization failed: $e');
   }
 
   runApp(
@@ -428,7 +429,7 @@ Future<void> main() async {
       }
     }
   } catch (e) {
-    debugPrint('⚠️ Firebase already initialized: $e');
+    safeDebugPrint('⚠️ Firebase already initialized: $e');
   }
 
   // الاتصال بالمحاكيات
@@ -473,9 +474,9 @@ Future<void> _loadArabicFont() async {
   try {
     // No need to manually load if using Cairo font declared in pubspec.yaml
     // Flutter will handle it automatically
-    debugPrint('Arabic fonts loaded successfully');
+    safeDebugPrint('Arabic fonts loaded successfully');
   } catch (e) {
-    debugPrint('Error loading Arabic fonts: $e');
+    safeDebugPrint('Error loading Arabic fonts: $e');
   }
 }
 
@@ -522,7 +523,7 @@ Future<void> main() async {
       }
     }
   } catch (e) {
-    debugPrint('⚠️ Firebase already initialized: $e');
+    safeDebugPrint('⚠️ Firebase already initialized: $e');
   }
 
   // طلب إذن الإشعارات فقط على الأجهزة المحمولة (Android/iOS)

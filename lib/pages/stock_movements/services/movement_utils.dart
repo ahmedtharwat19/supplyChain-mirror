@@ -1,7 +1,7 @@
 // lib/utils/movement_utils.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:easy_localization/easy_localization.dart';
-import 'package:flutter/material.dart';
+import 'package:puresip_purchasing/debug_helper.dart';
 
 class MovementUtils {
   static Map<String, dynamic> getMovementTypeInfo(String type, double quantity) {
@@ -180,13 +180,13 @@ class MovementUtils {
 
       return movements;
     } catch (e) {
-      debugPrint('Error fetching movements: $e');
+      safeDebugPrint('Error fetching movements: $e');
       rethrow;
     }
   }
   
   static Future<void> exportExcel(List<Map<String, dynamic>> data) async {
     // نفّذ تصدير Excel هنا
-    debugPrint("Exporting Excel with ${data.length} records...");
+    safeDebugPrint("Exporting Excel with ${data.length} records...");
   }
 }

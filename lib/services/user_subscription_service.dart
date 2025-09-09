@@ -1195,4 +1195,19 @@ class UserSubscriptionService {
     final box = await Hive.openBox('auth');
     await box.delete('fingerprint');
   }
+    /// طلب إضافة جهاز جديد
+  Future<void> requestNewDeviceSlot(String licenseId, String reason) async {
+    final user = _auth.currentUser;
+    if (user == null) return;
+
+    await _fs.collection('device_requests').add({
+      'userId': user.uid,
+      'licenseId': licenseId,
+      'reason': reason,
+      'status': 'pending',
+      'createdAt': FieldValue.serverTimestamp(),
+      'deviceFingerprint': await DeviceFingerprint.generate(),
+    });
+  }
+
 }

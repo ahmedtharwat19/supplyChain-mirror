@@ -6,6 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:go_router/go_router.dart';
 import '../../widgets/app_scaffold.dart';
+import 'package:puresip_purchasing/debug_helper.dart';
 
 class CompaniesPage extends StatefulWidget {
   const CompaniesPage({super.key});
@@ -58,7 +59,7 @@ class _CompaniesPageState extends State<CompaniesPage> {
       isLoading = false;
     });
 
-    debugPrint('🔹 Loaded company IDs: $userCompanyIds');
+    safeDebugPrint('🔹 Loaded company IDs: $userCompanyIds');
   }
 
   Future<void> _confirmDeleteCompany(DocumentSnapshot company) async {

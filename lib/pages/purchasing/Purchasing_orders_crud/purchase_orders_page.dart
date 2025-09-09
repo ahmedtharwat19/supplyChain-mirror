@@ -14,6 +14,7 @@ import 'package:puresip_purchasing/widgets/app_scaffold.dart';
 import 'package:puresip_purchasing/widgets/hover_add_button.dart';
 import 'package:universal_html/html.dart' as html;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:puresip_purchasing/debug_helper.dart';
 
 class PurchaseOrdersPage extends StatefulWidget {
   const PurchaseOrdersPage({super.key});
@@ -65,7 +66,7 @@ class _PurchaseOrdersPageState extends State<PurchaseOrdersPage> {
         _isArabic = context.locale.languageCode ==
             'ar'; // Localizations.localeOf(context).languageCode == 'ar';
       });
-      debugPrint("Current language is Arabic? $_isArabic");
+      safeDebugPrint("Current language is Arabic? $_isArabic");
       _initData(); // الدالة التي كانت تُستدعى في initState
     }
   }
@@ -134,7 +135,7 @@ class _PurchaseOrdersPageState extends State<PurchaseOrdersPage> {
     final companyIds = (userDoc.data()?['companyIds'] as List?)?.length ?? 1;
     await prefs.setInt('userCompaniesCount', companyIds);
     setState(() => _userCompaniesCount = companyIds);
-    //debugPrint('User companies count: $_userCompaniesCount');
+    //safeDebugPrint('User companies count: $_userCompaniesCount');
   }
 
   Future<String> _getCompanyName(String companyId, bool isArabic) async {
@@ -229,7 +230,7 @@ class _PurchaseOrdersPageState extends State<PurchaseOrdersPage> {
 
       _filterOrders(searchQuery);
     } catch (e) {
-      debugPrint('Error loading orders: $e');
+      safeDebugPrint('Error loading orders: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('error_loading_orders'.tr())),
@@ -287,7 +288,7 @@ class _PurchaseOrdersPageState extends State<PurchaseOrdersPage> {
             return 0;
         }
       } catch (e) {
-        debugPrint('Error sorting orders: $e');
+        safeDebugPrint('Error sorting orders: $e');
         return 0;
       }
     });
@@ -478,7 +479,7 @@ class _PurchaseOrdersPageState extends State<PurchaseOrdersPage> {
           ),
         );
       }
-      debugPrint('PDF Export Error: $e');
+      safeDebugPrint('PDF Export Error: $e');
     } finally {
       if (mounted) setState(() => _isSearching = false);
     }
@@ -498,7 +499,7 @@ class _PurchaseOrdersPageState extends State<PurchaseOrdersPage> {
           TextButton(
             onPressed: () {
               Navigator.pop(context);
-              debugPrint('🧪 Trying to delete order with ID: ${order['id']}');
+              safeDebugPrint('🧪 Trying to delete order with ID: ${order['id']}');
 
               _deleteOrder(order);
             },
@@ -516,7 +517,7 @@ class _PurchaseOrdersPageState extends State<PurchaseOrdersPage> {
           .collection('purchase_orders')
           .doc(order['id'])
           .delete();
-              debugPrint('🧪 Trying to delete order with ID: ${order['id']}');
+              safeDebugPrint('🧪 Trying to delete order with ID: ${order['id']}');
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -542,7 +543,7 @@ Future<void> _updateOrderStatus(
   String factoryId,
 ) async {
   try {
-    debugPrint('=== STARTING ORDER STATUS UPDATE ===');
+    safeDebugPrint('=== STARTING ORDER STATUS UPDATE ===');
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
@@ -550,7 +551,7 @@ Future<void> _updateOrderStatus(
         FirebaseFirestore.instance.collection('purchase_orders').doc(orderId);
 
     // تحديث الحالة
-    debugPrint('📝 Updating order status to: $newStatus');
+    safeDebugPrint('📝 Updating order status to: $newStatus');
     await orderRef.update({
       'status': newStatus,
       'isDelivered': newStatus == 'completed',
@@ -559,7 +560,7 @@ Future<void> _updateOrderStatus(
 
     // ✅ استخدم الدالة المشتركة لتحديث المخزون
     if (newStatus == 'completed') {
-      debugPrint('📦 Processing inventory via FirestoreService...');
+      safeDebugPrint('📦 Processing inventory via FirestoreService...');
       await _firestoreService.processStockDelivery(
         companyId: companyId,
         factoryId: factoryId,
@@ -569,12 +570,12 @@ Future<void> _updateOrderStatus(
       );
     }
 
-    debugPrint('🎉 Order status updated successfully');
+    safeDebugPrint('🎉 Order status updated successfully');
 
     await _refreshAfterUpdate();
   } catch (e, stackTrace) {
-    debugPrint('❌ ERROR updating order status: $e');
-    debugPrint('🔍 Stack trace: $stackTrace');
+    safeDebugPrint('❌ ERROR updating order status: $e');
+    safeDebugPrint('🔍 Stack trace: $stackTrace');
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('update_error'.tr())),
@@ -593,7 +594,7 @@ Future<void> _updateOrderStatus(
     String factoryId,
   ) async {
     try {
-      debugPrint('=== STARTING ORDER STATUS UPDATE ===');
+      safeDebugPrint('=== STARTING ORDER STATUS UPDATE ===');
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
 
@@ -601,13 +602,13 @@ Future<void> _updateOrderStatus(
           FirebaseFirestore.instance.collection('purchase_orders').doc(orderId);
 
       // 1. تحديث الحقل الرئيسي
-      debugPrint('📝 Updating order status to: $newStatus');
+      safeDebugPrint('📝 Updating order status to: $newStatus');
       await orderRef.update(
           {'status': newStatus, 'isDelivered' : true,'updatedAt': FieldValue.serverTimestamp()});
 
       // 2. معالجة المخزون فقط إذا تم التسليم
       if (newStatus == 'completed') {
-        debugPrint('📦 Processing inventory for completed order');
+        safeDebugPrint('📦 Processing inventory for completed order');
 
         for (final item in items) {
           final itemMap = item as Map<String, dynamic>;
@@ -640,18 +641,18 @@ Future<void> _updateOrderStatus(
               'lastUpdated': FieldValue.serverTimestamp(),
             }, SetOptions(merge: true));
           } catch (e) {
-            debugPrint('❌ Error processing item $itemId: $e');
+            safeDebugPrint('❌ Error processing item $itemId: $e');
           }
         }
       }
 
-      debugPrint('🎉 Order status updated successfully');
+      safeDebugPrint('🎉 Order status updated successfully');
 
       // 3. إعادة تحميل البيانات بعد التحديث
       await _refreshAfterUpdate();
     } catch (e, stackTrace) {
-      debugPrint('❌ ERROR updating order status: $e');
-      debugPrint('🔍 Stack trace: $stackTrace');
+      safeDebugPrint('❌ ERROR updating order status: $e');
+      safeDebugPrint('🔍 Stack trace: $stackTrace');
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -670,7 +671,7 @@ Future<void> _updateOrderStatus(
       if (quantity is String) return double.tryParse(quantity) ?? 0.0;
       return 0.0;
     } catch (e) {
-      debugPrint('Error parsing quantity: $quantity, error: $e');
+      safeDebugPrint('Error parsing quantity: $quantity, error: $e');
       return 0.0;
     }
   }
@@ -894,7 +895,7 @@ Future<void> _updateOrderStatus(
         body: const Center(child: CircularProgressIndicator()),
       );
     }
-    debugPrint('User companies count: $_userCompaniesCount');
+    safeDebugPrint('User companies count: $_userCompaniesCount');
 
     return Directionality(
       textDirection: Directionality.of(context),

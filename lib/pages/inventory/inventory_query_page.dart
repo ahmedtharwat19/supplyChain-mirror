@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:puresip_purchasing/widgets/app_scaffold.dart';
+import 'package:puresip_purchasing/debug_helper.dart';
 
 class InventoryQueryPage extends StatefulWidget {
   const InventoryQueryPage({super.key});
@@ -53,8 +54,8 @@ Future<void> _searchInventory({bool showAll = false}) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
-    debugPrint('--- _searchInventory started ---');
-    debugPrint('User ID: ${user.uid}');
+    safeDebugPrint('--- _searchInventory started ---');
+    safeDebugPrint('User ID: ${user.uid}');
 
     // 1. بيانات المستخدم
     final userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
@@ -63,8 +64,8 @@ Future<void> _searchInventory({bool showAll = false}) async {
     final userCompanyIds = (userData?['companyIds'] as List?)?.cast<String>() ?? [];
     final userFactoryIds = (userData?['factoryIds'] as List?)?.cast<String>() ?? [];
 
-    debugPrint('User companyIds: $userCompanyIds');
-    debugPrint('User factories: $userFactoryIds');
+    safeDebugPrint('User companyIds: $userCompanyIds');
+    safeDebugPrint('User factories: $userFactoryIds');
 
     // 2. الأصناف التي يملكها المستخدم
     final itemsSnapshot = await FirebaseFirestore.instance
@@ -77,9 +78,9 @@ Future<void> _searchInventory({bool showAll = false}) async {
       userProducts[doc.id] = doc.data();
     }
 
-    debugPrint('User products count: ${userProducts.length}');
+    safeDebugPrint('User products count: ${userProducts.length}');
     if (userProducts.isEmpty) {
-      debugPrint('No user products found.');
+      safeDebugPrint('No user products found.');
       setState(() {
         _inventoryResults.clear();
         _isLoading = false;
@@ -96,25 +97,25 @@ Future<void> _searchInventory({bool showAll = false}) async {
       final factoryCompanyIds = (factoryData['companyIds'] as List?)?.cast<String>() ?? [];
 
       if (!factoryCompanyIds.any((id) => userCompanyIds.contains(id))) {
-        debugPrint('Factory $factoryId ignored: no matching user company.');
+        safeDebugPrint('Factory $factoryId ignored: no matching user company.');
         continue;
       }
 
-      debugPrint('Processing factory: $factoryId');
+      safeDebugPrint('Processing factory: $factoryId');
 
       // 4. جلب مخزون المصنع
       final inventorySnapshot = await FirebaseFirestore.instance
           .collection('factories/$factoryId/inventory')
           .get();
 
-      debugPrint('Inventory count in factory $factoryId: ${inventorySnapshot.docs.length}');
+      safeDebugPrint('Inventory count in factory $factoryId: ${inventorySnapshot.docs.length}');
 
       for (final invDoc in inventorySnapshot.docs) {
         final itemId = invDoc.id;
 
         // فقط المنتجات التي يملكها المستخدم
         if (!userProducts.containsKey(itemId)) {
-          debugPrint('Inventory product $itemId ignored: not in user products.');
+          safeDebugPrint('Inventory product $itemId ignored: not in user products.');
           continue;
         }
 
@@ -129,7 +130,7 @@ Future<void> _searchInventory({bool showAll = false}) async {
         if (!showAll &&
             _searchQuery.isNotEmpty &&
             !productName.toLowerCase().contains(_searchQuery.toLowerCase())) {
-          debugPrint('Inventory product $itemId ignored: search query mismatch.');
+          safeDebugPrint('Inventory product $itemId ignored: search query mismatch.');
           continue;
         }
 
@@ -165,14 +166,14 @@ Future<void> _searchInventory({bool showAll = false}) async {
           'lastUpdated': inventoryData['lastUpdated'],
         });
 
-        debugPrint('Added inventory result: ${_inventoryResults.last}');
+        safeDebugPrint('Added inventory result: ${_inventoryResults.last}');
       }
     }
 
-    debugPrint('Total inventory results: ${_inventoryResults.length}');
-    debugPrint('--- _searchInventory finished ---');
+    safeDebugPrint('Total inventory results: ${_inventoryResults.length}');
+    safeDebugPrint('--- _searchInventory finished ---');
   } catch (e) {
-    debugPrint('Search error: $e');
+    safeDebugPrint('Search error: $e');
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('error_loading_data'.tr())),

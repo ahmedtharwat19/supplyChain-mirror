@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:puresip_purchasing/widgets/app_scaffold.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:puresip_purchasing/debug_helper.dart';
 
 class InventoryAnalysisPage extends StatefulWidget {
   const InventoryAnalysisPage({super.key});
@@ -71,7 +72,7 @@ class _InventoryAnalysisPageState extends State<InventoryAnalysisPage> {
         await prefs.setStringList('userCompanyIds', userCompanyIds);
       }
     } catch (e) {
-      debugPrint('[ERROR] Failed to load userCompanyIds: $e');
+      safeDebugPrint('[ERROR] Failed to load userCompanyIds: $e');
       userCompanyIds = [];
     }
   }
@@ -117,7 +118,7 @@ class _InventoryAnalysisPageState extends State<InventoryAnalysisPage> {
         await _loadFactoriesWithInventory();
       }
     } catch (e) {
-      debugPrint('[ERROR] Failed to load companies with inventory: $e');
+      safeDebugPrint('[ERROR] Failed to load companies with inventory: $e');
     }
   }
 
@@ -131,7 +132,7 @@ class _InventoryAnalysisPageState extends State<InventoryAnalysisPage> {
           .collection('factories')
           .where('companyIds', arrayContains: selectedCompanyId)
           .get();
-      debugPrint('Found factories count: ${facSnaps.docs.length}');
+      safeDebugPrint('Found factories count: ${facSnaps.docs.length}');
 
       for (final factoryDoc in facSnaps.docs) {
         final factoryId = factoryDoc.id;
@@ -143,7 +144,7 @@ class _InventoryAnalysisPageState extends State<InventoryAnalysisPage> {
             .limit(1)
             .get();
 
-        debugPrint(
+        safeDebugPrint(
             'Factory $factoryId inventory docs: ${inventorySnapshot.docs.length}');
 
 /*         if (inventorySnapshot.docs.isNotEmpty) {
@@ -172,7 +173,7 @@ class _InventoryAnalysisPageState extends State<InventoryAnalysisPage> {
         await _loadInventoryAnalysis();
       }
     } catch (e) {
-      debugPrint('[ERROR] Failed to load factories with inventory: $e');
+      safeDebugPrint('[ERROR] Failed to load factories with inventory: $e');
     }
   }
 
@@ -204,7 +205,7 @@ class _InventoryAnalysisPageState extends State<InventoryAnalysisPage> {
         final itemId = data['itemId'] ?? doc.id;
         String category = 'unknown';
         if (itemId == null) {
-          debugPrint('itemId is missing in inventory document ${doc.id}');
+          safeDebugPrint('itemId is missing in inventory document ${doc.id}');
           continue; // تخطى هذا المستند لأنه لا يحتوي itemId
         }
         if (itemId != null) {
@@ -217,7 +218,7 @@ class _InventoryAnalysisPageState extends State<InventoryAnalysisPage> {
               category = itemDoc.data()?['category']?.toString() ?? 'unknown';
             }
           } catch (e) {
-            debugPrint('[ERROR] Failed to fetch item $itemId: $e');
+            safeDebugPrint('[ERROR] Failed to fetch item $itemId: $e');
           }
         }
 
@@ -259,7 +260,7 @@ class _InventoryAnalysisPageState extends State<InventoryAnalysisPage> {
         isLoading = false;
       });
     } catch (e) {
-      debugPrint('[ERROR] Failed to load inventory analysis: $e');
+      safeDebugPrint('[ERROR] Failed to load inventory analysis: $e');
       if (!mounted) return;
 
       setState(() => isLoading = false);

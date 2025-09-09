@@ -1,4 +1,124 @@
-import 'dart:async';
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:easy_localization/easy_localization.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:hive/hive.dart';
+import 'package:puresip_purchasing/services/user_subscription_service.dart';
+
+class SplashScreen extends StatefulWidget {
+  const SplashScreen({super.key});
+
+  @override
+  State<SplashScreen> createState() => _SplashScreenState();
+}
+
+class _SplashScreenState extends State<SplashScreen> {
+  @override
+  void initState() {
+    super.initState();
+    _startApp();
+  }
+
+  Future<void> _startApp() async {
+    try {
+      final hasUserInHive = await _checkUserExistsInHive();
+      final hasLicenseInHive = await _checkLicenseInHive();
+
+      if (!hasUserInHive) {
+        _safeNavigate(() => context.go('/login'));
+        return;
+      }
+
+      if (hasUserInHive && hasLicenseInHive) {
+        _safeNavigate(() => context.go('/dashboard'));
+        return;
+      }
+
+      final hasInternet = await _checkInternetConnection();
+
+      if (hasInternet) {
+        final subscriptionService = UserSubscriptionService();
+        final result = await subscriptionService.checkUserSubscription();
+
+        if (!mounted) return;
+
+        if (result.isValid && !result.isExpired) {
+          _safeNavigate(() => context.go('/dashboard'));
+        } else {
+          if (result.timeLeftFormatted != null &&
+              result.timeLeftFormatted!.contains('device')) {
+            await _showDeviceLimitMessage(result.timeLeftFormatted!);
+          }
+          _safeNavigate(() => context.go('/license/request'));
+        }
+      } else {
+        await _showDeviceLimitMessage('no_internet'.tr());
+        _safeNavigate(() => context.go('/dashboard'));
+      }
+    } catch (e) {
+      final hasUserInHive = await _checkUserExistsInHive();
+      _safeNavigate(() => context.go(hasUserInHive ? '/dashboard' : '/login'));
+    }
+  }
+
+  /// التنقل الآمن باستخدام mounted و post frame
+  void _safeNavigate(VoidCallback navigation) {
+    if (!mounted) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) navigation();
+    });
+  }
+
+  Future<void> _showDeviceLimitMessage(String message) async {
+    if (!mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.clearSnackBars();
+    await messenger
+        .showSnackBar(
+          SnackBar(
+            content: Text(message),
+            backgroundColor: Colors.orange,
+            duration: const Duration(seconds: 4),
+          ),
+        )
+        .closed;
+  }
+
+  Future<bool> _checkInternetConnection() async {
+    final result = await Connectivity().checkConnectivity();
+    // ✅ إصلاح الخطأ هنا
+    return result != ConnectivityResult.none;
+  }
+
+Future<bool> _checkUserExistsInHive() async {
+  if (!Hive.isBoxOpen('auth')) {
+    await Hive.openBox('auth');
+  }
+  final box = Hive.box('auth');
+  return box.containsKey('user');
+}
+
+Future<bool> _checkLicenseInHive() async {
+  if (!Hive.isBoxOpen('auth')) {
+    await Hive.openBox('auth');
+  }
+  final box = Hive.box('auth');
+  return box.containsKey('license');
+}
+
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(
+      body: Center(
+        child: CircularProgressIndicator(),
+      ),
+    );
+  }
+}
+
+
+/* import 'dart:async';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -8,6 +128,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:puresip_purchasing/utils/user_local_storage.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:puresip_purchasing/services/hive_service.dart';
+import 'package:puresip_purchasing/debug_helper.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -115,10 +236,10 @@ class _SplashScreenState extends State<SplashScreen>
   Future<bool> _checkUserExistsInHive() async {
     try {
       final userData = await UserLocalStorage.getUser();
-      debugPrint('Hive user check - Data: $userData');
+      safeDebugPrint('Hive user check - Data: $userData');
       return userData != null && userData['userId'] != null;
     } catch (e) {
-      debugPrint('Error checking Hive user data: $e');
+      safeDebugPrint('Error checking Hive user data: $e');
       return false;
     }
   }
@@ -127,7 +248,7 @@ class _SplashScreenState extends State<SplashScreen>
   Future<bool> _checkLicenseInHive() async {
     try {
       final licenseKey = await HiveService.getLicense();
-      debugPrint('Hive license check - Key: $licenseKey');
+      safeDebugPrint('Hive license check - Key: $licenseKey');
       
       if (licenseKey != null && licenseKey.isNotEmpty) {
         return _validateLicenseFormat(licenseKey);
@@ -135,7 +256,7 @@ class _SplashScreenState extends State<SplashScreen>
       
       return false;
     } catch (e) {
-      debugPrint('Error checking Hive license: $e');
+      safeDebugPrint('Error checking Hive license: $e');
       return false;
     }
   }
@@ -161,7 +282,7 @@ class _SplashScreenState extends State<SplashScreen>
       
       return isOnline;
     } catch (e) {
-      debugPrint('Error checking internet connection: $e');
+      safeDebugPrint('Error checking internet connection: $e');
       return false;
     }
   }
@@ -173,21 +294,21 @@ class _SplashScreenState extends State<SplashScreen>
       final hasUserInHive = await _checkUserExistsInHive();
       final hasLicenseInHive = await _checkLicenseInHive();
 
-      debugPrint('''
+      safeDebugPrint('''
       Local Data Check:
       - User in Hive: $hasUserInHive
       - License in Hive: $hasLicenseInHive
       ''');
 
       if (!hasUserInHive) {
-        debugPrint('No user data in Hive, redirecting to login');
+        safeDebugPrint('No user data in Hive, redirecting to login');
         if (mounted) context.go('/login');
         return;
       }
 
       // إذا كان هناك مستخدم وترخيص في Hive، انتقل مباشرة إلى Dashboard
       if (hasUserInHive && hasLicenseInHive) {
-        debugPrint('Valid local data found, proceeding to dashboard');
+        safeDebugPrint('Valid local data found, proceeding to dashboard');
         if (mounted) context.go('/dashboard');
         return;
       }
@@ -196,13 +317,13 @@ class _SplashScreenState extends State<SplashScreen>
       final hasInternet = await _checkInternetConnection();
 
       if (hasInternet) {
-        debugPrint('Internet available, checking online subscription...');
+        safeDebugPrint('Internet available, checking online subscription...');
         final subscriptionService = UserSubscriptionService();
         final result = await subscriptionService.checkUserSubscription();
 
         if (!mounted) return;
 
-        debugPrint('''
+        safeDebugPrint('''
         Online Subscription Check:
         - isValid: ${result.isValid}
         - isExpired: ${result.isExpired}
@@ -224,12 +345,12 @@ class _SplashScreenState extends State<SplashScreen>
 
           if (mounted) context.go('/dashboard');
         } else {
-          debugPrint('Invalid or expired subscription, redirecting to license request');
+          safeDebugPrint('Invalid or expired subscription, redirecting to license request');
           if (mounted) context.go('/license/request');
         }
       } else {
         // لا يوجد اتصال ولكن هناك مستخدم - انتقل إلى Dashboard في الوضع المحدود
-        debugPrint('No internet but user exists, proceeding to dashboard in limited mode');
+        safeDebugPrint('No internet but user exists, proceeding to dashboard in limited mode');
         if (mounted) context.go('/dashboard');
         
         // إظهار تحذير أن التطبيق يعمل بدون اتصال
@@ -244,12 +365,12 @@ class _SplashScreenState extends State<SplashScreen>
         });
       }
     } catch (e) {
-      debugPrint('Error in _checkUserAndStartApp: $e');
+      safeDebugPrint('Error in _checkUserAndStartApp: $e');
       
       // في حالة الخطأ، حاول الذهاب إلى Dashboard إذا كان هناك مستخدم في Hive
       final hasUserInHive = await _checkUserExistsInHive();
       if (hasUserInHive && mounted) {
-        debugPrint('Error occurred but user exists in Hive, proceeding to dashboard');
+        safeDebugPrint('Error occurred but user exists in Hive, proceeding to dashboard');
         context.go('/dashboard');
       } else if (mounted) {
         context.go('/login');
@@ -263,10 +384,10 @@ class _SplashScreenState extends State<SplashScreen>
       if (result.expiryDate != null) {
         final licenseInfo = 'LIC-${result.expiryDate!.millisecondsSinceEpoch}';
         await HiveService.saveLicense(licenseInfo);
-        debugPrint('License data saved to Hive: $licenseInfo');
+        safeDebugPrint('License data saved to Hive: $licenseInfo');
       }
     } catch (e) {
-      debugPrint('Error saving license to Hive: $e');
+      safeDebugPrint('Error saving license to Hive: $e');
     }
   }
 
@@ -370,7 +491,7 @@ class _SplashScreenState extends State<SplashScreen>
     );
   }
 }
-
+ */
 /* import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -442,12 +563,12 @@ class _SplashScreenState extends State<SplashScreen>
     try {
       final userId = await UserLocalStorage.getUserId();
 
-      debugPrint('User check - ID: $userId');
+      safeDebugPrint('User check - ID: $userId');
 
       // إذا لم يكن هناك معرف مستخدم، يعتبر غير مسجل
       return userId != null && userId.isNotEmpty;
     } catch (e) {
-      debugPrint('Error checking user data: $e');
+      safeDebugPrint('Error checking user data: $e');
       return false;
     }
   }
@@ -461,12 +582,12 @@ class _SplashScreenState extends State<SplashScreen>
       if (!mounted) return;
 
       if (!userExists) {
-        debugPrint('No user data found, redirecting to login');
+        safeDebugPrint('No user data found, redirecting to login');
         context.go('/login');
         return;
       }
 
-      debugPrint('User data found, checking subscription...');
+      safeDebugPrint('User data found, checking subscription...');
 
       // إذا كان المستخدم موجوداً، التحقق من الاشتراك
       final subscriptionService = UserSubscriptionService();
@@ -474,7 +595,7 @@ class _SplashScreenState extends State<SplashScreen>
 
       if (!mounted) return;
 
-      debugPrint('''
+      safeDebugPrint('''
       Subscription Check Results:
       - isValid: ${result.isValid}
       - isExpired: ${result.isExpired}
@@ -505,7 +626,7 @@ class _SplashScreenState extends State<SplashScreen>
       if (!mounted) return;
       context.go('/dashboard');
     } catch (e) {
-      debugPrint('Error in _checkUserAndStartApp: $e');
+      safeDebugPrint('Error in _checkUserAndStartApp: $e');
       if (!mounted) return;
       context.go('/login');
     }
@@ -671,7 +792,7 @@ class _SplashScreenState extends State<SplashScreen>
 
     if (!mounted) return;
 
-    debugPrint('''
+    safeDebugPrint('''
       Subscription Check Results:
       - isValid: ${result.isValid}
       - isExpired: ${result.isExpired}
@@ -694,7 +815,7 @@ class _SplashScreenState extends State<SplashScreen>
     if (!mounted) return;
     context.go('/dashboard');
   } catch (e) {
-    debugPrint('Error in _startApp: $e');
+    safeDebugPrint('Error in _startApp: $e');
     if (!mounted) return;
     context.go('/login');
   }
@@ -708,7 +829,7 @@ class _SplashScreenState extends State<SplashScreen>
 
       if (!mounted) return;
 
-      debugPrint('''
+      safeDebugPrint('''
       Subscription Check Results:
       - isValid: ${result.isValid}
       - isExpired: ${result.isExpired}
@@ -738,7 +859,7 @@ class _SplashScreenState extends State<SplashScreen>
       if (!mounted) return;
       context.go('/dashboard');
     } catch (e) {
-      debugPrint('Error in _startApp: $e');
+      safeDebugPrint('Error in _startApp: $e');
       if (!mounted) return;
       context.go('/login');
     }
@@ -868,7 +989,7 @@ class _SplashScreenState extends State<SplashScreen>
 
 /*   Future<void> _startApp() async {
     final connectivityResult = await Connectivity().checkConnectivity();
-    debugPrint('📶 Connectivity result: ${connectivityResult.runtimeType}');
+    safeDebugPrint('📶 Connectivity result: ${connectivityResult.runtimeType}');
 
     if (connectivityResult.contains(ConnectivityResult.none)) {
       _showErrorDialog('no_internet'.tr());
@@ -878,7 +999,7 @@ class _SplashScreenState extends State<SplashScreen>
     final user = FirebaseAuth.instance.currentUser;
 
     if (user == null) {
-      debugPrint('❌ ${'user_not_logged_in'.tr()}');
+      safeDebugPrint('❌ ${'user_not_logged_in'.tr()}');
       if (!mounted) return;
       context.go('/login');
       return;
@@ -893,7 +1014,7 @@ class _SplashScreenState extends State<SplashScreen>
       final isActive = userDoc.data()?['isActive'] == true;
 
       if (!userDoc.exists || !isActive) {
-        debugPrint('❗️ Showing inactive account dialog');
+        safeDebugPrint('❗️ Showing inactive account dialog');
         await FirebaseAuth.instance.signOut();
 
         if (!mounted) return;
@@ -927,9 +1048,9 @@ class _SplashScreenState extends State<SplashScreen>
           email: user.email ?? '',
           displayName: user.displayName ?? '',
         );
-        debugPrint('📦 ${'local_user_saved'.tr()}');
+        safeDebugPrint('📦 ${'local_user_saved'.tr()}');
       } else {
-        debugPrint('📦 ${'local_user_exists'.tr(args: [
+        safeDebugPrint('📦 ${'local_user_exists'.tr(args: [
               localUser['displayName'] ?? ''
             ])}');
       }
@@ -937,7 +1058,7 @@ class _SplashScreenState extends State<SplashScreen>
       if (!mounted) return;
       context.go('/dashboard');
     } catch (e) {
-      debugPrint('🔥 Firestore error: $e');
+      safeDebugPrint('🔥 Firestore error: $e');
 
       await FirebaseAuth.instance.signOut();
 
@@ -965,7 +1086,7 @@ class _SplashScreenState extends State<SplashScreen>
 
 /*   Future<void> _startApp() async {
     final connectivityResult = await Connectivity().checkConnectivity();
-    debugPrint('📶 Connectivity result: ${connectivityResult.runtimeType}');
+    safeDebugPrint('📶 Connectivity result: ${connectivityResult.runtimeType}');
 
     if (connectivityResult.contains(ConnectivityResult.none)) {
       _showErrorDialog('no_internet'.tr());
@@ -975,19 +1096,19 @@ class _SplashScreenState extends State<SplashScreen>
     final localUser = await UserLocalStorage.getUser();
 
     if (localUser == null) {
-      debugPrint('🚫 No local user. Redirecting to login.');
+      safeDebugPrint('🚫 No local user. Redirecting to login.');
       if (!mounted) return;
       context.go('/login');
       return;
     }
 
-    debugPrint('✅ Local user found: ${localUser['email']}');
+    safeDebugPrint('✅ Local user found: ${localUser['email']}');
 
     try {
       final user = FirebaseAuth.instance.currentUser;
 
       if (user == null) {
-        debugPrint('❌ Firebase user not logged in');
+        safeDebugPrint('❌ Firebase user not logged in');
         if (!mounted) return;
         context.go('/login');
         return;
@@ -1001,7 +1122,7 @@ class _SplashScreenState extends State<SplashScreen>
       final isActive = userDoc.data()?['isActive'] == true;
 
       if (!userDoc.exists || !isActive) {
-        debugPrint('⛔️ User inactive or document not found');
+        safeDebugPrint('⛔️ User inactive or document not found');
         await FirebaseAuth.instance.signOut();
 
         if (!mounted) return;
@@ -1029,7 +1150,7 @@ class _SplashScreenState extends State<SplashScreen>
       if (!mounted) return;
       context.go('/dashboard');
     } catch (e) {
-      debugPrint('🔥 Firestore error: $e');
+      safeDebugPrint('🔥 Firestore error: $e');
       await FirebaseAuth.instance.signOut();
 
       if (!mounted) return;
@@ -1057,7 +1178,7 @@ class _SplashScreenState extends State<SplashScreen>
 last update 05-08-2025
 Future<void> _startApp() async {
   final connectivityResult = await Connectivity().checkConnectivity();
-  debugPrint('📶 Connectivity result: ${connectivityResult.runtimeType}');
+  safeDebugPrint('📶 Connectivity result: ${connectivityResult.runtimeType}');
 
   if (connectivityResult.contains(ConnectivityResult.none)) {
     _showErrorDialog('no_internet'.tr());
@@ -1067,19 +1188,19 @@ Future<void> _startApp() async {
   final localUser = await UserLocalStorage.getUser();
 
   if (localUser == null) {
-    debugPrint('🚫 No local user. Redirecting to login.');
+    safeDebugPrint('🚫 No local user. Redirecting to login.');
     if (!mounted) return;
     context.go('/login');
     return;
   }
 
-  debugPrint('✅ Local user found: ${localUser['email']}');
+  safeDebugPrint('✅ Local user found: ${localUser['email']}');
 
   try {
     final user = FirebaseAuth.instance.currentUser;
 
     if (user == null) {
-      debugPrint('❌ Firebase user not logged in');
+      safeDebugPrint('❌ Firebase user not logged in');
       if (!mounted) return;
       context.go('/login');
       return;
@@ -1091,7 +1212,7 @@ Future<void> _startApp() async {
         .get();
 
     if (!userDoc.exists) {
-      debugPrint('⛔️ User document not found');
+      safeDebugPrint('⛔️ User document not found');
       await FirebaseAuth.instance.signOut();
       if (!mounted) return;
       context.go('/login');
@@ -1104,7 +1225,7 @@ Future<void> _startApp() async {
     final createdAt = (data?['createdAt'] as Timestamp?)?.toDate();
 
     if (!isActive || createdAt == null) {
-      debugPrint('⛔️ User inactive or missing createdAt');
+      safeDebugPrint('⛔️ User inactive or missing createdAt');
       await FirebaseAuth.instance.signOut();
       if (!mounted) return;
       _showExpiredDialog();
@@ -1116,7 +1237,7 @@ Future<void> _startApp() async {
     final daysLeft = expiryDate.difference(now).inDays;
 
     if (now.isAfter(expiryDate)) {
-      debugPrint('🔴 Subscription expired on $expiryDate');
+      safeDebugPrint('🔴 Subscription expired on $expiryDate');
 
       // إلغاء تفعيل الحساب في Firestore
       await FirebaseFirestore.instance
@@ -1133,7 +1254,7 @@ Future<void> _startApp() async {
 
     // تذكير بقرب انتهاء الاشتراك
     if (daysLeft <= 3) {
-      debugPrint('⚠️ Subscription expires in $daysLeft day(s)');
+      safeDebugPrint('⚠️ Subscription expires in $daysLeft day(s)');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -1148,7 +1269,7 @@ Future<void> _startApp() async {
     if (!mounted) return;
     context.go('/dashboard');
   } catch (e) {
-    debugPrint('🔥 Firestore error: $e');
+    safeDebugPrint('🔥 Firestore error: $e');
     await FirebaseAuth.instance.signOut();
 
     if (!mounted) return;
@@ -1159,7 +1280,7 @@ Future<void> _startApp() async {
 
  /*  Future<void> _startApp() async {
     final connectivityResult = await Connectivity().checkConnectivity();
-    debugPrint('📶 Connectivity result: $connectivityResult');
+    safeDebugPrint('📶 Connectivity result: $connectivityResult');
 
     final isOffline = connectivityResult.contains(ConnectivityResult.none);
 
@@ -1178,7 +1299,7 @@ Future<void> _startApp() async {
       // 👤 محاولة استخدام بيانات المستخدم من SharedPreferences
       final localUser = await UserLocalStorage.getUser();
       if (localUser == null) {
-        debugPrint('🚫 No local user. Redirecting to login.');
+        safeDebugPrint('🚫 No local user. Redirecting to login.');
         if (mounted) context.go('/login');
         return;
       }
@@ -1190,7 +1311,7 @@ Future<void> _startApp() async {
       final duration = localUser['subscriptionDurationInDays'] as int? ?? 30;
 
       if (createdAt == null) {
-        debugPrint('⚠️ createdAt not found in local user data.');
+        safeDebugPrint('⚠️ createdAt not found in local user data.');
         if (mounted) context.go('/login');
         return;
       }
@@ -1199,7 +1320,7 @@ Future<void> _startApp() async {
       final expiryDate = createdAt.add(Duration(days: duration));
 
       if (now.isAfter(expiryDate)) {
-        debugPrint('🔴 Local subscription expired on $expiryDate');
+        safeDebugPrint('🔴 Local subscription expired on $expiryDate');
 
         if (mounted) {
           await showDialog(
@@ -1224,7 +1345,7 @@ Future<void> _startApp() async {
       }
 
       // ✅ الاشتراك ما زال ساريًا
-      debugPrint('🟢 Local subscription still valid until $expiryDate');
+      safeDebugPrint('🟢 Local subscription still valid until $expiryDate');
       if (mounted) context.go('/dashboard');
       return;
     }
@@ -1234,7 +1355,7 @@ Future<void> _startApp() async {
       final user = FirebaseAuth.instance.currentUser;
 
       if (user == null) {
-        debugPrint('❌ Firebase user not logged in');
+        safeDebugPrint('❌ Firebase user not logged in');
         if (!mounted) return;
         context.go('/login');
         return;
@@ -1246,7 +1367,7 @@ Future<void> _startApp() async {
           .get();
 
       if (!userDoc.exists) {
-        debugPrint('⛔️ User document not found');
+        safeDebugPrint('⛔️ User document not found');
         await FirebaseAuth.instance.signOut();
         if (!mounted) return;
         context.go('/login');
@@ -1259,7 +1380,7 @@ Future<void> _startApp() async {
       final createdAt = (data?['createdAt'] as Timestamp?)?.toDate();
 
       if (!isActive || createdAt == null) {
-        debugPrint('⛔️ User inactive or missing createdAt');
+        safeDebugPrint('⛔️ User inactive or missing createdAt');
         await FirebaseAuth.instance.signOut();
         if (!mounted) return;
         _showExpiredDialog();
@@ -1271,7 +1392,7 @@ Future<void> _startApp() async {
       final daysLeft = expiryDate.difference(now).inDays;
 
       if (now.isAfter(expiryDate)) {
-        debugPrint('🔴 Subscription expired on $expiryDate');
+        safeDebugPrint('🔴 Subscription expired on $expiryDate');
 
         await FirebaseFirestore.instance
             .collection('users')
@@ -1287,7 +1408,7 @@ Future<void> _startApp() async {
 
       // ⚠️ إشعار المستخدم باقتراب انتهاء الاشتراك
       if (daysLeft <= 3) {
-        debugPrint('⚠️ Subscription expires in $daysLeft day(s)');
+        safeDebugPrint('⚠️ Subscription expires in $daysLeft day(s)');
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -1314,12 +1435,12 @@ Future<void> _startApp() async {
           supplierIds: List<String>.from(data?['supplierIds'] ?? []),
           isActive: data?['isActive'] == true,
         );
-        debugPrint('📦 Local user saved.');
+        safeDebugPrint('📦 Local user saved.');
       }
 
       if (mounted) context.go('/dashboard');
     } catch (e) {
-      debugPrint('🔥 Firestore error: $e');
+      safeDebugPrint('🔥 Firestore error: $e');
       await FirebaseAuth.instance.signOut();
       if (!mounted) return;
       _showExpiredDialog();
@@ -1348,7 +1469,7 @@ Future<void> _startApp() async {
 
     final connectivityResult = await Connectivity().checkConnectivity();
 
-    debugPrint('📶 Connectivity result: ${connectivityResult.runtimeType}');
+    safeDebugPrint('📶 Connectivity result: ${connectivityResult.runtimeType}');
     // المقارنة صحيحة لأن connectivityResult من نوع ConnectivityResult
     if (connectivityResult.contains(ConnectivityResult.none)) {
       _showErrorDialog('no_internet'.tr());
@@ -1358,7 +1479,7 @@ Future<void> _startApp() async {
     final user = FirebaseAuth.instance.currentUser;
 
     if (user == null) {
-      debugPrint('❌ ${'user_not_logged_in'.tr()}');
+      safeDebugPrint('❌ ${'user_not_logged_in'.tr()}');
       if (!mounted) return;
       context.go('/login');
       return;
@@ -1371,8 +1492,8 @@ Future<void> _startApp() async {
               .get();
 
           if (!userDoc.exists || userDoc.data()?['isActive'] == false) {
-            debugPrint('⛔️ ${'account_inactive'.tr()}');
-            debugPrint('❗️ Showing inactive account dialog');
+            safeDebugPrint('⛔️ ${'account_inactive'.tr()}');
+            safeDebugPrint('❗️ Showing inactive account dialog');
 
             await FirebaseAuth.instance.signOut();
             _showErrorDialog('account_inactive'.tr());
@@ -1387,7 +1508,7 @@ Future<void> _startApp() async {
           .get();
 
       if (!userDoc.exists || userDoc.data()?['isActive'] == false) {
-        debugPrint('❗️ Showing inactive account dialog');
+        safeDebugPrint('❗️ Showing inactive account dialog');
         await FirebaseAuth.instance.signOut();
 
         if (!mounted) return;
@@ -1416,7 +1537,7 @@ Future<void> _startApp() async {
         return;
       }
     } catch (e) {
-      debugPrint('🔥 Firestore error: $e');
+      safeDebugPrint('🔥 Firestore error: $e');
 
       if (!mounted) return;
       await showDialog(
@@ -1448,9 +1569,9 @@ Future<void> _startApp() async {
         email: user.email ?? '',
         displayName: user.displayName ?? '',
       );
-      debugPrint('📦 ${'local_user_saved'.tr()}');
+      safeDebugPrint('📦 ${'local_user_saved'.tr()}');
     } else {
-      debugPrint('📦 ${'local_user_exists'.tr(args: [
+      safeDebugPrint('📦 ${'local_user_exists'.tr(args: [
             localUser['displayName'] ?? ''
           ])}');
     }
@@ -1483,7 +1604,7 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   void initState() {
     super.initState();
-    debugPrint('📱 Splash started');
+    safeDebugPrint('📱 Splash started');
 
     _fadeController = AnimationController(
       vsync: this,
@@ -1502,7 +1623,7 @@ class _SplashScreenState extends State<SplashScreen>
     final user = FirebaseAuth.instance.currentUser;
 
     if (user != null) {
-      debugPrint('✅ Firebase user found: ${user.uid}');
+      safeDebugPrint('✅ Firebase user found: ${user.uid}');
 
       // تحقق إن كانت البيانات المحلية محفوظة
       final localUser = await UserLocalStorage.getUser();
@@ -1513,15 +1634,15 @@ class _SplashScreenState extends State<SplashScreen>
           email: user.email ?? '',
           displayName: user.displayName ?? '',
         );
-        debugPrint('📦 Local user data saved from Firebase.');
+        safeDebugPrint('📦 Local user data saved from Firebase.');
       } else {
-        debugPrint('📦 Loaded local user: ${localUser['displayName']}');
+        safeDebugPrint('📦 Loaded local user: ${localUser['displayName']}');
       }
 
       if (!mounted) return;
       context.go('/dashboard');
     } else {
-      debugPrint('❌ No Firebase user found, redirecting to login');
+      safeDebugPrint('❌ No Firebase user found, redirecting to login');
       if (!mounted) return;
       context.go('/login');
     }
@@ -1633,13 +1754,13 @@ class _SplashScreenState extends State<SplashScreen>
     final user = FirebaseAuth.instance.currentUser;
 
     if (user == null) {
-      debugPrint('❌ No authenticated user.');
+      safeDebugPrint('❌ No authenticated user.');
       if (!mounted) return;
       context.go('/login');
       return;
     }
 
-    debugPrint('✅ Firebase user found: ${user.uid}');
+    safeDebugPrint('✅ Firebase user found: ${user.uid}');
 
     // ✅ التحقق من صلاحيات المستخدم (مثال: هل حسابه مفعل؟)
     final userDoc = await FirebaseFirestore.instance
@@ -1648,7 +1769,7 @@ class _SplashScreenState extends State<SplashScreen>
         .get();
 
     if (!userDoc.exists || (userDoc.data()?['isActive'] == false)) {
-      debugPrint('⛔️ User is not authorized.');
+      safeDebugPrint('⛔️ User is not authorized.');
       await FirebaseAuth.instance.signOut();
       _showErrorAndExit('حسابك غير مفعل، تواصل مع الإدارة.');
       return;
@@ -1662,9 +1783,9 @@ class _SplashScreenState extends State<SplashScreen>
         email: user.email ?? '',
         displayName: user.displayName ?? '',
       );
-      debugPrint('📦 Local user saved.');
+      safeDebugPrint('📦 Local user saved.');
     } else {
-      debugPrint('📦 Loaded local user: ${localUser['displayName']}');
+      safeDebugPrint('📦 Loaded local user: ${localUser['displayName']}');
     }
 
     if (!mounted) return;
@@ -1768,7 +1889,7 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   void initState() {
     super.initState();
-    debugPrint('📱 Splash started on Android');
+    safeDebugPrint('📱 Splash started on Android');
     _fadeController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 2),
@@ -1780,7 +1901,7 @@ class _SplashScreenState extends State<SplashScreen>
     Timer(const Duration(seconds: 3), () {
       _fadeController.stop();
       if (mounted) {
-        debugPrint('🚀 Navigating to / from splash');
+        safeDebugPrint('🚀 Navigating to / from splash');
         context.go('/dashboard'); // انتقل إلى الصفحة الرئيسية بعد السبلاتش
       }
     });

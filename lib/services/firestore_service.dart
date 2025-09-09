@@ -310,9 +310,9 @@ Future<List<QueryDocumentSnapshot>> getDocumentsWithWhereInChunked({
 
 }
  */
-
+import 'package:puresip_purchasing/debug_helper.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/material.dart';
+//import 'package:flutter/material.dart';
 import 'package:puresip_purchasing/models/manufacturing_order_model.dart';
 import '../models/company.dart';
 import '../models/factory.dart';
@@ -423,13 +423,13 @@ class FirestoreService {
           .orderBy('createdAt', descending: true) // تأكد من اسم الحقل هنا
           .get();
 
-      debugPrint('✅ getUserItems: returned ${querySnapshot.docs.length} items');
+      safeDebugPrint('✅ getUserItems: returned ${querySnapshot.docs.length} items');
       return querySnapshot.docs
           .map((doc) => Item.fromFirestore(doc.data(), doc.id))
           .toList();
     } catch (e, st) {
-      debugPrint('❌ Error in getUserItems: $e');
-      debugPrint(st.toString());
+      safeDebugPrint('❌ Error in getUserItems: $e');
+      safeDebugPrint(st.toString());
       return [];
     }
   }
@@ -443,7 +443,7 @@ class FirestoreService {
       }
       return null;
     } catch (e) {
-      debugPrint('Error getting item by ID: $e');
+      safeDebugPrint('Error getting item by ID: $e');
       return null;
     }
   }
@@ -457,14 +457,14 @@ class FirestoreService {
           .orderBy('createdAt', descending: true) // تأكد من اسم الحقل هنا
           .get();
 
-      debugPrint(
+      safeDebugPrint(
           '✅ getUserTypeItems: returned ${querySnapshot.docs.length} items');
       return querySnapshot.docs
           .map((doc) => Item.fromFirestore(doc.data(), doc.id))
           .toList();
     } catch (e, st) {
-      debugPrint('❌ Error in getUserTypeItems: $e');
-      debugPrint(st.toString());
+      safeDebugPrint('❌ Error in getUserTypeItems: $e');
+      safeDebugPrint(st.toString());
       return [];
     }
   }

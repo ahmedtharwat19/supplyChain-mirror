@@ -74,7 +74,7 @@ class _EditFactoryPageState extends State<EditFactoryPage> {
       _managerController.text = data['managerName'] ?? '';
       _phoneController.text = data['managerPhone'] ?? '';
     } catch (e) {
-      debugPrint('Error loading factory: $e');
+      safeDebugPrint('Error loading factory: $e');
       if (mounted) {
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text('${tr('error_occurred')}: $e')));
@@ -108,7 +108,7 @@ class _EditFactoryPageState extends State<EditFactoryPage> {
         context.pop();
       }
     } catch (e) {
-      debugPrint('Error updating factory: $e');
+      safeDebugPrint('Error updating factory: $e');
       if (mounted) {
         ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text('${tr('error_occurred')}: $e')));
@@ -189,6 +189,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:go_router/go_router.dart';
+import 'package:puresip_purchasing/debug_helper.dart';
 
 class EditFactoryPage extends StatefulWidget {
   final String factoryId;
@@ -239,7 +240,7 @@ class _EditFactoryPageState extends State<EditFactoryPage> {
         _companies = loaded;
       });
     } catch (e) {
-      debugPrint('Error loading companies: $e');
+      safeDebugPrint('Error loading companies: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('${tr('error_occurred')}: $e')),
@@ -277,7 +278,7 @@ class _EditFactoryPageState extends State<EditFactoryPage> {
         _isLoading = false;
       });
     } catch (e) {
-      debugPrint('Error loading factory: $e');
+      safeDebugPrint('Error loading factory: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('${tr('error_occurred')}: $e')));
@@ -312,7 +313,7 @@ class _EditFactoryPageState extends State<EditFactoryPage> {
         context.pop();
       }
     } catch (e) {
-      debugPrint('Error updating factory: $e');
+      safeDebugPrint('Error updating factory: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('${tr('error_occurred')}: $e')));

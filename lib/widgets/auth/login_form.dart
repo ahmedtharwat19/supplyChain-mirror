@@ -8,6 +8,7 @@ import 'package:easy_localization/easy_localization.dart';
 import '../../utils/user_local_storage.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:io';
+import 'package:puresip_purchasing/debug_helper.dart';
 
 class LoginForm extends StatefulWidget {
   const LoginForm({super.key});
@@ -58,7 +59,7 @@ class _LoginFormState extends State<LoginForm> {
             .get();
 
         if (!userDoc.exists) {
-          debugPrint(
+          safeDebugPrint(
               'User not found in Firestore after Google sign-in. Redirecting to signup...');
           if (mounted) {
              _showErrorSnackBar('user_not_found_in_db'.tr());
@@ -67,8 +68,8 @@ class _LoginFormState extends State<LoginForm> {
           return;
         }
         final userData = userDoc.data();
-        debugPrint('userData: $userData');
-        debugPrint('userData: ${userData?['isActive']}');
+        safeDebugPrint('userData: $userData');
+        safeDebugPrint('userData: ${userData?['isActive']}');
 
         if (userData != null) {
           final isActive = userData['isActive'];
@@ -117,7 +118,7 @@ class _LoginFormState extends State<LoginForm> {
               .doc(user.uid)
               .get();
 
-          debugPrint('User document exists: ${userDoc.exists}');
+          safeDebugPrint('User document exists: ${userDoc.exists}');
 
           if (!userDoc.exists) {
             if (mounted) {
@@ -128,7 +129,7 @@ class _LoginFormState extends State<LoginForm> {
           }
 
           final userData = userDoc.data()!;
-          debugPrint('User Data: $userData');
+          safeDebugPrint('User Data: $userData');
 
           final isActive = userData['isActive'] as bool? ?? false;
           if (!isActive) {
@@ -145,12 +146,12 @@ class _LoginFormState extends State<LoginForm> {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(content: Text('login_success'.tr())),
             );
-            debugPrint('Attempting to navigate to /dashboard');
+            safeDebugPrint('Attempting to navigate to /dashboard');
             context.go('/dashboard');
           }
         }
       } catch (e) {
-        debugPrint('Login error: ${e.toString()}');
+        safeDebugPrint('Login error: ${e.toString()}');
         if (mounted) {
           if (e is FirebaseAuthException) {
             _showErrorSnackBar(_getAuthErrorMessage(e));

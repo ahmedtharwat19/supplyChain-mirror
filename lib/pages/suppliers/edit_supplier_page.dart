@@ -403,7 +403,7 @@ class _EditSupplierPageState extends State<EditSupplierPage> {
       _addressController.text = data['address'] ?? '';
       _notesController.text = data['notes'] ?? '';
     } catch (e) {
-      debugPrint('Error loading supplier data: $e');
+      safeDebugPrint('Error loading supplier data: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('${tr('error_occurred')}: $e')),
@@ -429,7 +429,7 @@ class _EditSupplierPageState extends State<EditSupplierPage> {
       final isActive = userDoc.data()?['isActive'] ?? false;
       return isActive == true;
     } catch (e) {
-      debugPrint('Error checking user active status: $e');
+      safeDebugPrint('Error checking user active status: $e');
       return false;
     }
   }
@@ -536,7 +536,7 @@ class _EditSupplierPageState extends State<EditSupplierPage> {
         context.pop();
       }
     } catch (e) {
-      debugPrint('Error updating supplier: $e');
+      safeDebugPrint('Error updating supplier: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('${tr('error_occurred')}: $e')),

@@ -1,8 +1,10 @@
-import 'package:flutter/material.dart';
+//import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:puresip_purchasing/models/manufacturing_order_model.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:puresip_purchasing/pages/manufacturing/services/manufacturing_service.dart';
+import 'package:puresip_purchasing/debug_helper.dart';
+
 
 class AlertService {
   final FlutterLocalNotificationsPlugin _notifications = FlutterLocalNotificationsPlugin();
@@ -38,10 +40,10 @@ class AlertService {
           _showLowStockAlert(material);
         }
       }, onError: (error) {
-        debugPrint('Error monitoring low stock: $error');
+        safeDebugPrint('Error monitoring low stock: $error');
       });
     } catch (e) {
-      debugPrint('Failed to start low stock monitoring: $e');
+      safeDebugPrint('Failed to start low stock monitoring: $e');
     }
   }
 

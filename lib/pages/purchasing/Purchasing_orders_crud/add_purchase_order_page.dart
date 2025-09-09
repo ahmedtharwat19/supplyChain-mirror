@@ -9,6 +9,7 @@ import 'package:puresip_purchasing/models/supplier.dart';
 import '../../../services/firestore_service.dart';
 import '../../../utils/user_local_storage.dart';
 import 'item_selection_dialog.dart';
+import 'package:puresip_purchasing/debug_helper.dart';
 
 class AddPurchaseOrderPage extends StatefulWidget {
   final String? selectedCompany;
@@ -45,50 +46,50 @@ class _AddPurchaseOrderPageState extends State<AddPurchaseOrderPage> {
   }
 
   Future<void> _loadInitialData() async {
-    debugPrint('⬇️ Start loading initial data...');
+    safeDebugPrint('⬇️ Start loading initial data...');
     setState(() => _isLoading = true);
 
     try {
       final user = await UserLocalStorage.getUser();
-      debugPrint('🧑 user from storage: $user');
+      safeDebugPrint('🧑 user from storage: $user');
 
       if (user == null) {
-        debugPrint('❌ User is null, stopping load.');
+        safeDebugPrint('❌ User is null, stopping load.');
         setState(() => _isLoading = false);
         return;
       }
 
       final userId = user['userId'] as String;
       final companyIds = (user['companyIds'] as List?)?.cast<String>() ?? [];
-      debugPrint('🚀 userId: $userId');
-      debugPrint('🚀 companyIds: $companyIds');
+      safeDebugPrint('🚀 userId: $userId');
+      safeDebugPrint('🚀 companyIds: $companyIds');
       final currentUser = FirebaseAuth.instance.currentUser;
-      debugPrint('Current Firebase userId: ${currentUser?.uid}');
-      debugPrint('UserId from local storage: $userId');
+      safeDebugPrint('Current Firebase userId: ${currentUser?.uid}');
+      safeDebugPrint('UserId from local storage: $userId');
       if (companyIds.isEmpty) {
-        debugPrint('❌ companyIds is empty, stopping load.');
+        safeDebugPrint('❌ companyIds is empty, stopping load.');
         setState(() => _isLoading = false);
         return;
       }
 
       final companies = await _firestoreService.getUserCompanies(companyIds);
-      debugPrint('✅ Loaded companies count: ${companies.length}');
+      safeDebugPrint('✅ Loaded companies count: ${companies.length}');
 
       final suppliers = await _firestoreService.getUserVendors(
         userId,
         (user['supplierIds'] as List?)?.cast<String>() ?? [],
       );
 
-      debugPrint('✅ Loaded suppliers count: ${suppliers.length}');
+      safeDebugPrint('✅ Loaded suppliers count: ${suppliers.length}');
 
       final items = await _firestoreService.getUserItems(userId);
-      debugPrint('✅ Loaded items count: ${items.length}');
+      safeDebugPrint('✅ Loaded items count: ${items.length}');
 
       List<Factory> factories = [];
       if (_selectedCompanyId != null) {
         factories =
             await _firestoreService.getUserFactories(userId, companyIds).first;
-        debugPrint('✅ Loaded factories count: ${factories.length}');
+        safeDebugPrint('✅ Loaded factories count: ${factories.length}');
       }
 
       if (!mounted) return;
@@ -103,31 +104,31 @@ class _AddPurchaseOrderPageState extends State<AddPurchaseOrderPage> {
             (_selectedCompanyId == null ||
                 !_companies.any((c) => c.id == _selectedCompanyId))) {
           _selectedCompanyId = _companies.first.id;
-          debugPrint(
+          safeDebugPrint(
               'ℹ️ _selectedCompanyId was reset to first company: $_selectedCompanyId');
         }
 
         if (_factories.isNotEmpty && _selectedFactoryId == null) {
           _selectedFactoryId = _factories.first.id;
-          debugPrint(
+          safeDebugPrint(
               'ℹ️ _selectedFactoryId was set to first factory: $_selectedFactoryId');
         }
       });
 
-      debugPrint('📊 State after loading:');
-      debugPrint('  _companies.length: ${_companies.length}');
-      debugPrint('  _suppliers.length: ${_suppliers.length}');
-      debugPrint('  _allItems.length: ${_allItems.length}');
-      debugPrint('  _factories.length: ${_factories.length}');
-      debugPrint('  _selectedCompanyId: $_selectedCompanyId');
-      debugPrint('  _selectedFactoryId: $_selectedFactoryId');
+      safeDebugPrint('📊 State after loading:');
+      safeDebugPrint('  _companies.length: ${_companies.length}');
+      safeDebugPrint('  _suppliers.length: ${_suppliers.length}');
+      safeDebugPrint('  _allItems.length: ${_allItems.length}');
+      safeDebugPrint('  _factories.length: ${_factories.length}');
+      safeDebugPrint('  _selectedCompanyId: $_selectedCompanyId');
+      safeDebugPrint('  _selectedFactoryId: $_selectedFactoryId');
     } catch (e, st) {
-      debugPrint('❌ Exception in _loadInitialData: $e');
-      debugPrint(st.toString());
+      safeDebugPrint('❌ Exception in _loadInitialData: $e');
+      safeDebugPrint(st.toString());
       _showErrorSnackbar('error_loading_data'.tr());
     } finally {
       if (mounted) setState(() => _isLoading = false);
-      debugPrint('⬆️ Finished loading initial data.');
+      safeDebugPrint('⬆️ Finished loading initial data.');
     }
   }
 
@@ -155,8 +156,8 @@ class _AddPurchaseOrderPageState extends State<AddPurchaseOrderPage> {
         final user = await UserLocalStorage.getUser();
         final companyIds = (user?['companyIds'] as List?)?.cast<String>() ?? [];
         final userId = user?['userId'];
-        debugPrint('🚀 userId: $userId');
-        debugPrint('🚀 companyIds: $companyIds');
+        safeDebugPrint('🚀 userId: $userId');
+        safeDebugPrint('🚀 companyIds: $companyIds');
         final factories = await _firestoreService
             .getUserFactories(user?['userId'] ?? '', companyIds)
             .first;
@@ -260,7 +261,7 @@ class _AddPurchaseOrderPageState extends State<AddPurchaseOrderPage> {
 /*       if (_isDelivered) {
         final user = _auth.currentUser;
         if (user != null) {
-          debugPrint(
+          safeDebugPrint(
               '📦 Order is marked as delivered. Processing stock movements.');
 
           for (final item in _items) {
@@ -293,7 +294,7 @@ class _AddPurchaseOrderPageState extends State<AddPurchaseOrderPage> {
                 'lastUpdated': FieldValue.serverTimestamp(),
               }, SetOptions(merge: true));
             } catch (e) {
-              debugPrint('❌ Error processing item $itemId: $e');
+              safeDebugPrint('❌ Error processing item $itemId: $e');
             }
           }
         }
@@ -302,7 +303,7 @@ class _AddPurchaseOrderPageState extends State<AddPurchaseOrderPage> {
 if (_isDelivered) {
   final user = _auth.currentUser;
   if (user != null) {
-    debugPrint('📦 Order is marked as delivered. Processing stock movements.');
+    safeDebugPrint('📦 Order is marked as delivered. Processing stock movements.');
     await _firestoreService.processStockDelivery(
       companyId: _selectedCompanyId!,
       factoryId: _selectedFactoryId!,
@@ -334,8 +335,8 @@ if (_isDelivered) {
         body: const Center(child: CircularProgressIndicator()),
       );
     }
-    debugPrint('📦 building main UI');
-    debugPrint('📦 companies length: ${_companies.length}');
+    safeDebugPrint('📦 building main UI');
+    safeDebugPrint('📦 companies length: ${_companies.length}');
 
     return Scaffold(
       appBar: AppBar(
@@ -1123,7 +1124,7 @@ class _AddPurchaseOrderPageState extends State<AddPurchaseOrderPage> {
     });
 
   } catch (e) {
-    debugPrint('Error in _loadInitialData: $e');
+    safeDebugPrint('Error in _loadInitialData: $e');
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('error_loading_data'.tr())),
@@ -1201,7 +1202,7 @@ class _AddPurchaseOrderPageState extends State<AddPurchaseOrderPage> {
     });
 
   } catch (e) {
-    debugPrint('Error in _loadInitialData: $e');
+    safeDebugPrint('Error in _loadInitialData: $e');
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('error_loading_data'.tr())),
@@ -1244,7 +1245,7 @@ Future<void> _loadFactoriesForCompany(String companyId) async {
     });
 
   } catch (e) {
-    debugPrint('Error loading factories: $e');
+    safeDebugPrint('Error loading factories: $e');
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('error_loading_factories'.tr())),
@@ -1286,7 +1287,7 @@ Future<void> _loadFactoriesForCompany(String companyId) async {
     });
 
   } catch (e) {
-    debugPrint('Error loading factories: $e');
+    safeDebugPrint('Error loading factories: $e');
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('error_loading_factories'.tr())),
@@ -1313,7 +1314,7 @@ Future<void> _loadFactoriesForCompany(String companyId) async {
               isEqualTo: user.uid) // تأكد أن المصانع تخص المستخدم الحالي
           .get();
 
-      debugPrint('Factories found: ${factoriesSnapshot.docs.length}');
+      safeDebugPrint('Factories found: ${factoriesSnapshot.docs.length}');
 
       if (!mounted) return;
 
@@ -1322,10 +1323,10 @@ Future<void> _loadFactoriesForCompany(String companyId) async {
             .map((doc) => Factory.fromMap(doc.data(), doc.id))
             .toList();
         _selectedFactoryId = null;
-        debugPrint('🔄 Factories loaded: ${_factories.length}');
+        safeDebugPrint('🔄 Factories loaded: ${_factories.length}');
       });
     } catch (e) {
-      debugPrint('🔥 Load factories error: $e');
+      safeDebugPrint('🔥 Load factories error: $e');
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1344,9 +1345,9 @@ Future<void> _loadFactoriesForCompany(String companyId) async {
           .doc('9BP0afXOIhoGPIuIKDPV')
           .get();
 
-      debugPrint('Factory doc: ${doc.data()}');
+      safeDebugPrint('Factory doc: ${doc.data()}');
     } catch (e) {
-      debugPrint('🔥 Doc fetch error: $e');
+      safeDebugPrint('🔥 Doc fetch error: $e');
     }
 
     try {
@@ -1356,17 +1357,17 @@ Future<void> _loadFactoriesForCompany(String companyId) async {
           //  .doc('9BP0afXOIhoGPIuIKDPV')
           .get();
 
-      debugPrint('Factories found: ${factoriesSnapshot.docs.length}');
+      safeDebugPrint('Factories found: ${factoriesSnapshot.docs.length}');
 
       setState(() {
         _factories = factoriesSnapshot.docs
             .map((doc) => Factory.fromMap(doc.data(), doc.id))
             .toList();
         _selectedFactoryId = null; // Reset factory selection
-        debugPrint('🔄 Factories loaded: ${_factories.length}');
+        safeDebugPrint('🔄 Factories loaded: ${_factories.length}');
       });
     } catch (e) {
-      debugPrint('🔥 Load factories error: $e');
+      safeDebugPrint('🔥 Load factories error: $e');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('error_loading_factories'.tr())),
@@ -3239,7 +3240,7 @@ class _AddPurchaseOrderPageState extends State<AddPurchaseOrderPage> {
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
-    debugPrint('Initial data loaded: '
+    safeDebugPrint('Initial data loaded: '
         'Companies: ${_companies.length}, '
         'Suppliers: ${_suppliers.length}, '
         'Items: ${_allItems.length}, '
@@ -3254,7 +3255,7 @@ class _AddPurchaseOrderPageState extends State<AddPurchaseOrderPage> {
       collectionPath: 'companies',
       userId: user['userId'],
     );
-    debugPrint('Loaded companies: ${docs.length}');
+    safeDebugPrint('Loaded companies: ${docs.length}');
 
     if (!mounted) return;
 
@@ -3264,7 +3265,7 @@ class _AddPurchaseOrderPageState extends State<AddPurchaseOrderPage> {
               Company.fromMap(doc.data() as Map<String, dynamic>, doc.id))
           .toList();
     });
-    debugPrint('Loaded companies: ${_companies.length}');
+    safeDebugPrint('Loaded companies: ${_companies.length}');
   }
 
   Future<void> _loadSuppliers(Map<String, dynamic> user) async {
@@ -3540,7 +3541,7 @@ class _AddPurchaseOrderPageState extends State<AddPurchaseOrderPage> {
         if (value == null) return;
         setState(() => _selectedCompanyId = value);
         await _loadFactoriesForCompany(value);
-         debugPrint('Loaded companies: ${_companies.length}');
+         safeDebugPrint('Loaded companies: ${_companies.length}');
       },
       decoration: InputDecoration(
         labelText: 'company'.tr(),
@@ -3844,17 +3845,17 @@ class _AddPurchaseOrderPageState extends State<AddPurchaseOrderPage> {
     try {
       final user = await UserLocalStorage.getUser();
       final userIdX = user?['userId'];
-      debugPrint('🚀 userId: $userIdX');
+      safeDebugPrint('🚀 userId: $userIdX');
       if (user == null) return;
 
       final userId = user['userId'] as String;
       final companyIds = (user['companyIds'] as List?)?.cast<String>() ?? [];
-      debugPrint('🚀 companyIds: $companyIds');
+      safeDebugPrint('🚀 companyIds: $companyIds');
       if (companyIds.isEmpty) return;
 
       // تحميل البيانات حسب الهيكل الصحيح
       final companies = await _firestoreService.getUserCompanies(companyIds);
-      debugPrint('✅ Loaded companies count: ${companies.length}');
+      safeDebugPrint('✅ Loaded companies count: ${companies.length}');
 
       final suppliers = await _firestoreService.getUserVendors(userId); // ✅
       final items = await _firestoreService.getUserItems(companyIds); // ✅
@@ -3864,7 +3865,7 @@ class _AddPurchaseOrderPageState extends State<AddPurchaseOrderPage> {
         factories = await _firestoreService
             .getUserFactories(userId, companyIds) // ✅ هذا يرجع Stream
             .first; // ✅ أخذ أول نتيجة من الـ Stream
-            debugPrint('✅ Loaded factories count: ${factories.length}');
+            safeDebugPrint('✅ Loaded factories count: ${factories.length}');
       }
 
       if (!mounted) return;
@@ -3879,11 +3880,11 @@ class _AddPurchaseOrderPageState extends State<AddPurchaseOrderPage> {
         }
       });
 
-      debugPrint('User data: $user');
-      debugPrint('Company IDs: $companyIds');
-      debugPrint('Companies count: ${companies.length}');
-      debugPrint('Suppliers count: ${suppliers.length}');
-      debugPrint('Items count: ${items.length}');
+      safeDebugPrint('User data: $user');
+      safeDebugPrint('Company IDs: $companyIds');
+      safeDebugPrint('Companies count: ${companies.length}');
+      safeDebugPrint('Suppliers count: ${suppliers.length}');
+      safeDebugPrint('Items count: ${items.length}');
     } catch (e) {
       _showErrorSnackbar('error_loading_data'.tr());
     } finally {
@@ -3989,53 +3990,53 @@ class _AddPurchaseOrderPageState extends State<AddPurchaseOrderPage> {
   }
 
   Future<void> _loadInitialData() async {
-    debugPrint('⬇️ Start loading initial data...');
+    safeDebugPrint('⬇️ Start loading initial data...');
     setState(() => _isLoading = true);
 
     try {
       final user = await UserLocalStorage.getUser();
-      debugPrint('🧑 user from storage: $user');
+      safeDebugPrint('🧑 user from storage: $user');
 
       if (user == null) {
-        debugPrint('❌ User is null, stopping load.');
+        safeDebugPrint('❌ User is null, stopping load.');
         setState(() => _isLoading = false);
         return;
       }
 
       final userId = user['userId'] as String;
       final companyIds = (user['companyIds'] as List?)?.cast<String>() ?? [];
-      debugPrint('🚀 userId: $userId');
-      debugPrint('🚀 companyIds: $companyIds');
+      safeDebugPrint('🚀 userId: $userId');
+      safeDebugPrint('🚀 companyIds: $companyIds');
       final currentUser = FirebaseAuth.instance.currentUser;
-      debugPrint('Current Firebase userId: ${currentUser?.uid}');
-      debugPrint('UserId from local storage: $userId');
+      safeDebugPrint('Current Firebase userId: ${currentUser?.uid}');
+      safeDebugPrint('UserId from local storage: $userId');
       if (companyIds.isEmpty) {
-        debugPrint('❌ companyIds is empty, stopping load.');
+        safeDebugPrint('❌ companyIds is empty, stopping load.');
         setState(() => _isLoading = false);
         return;
       }
 
       final companies = await _firestoreService.getUserCompanies(companyIds);
-      debugPrint('✅ Loaded companies count: ${companies.length}');
+      safeDebugPrint('✅ Loaded companies count: ${companies.length}');
 
       final suppliers = await _firestoreService.getUserVendors(
         userId,
         (user['supplierIds'] as List?)?.cast<String>() ?? [],
       );
 
-      debugPrint('✅ Loaded suppliers count: ${suppliers.length}'); 
+      safeDebugPrint('✅ Loaded suppliers count: ${suppliers.length}'); 
 
 //الكود يطبع حتى هنا فقط ...
 //يتجاهل بعد ذلك
       final items = await _firestoreService.getUserItems(userId);
-      debugPrint('✅ Loaded items count: ${items.length}'); // تطبع 0
+      safeDebugPrint('✅ Loaded items count: ${items.length}'); // تطبع 0
 
       
       List<Factory> factories = [];
       if (_selectedCompanyId != null) {
         factories =
             await _firestoreService.getUserFactories(userId, companyIds).first;
-        debugPrint('✅ Loaded factories count: ${factories.length}');
+        safeDebugPrint('✅ Loaded factories count: ${factories.length}');
       }
 
       if (!mounted) return;
@@ -4051,31 +4052,31 @@ class _AddPurchaseOrderPageState extends State<AddPurchaseOrderPage> {
             (_selectedCompanyId == null ||
                 !_companies.any((c) => c.id == _selectedCompanyId))) {
           _selectedCompanyId = _companies.first.id;
-          debugPrint(
+          safeDebugPrint(
               'ℹ️ _selectedCompanyId was reset to first company: $_selectedCompanyId');
         }
 
         if (_factories.isNotEmpty && _selectedFactoryId == null) {
           _selectedFactoryId = _factories.first.id;
-          debugPrint(
+          safeDebugPrint(
               'ℹ️ _selectedFactoryId was set to first factory: $_selectedFactoryId');
         }
       });
 
-      debugPrint('📊 State after loading:');
-      debugPrint('  _companies.length: ${_companies.length}');
-      debugPrint('  _suppliers.length: ${_suppliers.length}');
-      debugPrint('  _allItems.length: ${_allItems.length}');
-      debugPrint('  _factories.length: ${_factories.length}');
-      debugPrint('  _selectedCompanyId: $_selectedCompanyId');
-      debugPrint('  _selectedFactoryId: $_selectedFactoryId');
+      safeDebugPrint('📊 State after loading:');
+      safeDebugPrint('  _companies.length: ${_companies.length}');
+      safeDebugPrint('  _suppliers.length: ${_suppliers.length}');
+      safeDebugPrint('  _allItems.length: ${_allItems.length}');
+      safeDebugPrint('  _factories.length: ${_factories.length}');
+      safeDebugPrint('  _selectedCompanyId: $_selectedCompanyId');
+      safeDebugPrint('  _selectedFactoryId: $_selectedFactoryId');
     } catch (e, st) {
-      debugPrint('❌ Exception in _loadInitialData: $e');
-      debugPrint(st.toString());
+      safeDebugPrint('❌ Exception in _loadInitialData: $e');
+      safeDebugPrint(st.toString());
       _showErrorSnackbar('error_loading_data'.tr());
     } finally {
       if (mounted) setState(() => _isLoading = false);
-      debugPrint('⬆️ Finished loading initial data.');
+      safeDebugPrint('⬆️ Finished loading initial data.');
     }
   }
 
@@ -4103,8 +4104,8 @@ class _AddPurchaseOrderPageState extends State<AddPurchaseOrderPage> {
         final user = await UserLocalStorage.getUser();
         final companyIds = (user?['companyIds'] as List?)?.cast<String>() ?? [];
         final userId = user?['userId'];
-        debugPrint('🚀 userId: $userId');
-        debugPrint('🚀 companyIds: $companyIds');
+        safeDebugPrint('🚀 userId: $userId');
+        safeDebugPrint('🚀 companyIds: $companyIds');
         final factories = await _firestoreService
             .getUserFactories(user?['userId'] ?? '', companyIds)
             .first;
@@ -4220,8 +4221,8 @@ class _AddPurchaseOrderPageState extends State<AddPurchaseOrderPage> {
         body: const Center(child: CircularProgressIndicator()),
       );
     }
-    debugPrint('📦 building main UI');
-    debugPrint('📦 companies length: ${_companies.length}');
+    safeDebugPrint('📦 building main UI');
+    safeDebugPrint('📦 companies length: ${_companies.length}');
 
     return Scaffold(
       appBar: AppBar(

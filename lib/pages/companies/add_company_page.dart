@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
-
+import 'package:puresip_purchasing/debug_helper.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -41,7 +41,7 @@ class _AddCompanyPageState extends State<AddCompanyPage> {
   void initState() {
     super.initState();
     _currentUser = FirebaseAuth.instance.currentUser;
-    debugPrint('👤 المستخدم الحالي: ${_currentUser?.uid ?? "غير مسجل"}');
+    safeDebugPrint('👤 المستخدم الحالي: ${_currentUser?.uid ?? "غير مسجل"}');
   }
 
   @override
@@ -68,7 +68,7 @@ class _AddCompanyPageState extends State<AddCompanyPage> {
       final isActive = userDoc.data()?['isActive'] ?? false;
       return isActive == true;
     } catch (e) {
-      debugPrint('❌ خطأ في التحقق من حالة المستخدم: $e');
+      safeDebugPrint('❌ خطأ في التحقق من حالة المستخدم: $e');
       return false;
     }
   }
@@ -128,7 +128,7 @@ class _AddCompanyPageState extends State<AddCompanyPage> {
       final pickedFile = await picker.pickImage(source: ImageSource.gallery);
 
       if (pickedFile == null) {
-        debugPrint('❌ لم يتم اختيار صورة');
+        safeDebugPrint('❌ لم يتم اختيار صورة');
         return;
       }
 
@@ -142,9 +142,9 @@ class _AddCompanyPageState extends State<AddCompanyPage> {
         _base64Logo = base64Encode(bytes);
       }
       setState(() {});
-      debugPrint('✅ تم اختيار الشعار بنجاح');
+      safeDebugPrint('✅ تم اختيار الشعار بنجاح');
     } catch (e) {
-      debugPrint('❌ خطأ أثناء اختيار الشعار: $e');
+      safeDebugPrint('❌ خطأ أثناء اختيار الشعار: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(tr('error_selecting_logo'))),
@@ -216,7 +216,7 @@ class _AddCompanyPageState extends State<AddCompanyPage> {
         context.pop(); // ارجع للصفحة اللي قبلها
       }
     } catch (e) {
-      debugPrint('❌ خطأ أثناء إضافة الشركة: $e');
+      safeDebugPrint('❌ خطأ أثناء إضافة الشركة: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(tr('error_while_adding_company'))),
@@ -344,7 +344,7 @@ class _AddCompanyPageState extends State<AddCompanyPage> {
   void initState() {
     super.initState();
     _currentUser = FirebaseAuth.instance.currentUser;
-    debugPrint('👤 المستخدم الحالي: ${_currentUser?.uid ?? "غير مسجل"}');
+    safeDebugPrint('👤 المستخدم الحالي: ${_currentUser?.uid ?? "غير مسجل"}');
   }
 
   @override
@@ -363,7 +363,7 @@ class _AddCompanyPageState extends State<AddCompanyPage> {
       final pickedFile = await picker.pickImage(source: ImageSource.gallery);
 
       if (pickedFile == null) {
-        debugPrint('❌ لم يتم اختيار صورة');
+        safeDebugPrint('❌ لم يتم اختيار صورة');
         return;
       }
 
@@ -377,9 +377,9 @@ class _AddCompanyPageState extends State<AddCompanyPage> {
         _base64Logo = base64Encode(bytes);
       }
       setState(() {});
-      debugPrint('✅ تم اختيار الشعار بنجاح');
+      safeDebugPrint('✅ تم اختيار الشعار بنجاح');
     } catch (e) {
-      debugPrint('❌ خطأ أثناء اختيار الشعار: $e');
+      safeDebugPrint('❌ خطأ أثناء اختيار الشعار: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(tr('error_selecting_logo'))),
@@ -412,7 +412,7 @@ class _AddCompanyPageState extends State<AddCompanyPage> {
       }
       return false;
     } catch (e) {
-      debugPrint('❌ خطأ أثناء التحقق من التكرار: $e');
+      safeDebugPrint('❌ خطأ أثناء التحقق من التكرار: $e');
       return false; // في حالة الخطأ نفترض لا تكرار لكي لا نوقف العملية بدون سبب
     }
   }
@@ -456,7 +456,7 @@ class _AddCompanyPageState extends State<AddCompanyPage> {
     final managerPhone = _managerPhoneController.text.trim();
 
     try {
-      debugPrint('🔍 التحقق من وجود شركة مكررة...');
+      safeDebugPrint('🔍 التحقق من وجود شركة مكررة...');
       final isDuplicate = await _isCompanyDuplicate(nameAr, nameEn);
       if (isDuplicate) {
         if (mounted) {
@@ -501,8 +501,8 @@ class _AddCompanyPageState extends State<AddCompanyPage> {
             });
           }
         } catch (e, stackTrace) {
-          debugPrint('Error: $e');
-          debugPrint('StackTrace: $stackTrace');
+          safeDebugPrint('Error: $e');
+          safeDebugPrint('StackTrace: $stackTrace');
           rethrow; // لإعادة رمي الاستثناء بعد معالجته
         }
       });
@@ -519,12 +519,12 @@ class _AddCompanyPageState extends State<AddCompanyPage> {
         path: '/company-added/$companyId',
         queryParameters: {'nameEn': nameEn},
       );
-      debugPrint('🚀 الانتقال إلى: $uri');
+      safeDebugPrint('🚀 الانتقال إلى: $uri');
       if (mounted) {
         context.go(uri.toString());
       }
     } catch (e) {
-      debugPrint('❌ خطأ أثناء إضافة الشركة: $e');
+      safeDebugPrint('❌ خطأ أثناء إضافة الشركة: $e');
 
       String userMessage = tr('error_while_adding_company');
       final errorStr = e.toString().toLowerCase();
@@ -617,14 +617,14 @@ class _AddCompanyPageState extends State<AddCompanyPage> {
         context.go('/company-added/$companyId', extra: {'nameEn': nameEn});
       }
     } on FirebaseException catch (e) {
-      debugPrint('Firebase Error: ${e.code} - ${e.message}');
+      safeDebugPrint('Firebase Error: ${e.code} - ${e.message}');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(_getErrorMessage(e))),
         );
       }
     } catch (e) {
-      debugPrint('Error: $e');
+      safeDebugPrint('Error: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(tr('error_while_adding_company'))),
@@ -786,14 +786,14 @@ class _AddCompanyPageState extends State<AddCompanyPage> {
         _base64Logo = base64Encode(bytes);
       }
       setState(() {});
-      debugPrint('Logo selected and encoded.');
+      safeDebugPrint('Logo selected and encoded.');
     } else {
-      debugPrint('No logo image selected.');
+      safeDebugPrint('No logo image selected.');
     }
   }
 
   Future<bool> _isCompanyDuplicate(String nameAr, String nameEn) async {
-    debugPrint('Checking for duplicate company...');
+    safeDebugPrint('Checking for duplicate company...');
     final querySnapshot =
         await FirebaseFirestore.instance.collection('companies').get();
 
@@ -811,11 +811,11 @@ class _AddCompanyPageState extends State<AddCompanyPage> {
           .toLowerCase();
 
       if (existingAr == normalizedAr || existingEn == normalizedEn) {
-        debugPrint('Duplicate company found: ${doc.id}');
+        safeDebugPrint('Duplicate company found: ${doc.id}');
         return true;
       }
     }
-    debugPrint('No duplicate company found.');
+    safeDebugPrint('No duplicate company found.');
     return false;
   }
 
@@ -829,25 +829,25 @@ class _AddCompanyPageState extends State<AddCompanyPage> {
     final managerPhone = _managerPhoneController.text.trim();
 
     _currentUser ??= FirebaseAuth.instance.currentUser;
-    debugPrint('Logged in user UID: ${_currentUser!.uid}');
+    safeDebugPrint('Logged in user UID: ${_currentUser!.uid}');
 
     if (_currentUser == null) {
-      debugPrint('❌ المستخدم غير مسجل الدخول');
+      safeDebugPrint('❌ المستخدم غير مسجل الدخول');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('login_first'.tr())),
       );
       return;
     }
 
-    debugPrint(
+    safeDebugPrint(
         '🟡 بدء عملية إضافة الشركة بواسطة المستخدم: ${_currentUser!.uid}');
-    debugPrint('📋 البيانات المُدخلة:');
-    debugPrint('- الاسم بالعربية: $nameAr');
-    debugPrint('- الاسم بالإنجليزية: $nameEn');
-    debugPrint('- العنوان: $address');
+    safeDebugPrint('📋 البيانات المُدخلة:');
+    safeDebugPrint('- الاسم بالعربية: $nameAr');
+    safeDebugPrint('- الاسم بالإنجليزية: $nameEn');
+    safeDebugPrint('- العنوان: $address');
 
     if (nameAr.isEmpty || nameEn.isEmpty || address.isEmpty) {
-      debugPrint('❌ الحقول المطلوبة ناقصة');
+      safeDebugPrint('❌ الحقول المطلوبة ناقصة');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('requierd_fields'.tr())),
       );
@@ -855,7 +855,7 @@ class _AddCompanyPageState extends State<AddCompanyPage> {
     }
 
     if (_base64Logo == null || _base64Logo!.isEmpty) {
-      debugPrint('❌ لم يتم اختيار شعار');
+      safeDebugPrint('❌ لم يتم اختيار شعار');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('please_select_logo'.tr())),
       );
@@ -866,10 +866,10 @@ class _AddCompanyPageState extends State<AddCompanyPage> {
 
     try {
       // التحقق من تكرار الشركة
-      debugPrint('🔍 التحقق من وجود شركة مكررة...');
+      safeDebugPrint('🔍 التحقق من وجود شركة مكررة...');
       final isDuplicate = await _isCompanyDuplicate(nameAr, nameEn);
       if (isDuplicate) {
-        debugPrint('⚠️ الشركة مكررة بالفعل');
+        safeDebugPrint('⚠️ الشركة مكررة بالفعل');
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('⚠️ ${tr('company_already_exists')}')),
@@ -895,12 +895,12 @@ class _AddCompanyPageState extends State<AddCompanyPage> {
         'createdAt': Timestamp.now(),
       };
 
-      debugPrint('🛠️ بدء المعاملة لإضافة الشركة وتحديث المستخدم');
-      debugPrint('📦 البيانات المرسلة إلى Firestore: $companyData');
+      safeDebugPrint('🛠️ بدء المعاملة لإضافة الشركة وتحديث المستخدم');
+      safeDebugPrint('📦 البيانات المرسلة إلى Firestore: $companyData');
 
       await firestore.runTransaction((transaction) async {
         // إضافة مستند الشركة الجديد
-        debugPrint('🧪 سيتم إنشاء مستند الشركة بـ: $companyData');
+        safeDebugPrint('🧪 سيتم إنشاء مستند الشركة بـ: $companyData');
 
         transaction.set(companyRef, companyData);
 
@@ -912,20 +912,20 @@ class _AddCompanyPageState extends State<AddCompanyPage> {
           transaction.update(userRef, {
             'companyIds': FieldValue.arrayUnion([companyId]),
           });
-          debugPrint('🔁 تحديث قائمة الشركات لدى المستخدم');
+          safeDebugPrint('🔁 تحديث قائمة الشركات لدى المستخدم');
         } else {
           // إنشاء مستند مستخدم جديد مع الشركة
-          debugPrint('🧪 سيتم إنشاء مستند الشركة بـ: $companyData');
+          safeDebugPrint('🧪 سيتم إنشاء مستند الشركة بـ: $companyData');
 
           transaction.set(userRef, {
             'companyIds': [companyId],
             'createdAt': Timestamp.now(),
           });
-          debugPrint('🆕 إنشاء مستند مستخدم جديد مع الشركة');
+          safeDebugPrint('🆕 إنشاء مستند مستخدم جديد مع الشركة');
         }
       });
 
-      debugPrint('✅ تمت العملية بنجاح');
+      safeDebugPrint('✅ تمت العملية بنجاح');
 
       if (!mounted) return;
 
@@ -940,13 +940,13 @@ class _AddCompanyPageState extends State<AddCompanyPage> {
         queryParameters: {'nameEn': nameEn},
       );
 
-      debugPrint('🚀 الانتقال إلى: $uri');
+      safeDebugPrint('🚀 الانتقال إلى: $uri');
       if (mounted) {
         context.go(uri.toString());
       }
     } catch (e, stacktrace) {
-      debugPrint('❌ استثناء أثناء إضافة الشركة: $e');
-      debugPrint(stacktrace.toString());
+      safeDebugPrint('❌ استثناء أثناء إضافة الشركة: $e');
+      safeDebugPrint(stacktrace.toString());
 
       String userMessage = tr('error_while_adding_company');
       if (e.toString().contains('permission-denied')) {
@@ -975,20 +975,20 @@ class _AddCompanyPageState extends State<AddCompanyPage> {
     final managerName = _managerNameController.text.trim();
     final managerPhone = _managerPhoneController.text.trim();
 
-    debugPrint('🟡 بدء عملية إضافة الشركة');
-    debugPrint('📋 البيانات المُدخلة:');
-    debugPrint('- الاسم بالعربية: $nameAr');
-    debugPrint('- الاسم بالإنجليزية: $nameEn');
-    debugPrint('- العنوان: $address');
+    safeDebugPrint('🟡 بدء عملية إضافة الشركة');
+    safeDebugPrint('📋 البيانات المُدخلة:');
+    safeDebugPrint('- الاسم بالعربية: $nameAr');
+    safeDebugPrint('- الاسم بالإنجليزية: $nameEn');
+    safeDebugPrint('- العنوان: $address');
 
     if (_currentUser == null) {
-      debugPrint('❌ المستخدم غير مسجل في _addCompany');
+      safeDebugPrint('❌ المستخدم غير مسجل في _addCompany');
       return;
     }
-    debugPrint('✅ المستخدم داخل _addCompany: ${_currentUser!.uid}');
+    safeDebugPrint('✅ المستخدم داخل _addCompany: ${_currentUser!.uid}');
 
     if (nameAr.isEmpty || nameEn.isEmpty || address.isEmpty) {
-      debugPrint('❌ حقول مطلوبة ناقصة');
+      safeDebugPrint('❌ حقول مطلوبة ناقصة');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('requierd_fields'.tr())),
       );
@@ -996,7 +996,7 @@ class _AddCompanyPageState extends State<AddCompanyPage> {
     }
 
     if (_base64Logo == null || _base64Logo!.isEmpty) {
-      debugPrint('❌ لم يتم اختيار شعار');
+      safeDebugPrint('❌ لم يتم اختيار شعار');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('please_select_logo'.tr())),
       );
@@ -1006,10 +1006,10 @@ class _AddCompanyPageState extends State<AddCompanyPage> {
     setState(() => _isLoading = true);
 
     try {
-      debugPrint('🔍 التحقق من تكرار الشركة...');
+      safeDebugPrint('🔍 التحقق من تكرار الشركة...');
       final isDuplicate = await _isCompanyDuplicate(nameAr, nameEn);
       if (isDuplicate) {
-        debugPrint('⚠️ الشركة مكررة');
+        safeDebugPrint('⚠️ الشركة مكررة');
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('⚠️ ${tr('company_already_exists')}')),
@@ -1020,10 +1020,10 @@ class _AddCompanyPageState extends State<AddCompanyPage> {
       }
 
       final currentUser = FirebaseAuth.instance.currentUser;
-      debugPrint(
+      safeDebugPrint(
           '📍 currentUser داخل _addCompany: ${currentUser?.uid ?? "null"}');
       if (currentUser == null) {
-        debugPrint('❌ المستخدم غير مسجل الدخول');
+        safeDebugPrint('❌ المستخدم غير مسجل الدخول');
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('login_first'.tr())),
@@ -1034,7 +1034,7 @@ class _AddCompanyPageState extends State<AddCompanyPage> {
       }
 
       final uid = currentUser.uid;
-      debugPrint('✅ المستخدم  uid  المسجل: $uid');
+      safeDebugPrint('✅ المستخدم  uid  المسجل: $uid');
 
       final firestore = FirebaseFirestore.instance;
       final companyId = firestore.collection('companies').doc().id;
@@ -1053,23 +1053,23 @@ class _AddCompanyPageState extends State<AddCompanyPage> {
         'createdAt': Timestamp.now(),
       };
 
-      debugPrint('🛠️ إعداد البيانات... سيتم بدء المعاملة');
-      debugPrint('🆔 معرف الشركة: $companyId');
+      safeDebugPrint('🛠️ إعداد البيانات... سيتم بدء المعاملة');
+      safeDebugPrint('🆔 معرف الشركة: $companyId');
 
       await firestore.runTransaction((transaction) async {
         // إضافة الشركة
         transaction.set(companyRef, companyData);
-        debugPrint('✅ الشركة تم إدراجها في قاعدة البيانات');
+        safeDebugPrint('✅ الشركة تم إدراجها في قاعدة البيانات');
 
         final userSnap = await transaction.get(userRef);
 
         if (userSnap.exists) {
-          debugPrint('🔁 تحديث مستخدم حالي');
+          safeDebugPrint('🔁 تحديث مستخدم حالي');
           transaction.update(userRef, {
             'companyIds': FieldValue.arrayUnion([companyId]),
           });
         } else {
-          debugPrint('🆕 إنشاء مستخدم جديد وربطه بالشركة');
+          safeDebugPrint('🆕 إنشاء مستخدم جديد وربطه بالشركة');
           transaction.set(userRef, {
             'companyIds': [companyId],
             'createdAt': Timestamp.now(),
@@ -1077,7 +1077,7 @@ class _AddCompanyPageState extends State<AddCompanyPage> {
         }
       });
 
-      debugPrint('✅ تمت العملية بنجاح');
+      safeDebugPrint('✅ تمت العملية بنجاح');
 
       if (!mounted) return;
 
@@ -1092,13 +1092,13 @@ class _AddCompanyPageState extends State<AddCompanyPage> {
         queryParameters: {'nameEn': nameEn},
       );
 
-      debugPrint('🚀 الانتقال إلى: $uri');
+      safeDebugPrint('🚀 الانتقال إلى: $uri');
       if (mounted) {
         context.go(uri.toString());
       }
     } catch (e, stacktrace) {
-      debugPrint('❌ استثناء أثناء إضافة الشركة: $e');
-      debugPrint(stacktrace.toString());
+      safeDebugPrint('❌ استثناء أثناء إضافة الشركة: $e');
+      safeDebugPrint(stacktrace.toString());
 
       if (mounted) {
         String userMessage = tr('error_while_adding_company');
@@ -1128,12 +1128,12 @@ class _AddCompanyPageState extends State<AddCompanyPage> {
       final managerName = _managerNameController.text.trim();
       final managerPhone = _managerPhoneController.text.trim();
 
-      debugPrint('🔁 بدء إضافة الشركة...');
-      debugPrint(
+      safeDebugPrint('🔁 بدء إضافة الشركة...');
+      safeDebugPrint(
           '🔍 بيانات الإدخال: nameAr="$nameAr", nameEn="$nameEn", address="$address"');
 
       if (nameAr.isEmpty || nameEn.isEmpty || address.isEmpty) {
-        debugPrint('❌ الحقول المطلوبة ناقصة');
+        safeDebugPrint('❌ الحقول المطلوبة ناقصة');
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('requierd_fields'.tr())),
         );
@@ -1141,7 +1141,7 @@ class _AddCompanyPageState extends State<AddCompanyPage> {
       }
 
       if (_base64Logo == null || _base64Logo!.isEmpty) {
-        debugPrint('❌ الشعار غير محدد');
+        safeDebugPrint('❌ الشعار غير محدد');
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('please_select_logo'.tr())),
         );
@@ -1151,11 +1151,11 @@ class _AddCompanyPageState extends State<AddCompanyPage> {
       setState(() => _isLoading = true);
 
       try {
-        debugPrint('🔍 التحقق من وجود شركة مكررة...');
+        safeDebugPrint('🔍 التحقق من وجود شركة مكررة...');
         final isDuplicate = await _isCompanyDuplicate(nameAr, nameEn);
         if (isDuplicate) {
           if (!mounted) return;
-          debugPrint('⚠️ تم العثور على شركة مكررة، يتم الإيقاف');
+          safeDebugPrint('⚠️ تم العثور على شركة مكررة، يتم الإيقاف');
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('⚠️ ${tr('company_already_exists')}')),
           );
@@ -1166,7 +1166,7 @@ class _AddCompanyPageState extends State<AddCompanyPage> {
         final currentUser = FirebaseAuth.instance.currentUser;
         if (currentUser == null) {
           if (!mounted) return;
-          debugPrint('❌ المستخدم غير مسجل الدخول');
+          safeDebugPrint('❌ المستخدم غير مسجل الدخول');
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('login_first'.tr())),
           );
@@ -1174,15 +1174,15 @@ class _AddCompanyPageState extends State<AddCompanyPage> {
           return;
         }
 
-        debugPrint('✅ المستخدم الحالي: ${currentUser.uid}');
+        safeDebugPrint('✅ المستخدم الحالي: ${currentUser.uid}');
 
         final firestore = FirebaseFirestore.instance;
         final companyId = firestore.collection('companies').doc().id;
 
         final companyRef = firestore.collection('companies').doc(companyId);
         final userRef = firestore.collection('users').doc(currentUser.uid);
-        debugPrint('companies $companyId');
-        debugPrint('users $currentUser');
+        safeDebugPrint('companies $companyId');
+        safeDebugPrint('users $currentUser');
         
 
 
@@ -1198,7 +1198,7 @@ class _AddCompanyPageState extends State<AddCompanyPage> {
           'createdAt': Timestamp.now(),
         };
 
-        debugPrint('📦 البيانات جاهزة، جاري التنفيذ داخل المعاملة...');
+        safeDebugPrint('📦 البيانات جاهزة، جاري التنفيذ داخل المعاملة...');
 
         await firestore.runTransaction((transaction) async {
           // إنشاء الشركة
@@ -1209,12 +1209,12 @@ class _AddCompanyPageState extends State<AddCompanyPage> {
           final userSnap = await transaction.get(userRef);
 
           if (userSnap.exists) {
-            debugPrint('🔁 تحديث قائمة الشركات لدى المستخدم');
+            safeDebugPrint('🔁 تحديث قائمة الشركات لدى المستخدم');
             transaction.update(userRef, {
               'companyIds': FieldValue.arrayUnion([companyId]),
             });
           } else {
-            debugPrint('🆕 إنشاء مستند مستخدم جديد مع الشركة');
+            safeDebugPrint('🆕 إنشاء مستند مستخدم جديد مع الشركة');
             transaction.set(userRef, {
               'companyIds': [companyId],
               'createdAt': Timestamp.now(),
@@ -1222,7 +1222,7 @@ class _AddCompanyPageState extends State<AddCompanyPage> {
           }
         });
 
-        debugPrint('✅ تم إضافة الشركة وتحديث المستخدم بنجاح.');
+        safeDebugPrint('✅ تم إضافة الشركة وتحديث المستخدم بنجاح.');
 
         if (!mounted) return;
 
@@ -1238,11 +1238,11 @@ class _AddCompanyPageState extends State<AddCompanyPage> {
           path: '/company-added/$companyId',
           queryParameters: {'nameEn': nameEn},
         );
-        debugPrint('🚀 الانتقال إلى صفحة نجاح: $uri');
+        safeDebugPrint('🚀 الانتقال إلى صفحة نجاح: $uri');
         context.go(uri.toString());
       } catch (e, stacktrace) {
-        debugPrint('❌ خطأ أثناء إضافة الشركة: $e');
-        debugPrint(stacktrace.toString());
+        safeDebugPrint('❌ خطأ أثناء إضافة الشركة: $e');
+        safeDebugPrint(stacktrace.toString());
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('${tr('error_while_adding_company')}: $e')),
@@ -1267,10 +1267,10 @@ class _AddCompanyPageState extends State<AddCompanyPage> {
   void initState() {
     super.initState();
     _currentUser = FirebaseAuth.instance.currentUser;
-    debugPrint(
+    safeDebugPrint(
         '👤 المستخدم الحالي في initState: ${_currentUser?.uid ?? "null"}');
     final user = FirebaseAuth.instance.currentUser;
-    debugPrint('👤 المستخدم الحالي في initState: ${user?.uid ?? "لا يوجد"}');
+    safeDebugPrint('👤 المستخدم الحالي في initState: ${user?.uid ?? "لا يوجد"}');
 
   }
 
@@ -1343,7 +1343,7 @@ class _AddCompanyPageState extends State<AddCompanyPage> {
                 ? const CircularProgressIndicator()
                 : ElevatedButton.icon(
                     onPressed: () {
-                      debugPrint('🟢 الزر تم الضغط عليه');
+                      safeDebugPrint('🟢 الزر تم الضغط عليه');
                       _addCompany();
                     },
                     icon: const Icon(Icons.add_business),

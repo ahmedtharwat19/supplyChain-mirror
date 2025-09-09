@@ -92,7 +92,7 @@ class _AdminLicenseManagementPageState
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error: ${e.toString()}')),
         );
-        debugPrint('Error: ${e.toString()}');
+        safeDebugPrint('Error: ${e.toString()}');
       }
     } finally {
       if (mounted) {
@@ -114,7 +114,7 @@ class _AdminLicenseManagementPageState
     if (!requestDoc.exists) throw Exception('Request document not found');
 
     final requestData = requestDoc.data()!;
-    debugPrint('requestedDevices: ${requestData['maxDevices']}');
+    safeDebugPrint('requestedDevices: ${requestData['maxDevices']}');
 
 
     if (approve) {
@@ -234,7 +234,7 @@ final int durationMonths = (requestData['durationMonths'] ?? 1).toInt();
         ),
       );
     }
-    debugPrint(_errorMessage);
+    safeDebugPrint(_errorMessage);
 
     return DefaultTabController(
       length: 2,
@@ -557,7 +557,7 @@ class _AdminLicenseManagementPageState
       if (mounted) {
         final message = 'Error: ${e.toString()}';
         setState(() => _errorMessage = message);
-        debugPrint('message : $message');
+        safeDebugPrint('message : $message');
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -2452,6 +2452,8 @@ import 'package:puresip_purchasing/services/license_service.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:puresip_purchasing/widgets/app_scaffold.dart';
+import 'package:puresip_purchasing/debug_helper.dart';
+
 
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
     FlutterLocalNotificationsPlugin();
@@ -2460,7 +2462,7 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   // This handler must be a top-level function
   // Do any background processing here if needed
   // (No UI code here)
-  debugPrint('Handling a background message: ${message.messageId}');
+  safeDebugPrint('Handling a background message: ${message.messageId}');
 }
 
 class AdminLicenseManagementPage extends StatefulWidget {
@@ -2549,11 +2551,11 @@ class _AdminLicenseManagementPageState extends State<AdminLicenseManagementPage>
 
     // foreground messages
     _onMessageSub = FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-      debugPrint('Received a message while in the foreground!');
-      debugPrint('Message data: ${message.data}');
+      safeDebugPrint('Received a message while in the foreground!');
+      safeDebugPrint('Message data: ${message.data}');
 
       if (message.notification != null) {
-        debugPrint(
+        safeDebugPrint(
             'Message also contained a notification: ${message.notification}');
       }
       _showLocalNotification(message);
@@ -2592,7 +2594,7 @@ class _AdminLicenseManagementPageState extends State<AdminLicenseManagementPage>
         'fcmTokens': FieldValue.arrayUnion([token])
       }, SetOptions(merge: true));
     } catch (e) {
-      debugPrint('Failed to save FCM token: $e');
+      safeDebugPrint('Failed to save FCM token: $e');
     }
   }
 
@@ -2636,7 +2638,7 @@ class _AdminLicenseManagementPageState extends State<AdminLicenseManagementPage>
         _hasPendingRequests = snapshot.docs.isNotEmpty;
       });
     }, onError: (err) {
-      debugPrint('Pending requests stream error: $err');
+      safeDebugPrint('Pending requests stream error: $err');
     });
   }
 
@@ -2676,7 +2678,7 @@ class _AdminLicenseManagementPageState extends State<AdminLicenseManagementPage>
     try {
       await _licenseServiceInitializeSafely();
     } catch (e) {
-      debugPrint('LicenseService init failed: $e');
+      safeDebugPrint('LicenseService init failed: $e');
     }
   }
 
@@ -2685,7 +2687,7 @@ class _AdminLicenseManagementPageState extends State<AdminLicenseManagementPage>
     try {
       await _licenseServiceInitialize();
     } catch (e) {
-      debugPrint(e as String?);
+      safeDebugPrint(e as String?);
     }
   }
 
@@ -2698,7 +2700,7 @@ class _AdminLicenseManagementPageState extends State<AdminLicenseManagementPage>
     try {
       _licenseServiceConstruct();
     } catch (e) {
-      debugPrint(e.toString());
+      safeDebugPrint(e.toString());
     }
   }
 
@@ -2772,7 +2774,7 @@ class _AdminLicenseManagementPageState extends State<AdminLicenseManagementPage>
         _hasPendingRequests = snap.docs.isNotEmpty;
       });
     } catch (e) {
-      debugPrint('refreshPendingCount error: $e');
+      safeDebugPrint('refreshPendingCount error: $e');
     }
   }
 
@@ -3207,6 +3209,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:puresip_purchasing/widgets/app_scaffold.dart';
 import '../../services/license_service.dart';
+import 'package:puresip_purchasing/debug_helper.dart';
 
 class AdminLicenseManagementPage extends StatefulWidget {
   const AdminLicenseManagementPage({super.key});
@@ -3422,7 +3425,7 @@ class _AdminLicenseManagementPageState
         }
 
         if (snapshot.hasError) {
-          debugPrint('Error: ${snapshot.error}');
+          safeDebugPrint('Error: ${snapshot.error}');
           return Center(child: Text('Error: ${snapshot.error}'));
         }
 
