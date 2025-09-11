@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:puresip_purchasing/models/purchase_order.dart';
 import 'package:puresip_purchasing/pages/companies/company_added_page.dart';
+import 'package:puresip_purchasing/pages/devices_and_registeration/device_managment_page.dart';
+import 'package:puresip_purchasing/pages/devices_and_registeration/device_registrations_handler.dart';
 import 'package:puresip_purchasing/pages/factories/add_factory_page.dart';
 import 'package:puresip_purchasing/pages/factories/edit_factory_page.dart';
 import 'package:puresip_purchasing/pages/factories/factories_page.dart';
@@ -20,8 +22,8 @@ import 'package:puresip_purchasing/pages/purchasing/Purchasing_orders_crud/edit_
 import 'package:puresip_purchasing/services/order_service.dart';
 import 'package:puresip_purchasing/services/license_service.dart';
 import 'package:puresip_purchasing/widgets/auth/admin_license_management.dart';
-import 'package:puresip_purchasing/widgets/auth/user_device_request_page.dart';
-import 'package:puresip_purchasing/widgets/auth/user_license_request.dart';
+import 'package:puresip_purchasing/pages/devices_and_registeration/user_device_request_page.dart';
+import 'package:puresip_purchasing/pages/devices_and_registeration/user_license_request.dart';
 
 import 'pages/dashboard/splash_screen.dart';
 import 'pages/auth/login_page.dart';
@@ -189,6 +191,21 @@ final GoRouter appRouter = GoRouter(
       builder: (context, state) =>
           EditFactoryPage(factoryId: state.pathParameters['id']!),
     ),
+
+    // إضافة Route جديدة في router
+    GoRoute(
+      path: '/device-registration',
+      builder: (context, state) => const DeviceRegistrationHandler(),
+    ),
+// في router.dart
+    GoRoute(
+      path: '/device-management',
+      builder: (context, state) {
+        // حاول الحصول على licenseId من state.extra
+        final licenseId = state.extra as String?;
+        return DeviceManagementPage(licenseId: licenseId);
+      },
+    ),
     // في router.dart
     GoRoute(
       path: '/device-request',
@@ -201,7 +218,274 @@ final GoRouter appRouter = GoRouter(
         path: '/admin/licenses',
         builder: (context, state) => const AdminLicenseManagementPage()),
   ],
+
+// في router.dart
   redirect: (context, state) async {
+    final user = FirebaseAuth.instance.currentUser;
+    final currentPath = state.matchedLocation;
+
+    if (currentPath == '/splash') return null;
+
+    if (user == null) {
+      return ['/login', '/signup'].contains(currentPath) ? null : '/login';
+    }
+
+    try {
+      final isAdmin = await _checkIfAdmin(user.uid);
+
+      if (isAdmin) {
+        final hasPendingRequests = await _hasLicenseRequests();
+        if (currentPath == '/license/request') {
+          return hasPendingRequests ? '/admin/licenses' : '/dashboard';
+        }
+        return null;
+      }
+
+      final hasUserPendingRequest = await _hasUserLicenseRequest();
+      if (hasUserPendingRequest && currentPath != '/license/request') {
+        return '/license/request';
+      }
+
+      final licenseStatus = await _licenseService.getCurrentUserLicenseStatus();
+
+      safeDebugPrint('''
+    Auth State:
+    User: ${user.uid}
+    Is Admin: $isAdmin
+    License Valid: ${licenseStatus.isValid}
+    Offline: ${licenseStatus.isOffline}
+    Current Path: $currentPath
+    ExpireDate: ${licenseStatus.expiryDate}
+    Days Left: ${licenseStatus.daysLeft}
+    Max Devices: ${licenseStatus.maxDevices}
+    Used Devices: ${licenseStatus.usedDevices}
+    Reason: ${licenseStatus.reason}
+    Device Limit Exceeded: ${licenseStatus.deviceLimitExceeded}
+    ''');
+
+      final licenseExemptPaths = [
+        '/license/request',
+        '/logout',
+        '/device-management',
+        '/device-registration',
+        '/device-request'
+      ];
+
+      // حالة خاصة: ترخيص صالح ولكن تجاوز حد الأجهزة
+      if (licenseStatus.deviceLimitExceeded &&
+          licenseStatus.licenseKey != null) {
+        if (!['/device-management', '/device-request'].contains(currentPath)) {
+          return '/device-management';
+        }
+        return null;
+      }
+
+      // حالة: ترخيص صالح ولكن الجهاز غير مسجل (وهناك مساحة)
+      if (!licenseStatus.isValid &&
+          licenseStatus.reason == 'Device not registered' &&
+          licenseStatus.licenseKey != null &&
+          licenseStatus.usedDevices < licenseStatus.maxDevices) {
+        if (currentPath != '/device-registration') {
+          return '/device-registration';
+        }
+        return null;
+      }
+
+      if (licenseStatus.isValid) {
+        return currentPath == '/license/request' ? '/dashboard' : null;
+      }
+
+      if (licenseStatus.isOffline && licenseStatus.expiryDate != null) {
+        safeDebugPrint(
+            "✅ Offline mode with cached license, staying on $currentPath");
+        return null;
+      }
+
+      if (!licenseExemptPaths.contains(currentPath)) {
+        return '/license/request';
+      }
+
+      if (['/login', '/signup'].contains(currentPath)) {
+        return '/dashboard';
+      }
+
+      return null;
+    } catch (e) {
+      safeDebugPrint('Router Error: $e');
+      return '/login';
+    }
+  },
+
+/* // في router.dart
+redirect: (context, state) async {
+  final user = FirebaseAuth.instance.currentUser;
+  final currentPath = state.matchedLocation;
+
+  if (currentPath == '/splash') return null;
+
+  if (user == null) {
+    return ['/login', '/signup'].contains(currentPath) ? null : '/login';
+  }
+
+  try {
+    final isAdmin = await _checkIfAdmin(user.uid);
+
+    if (isAdmin) {
+      final hasPendingRequests = await _hasLicenseRequests();
+      if (currentPath == '/license/request') {
+        return hasPendingRequests ? '/admin/licenses' : '/dashboard';
+      }
+      return null;
+    }
+
+    final hasUserPendingRequest = await _hasUserLicenseRequest();
+    if (hasUserPendingRequest && currentPath != '/license/request') {
+      return '/license/request';
+    }
+
+    final licenseStatus = await _licenseService.getCurrentUserLicenseStatus();
+
+    safeDebugPrint('''
+    Auth State:
+    User: ${user.uid}
+    Is Admin: $isAdmin
+    License Valid: ${licenseStatus.isValid}
+    Offline: ${licenseStatus.isOffline}
+    Current Path: $currentPath
+    ExpireDate: ${licenseStatus.expiryDate}
+    Days Left: ${licenseStatus.daysLeft}
+    Max Devices: ${licenseStatus.maxDevices}
+    Used Devices: ${licenseStatus.usedDevices}
+    Reason: ${licenseStatus.reason}
+    Device Limit Exceeded: ${licenseStatus.deviceLimitExceeded}
+    ''');
+
+    final licenseExemptPaths = [
+      '/license/request', 
+      '/logout', 
+      '/device-management', 
+      '/device-registration',
+      '/device-request'
+    ];
+
+    // حالة خاصة: ترخيص صالح ولكن تجاوز حد الأجهزة
+    if (licenseStatus.deviceLimitExceeded && licenseStatus.licenseKey != null) {
+      if (!['/device-management', '/device-request'].contains(currentPath)) {
+        return '/device-management';
+      }
+      return null;
+    }
+
+    // حالة: ترخيص صالح ولكن الجهاز غير مسجل (وهناك مساحة)
+    if (!licenseStatus.isValid && 
+        licenseStatus.reason == 'Device not registered' &&
+        licenseStatus.licenseKey != null &&
+        licenseStatus.usedDevices < licenseStatus.maxDevices) {
+      if (currentPath != '/device-registration') {
+        return '/device-registration';
+      }
+      return null;
+    }
+
+    if (licenseStatus.isValid) {
+      return currentPath == '/license/request' ? '/dashboard' : null;
+    }
+
+    if (licenseStatus.isOffline && licenseStatus.expiryDate != null) {
+      safeDebugPrint("✅ Offline mode with cached license, staying on $currentPath");
+      return null;
+    }
+
+    if (!licenseExemptPaths.contains(currentPath)) {
+      return '/license/request';
+    }
+
+    if (['/login', '/signup'].contains(currentPath)) {
+      return '/dashboard';
+    }
+
+    return null;
+  } catch (e) {
+    safeDebugPrint('Router Error: $e');
+    return '/login';
+  }
+},
+ */
+  // في ملف الراوتر (router.dart)
+/* redirect: (context, state) async {
+  final user = FirebaseAuth.instance.currentUser;
+  final currentPath = state.matchedLocation;
+
+  if (currentPath == '/splash') return null;
+
+  if (user == null) {
+    return ['/login', '/signup'].contains(currentPath) ? null : '/login';
+  }
+
+  try {
+    final isAdmin = await _checkIfAdmin(user.uid);
+
+    if (isAdmin) {
+      final hasPendingRequests = await _hasLicenseRequests();
+      if (currentPath == '/license/request') {
+        return hasPendingRequests ? '/admin/licenses' : '/dashboard';
+      }
+      return null;
+    }
+
+    final hasUserPendingRequest = await _hasUserLicenseRequest();
+    if (hasUserPendingRequest && currentPath != '/license/request') {
+      return '/license/request';
+    }
+
+    final licenseStatus = await _licenseService.getCurrentUserLicenseStatus();
+
+    safeDebugPrint('''
+    Auth State:
+    User: ${user.uid}
+    Is Admin: $isAdmin
+    License Valid: ${licenseStatus.isValid}
+    Offline: ${licenseStatus.isOffline}
+    Current Path: $currentPath
+    ExpireDate: ${licenseStatus.expiryDate}
+    Days Left: ${licenseStatus.daysLeft}
+    Reason: ${licenseStatus.reason}
+    ''');
+
+    final licenseExemptPaths = ['/license/request', '/logout', '/device-management', '/device-registration'];
+
+    // إذا كان الترخيص صالحًا ولكن هناك مشكلة في الجهاز
+    if (licenseStatus.isValid && licenseStatus.reason == 'Device limit exceeded') {
+      if (currentPath != '/device-management') {
+        return '/device-management';
+      }
+      return null;
+    }
+
+    if (licenseStatus.isValid) {
+      return currentPath == '/license/request' ? '/dashboard' : null;
+    }
+
+    if (licenseStatus.isOffline && licenseStatus.expiryDate != null) {
+      safeDebugPrint("✅ Offline mode with cached license, staying on $currentPath");
+      return null;
+    }
+
+    if (!licenseExemptPaths.contains(currentPath)) {
+      return '/license/request';
+    }
+
+    if (['/login', '/signup'].contains(currentPath)) {
+      return '/dashboard';
+    }
+
+    return null;
+  } catch (e) {
+    safeDebugPrint('Router Error: $e');
+    return '/login';
+  }
+},
+ */ /*   redirect: (context, state) async {
     final user = FirebaseAuth.instance.currentUser;
     final currentPath = state.matchedLocation;
 
@@ -267,6 +551,7 @@ final GoRouter appRouter = GoRouter(
       return '/login';
     }
   },
+ */
 );
 
 Future<bool> _checkIfAdmin(String userId) async {

@@ -86,26 +86,29 @@ class _SplashScreenState extends State<SplashScreen> {
 
   Future<bool> _checkInternetConnection() async {
     final result = await Connectivity().checkConnectivity();
-    // ✅ إصلاح الخطأ هنا
-    return result != ConnectivityResult.none;
+
+    debugPrint('Connectivity result: $result, type: ${result.runtimeType}');
+    debugPrint(
+        'ConnectivityResult.none type: ${ConnectivityResult.none.runtimeType}');
+    //return result != ConnectivityResult.none; // error here
+    return result.isNotEmpty && result.any((r) => r != ConnectivityResult.none);
   }
 
-Future<bool> _checkUserExistsInHive() async {
-  if (!Hive.isBoxOpen('auth')) {
-    await Hive.openBox('auth');
+  Future<bool> _checkUserExistsInHive() async {
+    if (!Hive.isBoxOpen('auth')) {
+      await Hive.openBox('auth');
+    }
+    final box = Hive.box('auth');
+    return box.containsKey('user');
   }
-  final box = Hive.box('auth');
-  return box.containsKey('user');
-}
 
-Future<bool> _checkLicenseInHive() async {
-  if (!Hive.isBoxOpen('auth')) {
-    await Hive.openBox('auth');
+  Future<bool> _checkLicenseInHive() async {
+    if (!Hive.isBoxOpen('auth')) {
+      await Hive.openBox('auth');
+    }
+    final box = Hive.box('auth');
+    return box.containsKey('license');
   }
-  final box = Hive.box('auth');
-  return box.containsKey('license');
-}
-
 
   @override
   Widget build(BuildContext context) {

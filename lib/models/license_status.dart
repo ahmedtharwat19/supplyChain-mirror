@@ -1,5 +1,4 @@
-
-/// موديل الحالة
+// models/license_status.dart
 class LicenseStatus {
   final bool isValid;
   final bool isOffline;
@@ -10,6 +9,7 @@ class LicenseStatus {
   final int daysLeft;
   final String? formattedRemaining;
   final String? reason;
+  final bool deviceLimitExceeded;
 
   LicenseStatus({
     required this.isValid,
@@ -21,6 +21,7 @@ class LicenseStatus {
     required this.daysLeft,
     this.formattedRemaining,
     this.reason,
+    this.deviceLimitExceeded = false,
   });
 
   factory LicenseStatus.valid({

@@ -1,11 +1,80 @@
 import 'dart:io';
-
+import 'package:universal_io/io.dart' as io;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:crypto/crypto.dart';
 import 'dart:convert';
 
 class DeviceFingerprint {
+
+    static final DeviceInfoPlugin deviceInfo = DeviceInfoPlugin();
+
+  static Future<Map<String, String>> getDeviceInfo() async {
+    try {
+      final Map<String, String> info = {};
+      
+      if (io.Platform.isAndroid) {
+        final androidInfo = await deviceInfo.androidInfo;
+        info['deviceName'] = 'Android Device';
+        info['platform'] = 'Android';
+        info['model'] = androidInfo.model;
+        info['os'] = 'Android ${androidInfo.version.release}';
+        info['browser'] = 'N/A';
+      } 
+      else if (io.Platform.isIOS) {
+        final iosInfo = await deviceInfo.iosInfo;
+        info['deviceName'] = 'iOS Device';
+        info['platform'] = 'iOS';
+        info['model'] = iosInfo.model;
+        info['os'] = 'iOS ${iosInfo.systemVersion}';
+        info['browser'] = 'N/A';
+      }
+      else if (io.Platform.isWindows) {
+        info['deviceName'] = 'Windows PC';
+        info['platform'] = 'Windows';
+        info['model'] = 'Windows Device';
+        info['os'] = 'Windows';
+        info['browser'] = _getBrowserInfo();
+      }
+      else if (io.Platform.isMacOS) {
+        info['deviceName'] = 'Mac Computer';
+        info['platform'] = 'macOS';
+        info['model'] = 'Mac Device';
+        info['os'] = 'macOS';
+        info['browser'] = _getBrowserInfo();
+      }
+      else if (io.Platform.isLinux) {
+        info['deviceName'] = 'Linux Computer';
+        info['platform'] = 'Linux';
+        info['model'] = 'Linux Device';
+        info['os'] = 'Linux';
+        info['browser'] = _getBrowserInfo();
+      }
+      else {
+        info['deviceName'] = 'Unknown Device';
+        info['platform'] = 'Unknown';
+        info['model'] = 'Unknown';
+        info['os'] = 'Unknown';
+        info['browser'] = _getBrowserInfo();
+      }
+
+      return info;
+    } catch (e) {
+      return {
+        'deviceName': 'Unknown Device',
+        'platform': 'Unknown',
+        'model': 'Unknown',
+        'os': 'Unknown',
+        'browser': 'Unknown',
+      };
+    }
+  }
+
+  static String _getBrowserInfo() {
+    // يمكن إضافة كشف المتصفح هنا
+    return 'Web Browser';
+  }
+
   static Future<String> generate() async {
     String rawId = "";
 
