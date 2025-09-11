@@ -877,6 +877,34 @@
   "manufacturing_deduction": "خصم تصنيع",
   "balance_summary": "ملخص الرصيد",
 
+  "device_requests_management": "إدارة طلبات الأجهزة",
+  "user_id": "المستخدم: {0}",
+  "license_id": "الترخيص: {0}",
+  "reason": "السبب: {0}",
+  "request_date_args": "تاريخ الطلب: {0}",
+  "request_approvedA": "تمت الموافقة على الطلب",
+  "approval_failed": "فشل في الموافقة على الطلب",
+  "device_request_approved": "تمت الموافقة على طلب الجهاز",
+  "your_device_request_approved": "تمت الموافقة على طلبك لإضافة جهاز جديد",
+  "device_request_rejected": "تم رفض طلب الجهاز",
+  "your_device_request_rejected": "تم رفض طلبك لإضافة جهاز جديد",
+  "rejected_by_admin": "مرفوض من قبل المسؤول",
+
+  "device_requests": "طلبات الأجهزة",
+  "no_pending_device_requests": "لا توجد طلبات أجهزة معلقة",
+
+  "device_request_approved_title": "تمت الموافقة على طلب الجهاز",
+  "device_request_approved_message": "تمت الموافقة على طلبك لإضافة جهاز جديد",
+  "device_request_rejected_title": "تم رفض طلب الجهاز",
+  "device_request_rejected_message": "تم رفض طلبك لإضافة جهاز جديد",
+  "processing_failed": "فشل في معالجة الطلب",
+
+
+    "deactivate_license": "إلغاء الترخيص",
+    "user": "المستخدم",
+    "created": "تم الإنشاء",
+  
+
   "confirm_unregister_specific_device": "هل تريد فعلاً إلغاء تسجيل هذا الجهاز؟",
   "unregister": "إلغاء التسجيل",
   "platform": "المنصة",

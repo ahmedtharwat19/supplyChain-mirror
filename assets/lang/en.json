@@ -491,7 +491,35 @@
   "browser": "Browser",
   "registered": "Registered since",
   "last_active": "Last active",
+"device_requests_management": "Device Requests Management",
 
+  "user_id": "User: {0}",
+  "license_id": "License: {0}",
+  "reason": "Reason: {0}",
+  "request_date_args": "Request Date: {0}",
+
+  "device_requests": "Device Requests",
+  "no_pending_device_requests": "No pending device requests",
+
+  "device_request_approved_title": "Device Request Approved",
+  "device_request_approved_message": "Your request to add a new device has been approved",
+  "device_request_rejected_title": "Device Request Rejected",
+  "device_request_rejected_message": "Your request to add a new device has been rejected",
+  "processing_failed": "Failed to process the request",
+ 
+    "unknown_user": "Unknown user",
+
+    "deactivate_license": "Deactivate License",
+    "user": "User",
+    "created": "Created",
+
+
+  "approval_failed": "Failed to approve the request",
+  "device_request_approved": "Device request approved",
+  "your_device_request_approved": "Your request to add a new device has been approved",
+  "device_request_rejected": "Device request rejected",
+  "your_device_request_rejected": "Your request to add a new device has been rejected",
+  "rejected_by_admin": "Rejected by administrator",
  "license_info": "License Information",
   "days_remaining": "Days remaining",
   "time_remaining": "Time remaining",

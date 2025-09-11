@@ -3204,66 +3204,11 @@ class _AdminLicenseManagementPageState extends State<AdminLicenseManagementPage>
         ); */
     
 
-import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:easy_localization/easy_localization.dart';
-import 'package:puresip_purchasing/widgets/app_scaffold.dart';
-import '../../services/license_service.dart';
-import 'package:puresip_purchasing/debug_helper.dart';
-
-class AdminLicenseManagementPage extends StatefulWidget {
-  const AdminLicenseManagementPage({super.key});
-
-  @override
-  State<AdminLicenseManagementPage> createState() =>
-      _AdminLicenseManagementPageState();
-}
-
-class _AdminLicenseManagementPageState
-    extends State<AdminLicenseManagementPage> {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-//  final FirebaseAuth _auth = FirebaseAuth.instance;
-  late final LicenseService _licenseService;
-
-  @override
-  void initState() {
-    super.initState();
-    _licenseService = LicenseService();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return DefaultTabController(
-      length: 2,
-      child: AppScaffold(
-        title: 'license_management'.tr(),
-        isDashboard: false, // لأن هذه صفحة فرعية وليست صفحة رئيسية
-        body: Column(
-          children: [
-            TabBar(
-              tabs: [
-                Tab(text: 'pending_requests'.tr()),
-                Tab(text: 'active_licenses'.tr()),
-              ],
-            ),
-            Expanded(
-              child: TabBarView(
-                children: [
-                  _buildPendingRequestsList(),
-                  _buildActiveLicensesList(),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildPendingRequestsList() {
+ // إضافة دالة جديدة لعرض طلبات الأجهزة
+/*   Widget _buildDeviceRequestsList() {
     return StreamBuilder<QuerySnapshot>(
       stream: _firestore
-          .collection('license_requests')
+          .collection('device_requests')
           .where('status', isEqualTo: 'pending')
           .orderBy('createdAt', descending: true)
           .snapshots(),
@@ -3274,21 +3219,23 @@ class _AdminLicenseManagementPageState
 
         final requests = snapshot.data!.docs;
         if (requests.isEmpty) {
-          return Center(child: Text('no_pending_requests'.tr()));
+          return Center(child: Text('no_pending_device_requests'.tr()));
         }
 
         return ListView.builder(
           itemCount: requests.length,
           itemBuilder: (context, index) {
             final request = requests[index];
-            return _buildRequestCard(request);
+            return _buildDeviceRequestCard(request);
           },
         );
       },
     );
   }
+ */
+  
 
-  Widget _buildRequestCard(DocumentSnapshot request) {
+/*   Widget _buildRequestCard(DocumentSnapshot request) {
     final data = request.data() as Map<String, dynamic>;
     return FutureBuilder<DocumentSnapshot>(
       future: _firestore.collection('users').doc(data['userId']).get(),
@@ -3340,6 +3287,803 @@ class _AdminLicenseManagementPageState
       },
     );
   }
+ */
+
+/* Widget _buildRequestCard(DocumentSnapshot request) {
+  final data = request.data() as Map<String, dynamic>;
+  
+  return FutureBuilder<DocumentSnapshot>(
+    future: _firestore.collection('users').doc(data['userId']).get(),
+    builder: (context, userSnapshot) {
+      if (userSnapshot.connectionState == ConnectionState.waiting) {
+        return const ListTile(
+          title: LinearProgressIndicator(),
+        );
+      }
+
+      if (!userSnapshot.hasData || !userSnapshot.data!.exists) {
+        return ListTile(
+          title: Text('user_not_found'.tr()),
+          subtitle: Text('User ID: ${data['userId']}'),
+        );
+      }
+
+      final userData = userSnapshot.data!.data() as Map<String, dynamic>;
+
+      return Card(
+        margin: const EdgeInsets.all(8),
+        child: ListTile(
+          leading: CircleAvatar(
+            backgroundImage: userData['photoUrl'] != null
+                ? NetworkImage(userData['photoUrl'])
+                : null,
+            child: userData['photoUrl'] == null
+                ? const Icon(Icons.person)
+                : null,
+          ),
+          title: Text(userData['displayName'] ?? 'unknown_user'.tr()),
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('${'email'.tr()}: ${userData['email'] ?? 'N/A'}'),
+              Text('${'devices'.tr()}: ${data['maxDevices']}'),
+              Text('${'duration'.tr()}: ${data['durationMonths']} ${'months'.tr()}'),
+              Text('${'request_date'.tr()}: ${_formatDate(data['createdAt']?.toDate())}'),
+            ],
+          ),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.check, color: Colors.green),
+                onPressed: () => _processRequest(request.id, true),
+              ),
+              IconButton(
+                icon: const Icon(Icons.close, color: Colors.red),
+                onPressed: () => _processRequest(request.id, false),
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
+}
+
+ */
+
+/* Widget _buildRequestCard(DocumentSnapshot request) {
+  final data = request.data() as Map<String, dynamic>;
+  
+  return FutureBuilder<DocumentSnapshot>(
+    future: _firestore.collection('users').doc(data['userId']).get(),
+    builder: (context, userSnapshot) {
+      if (userSnapshot.connectionState == ConnectionState.waiting) {
+        return const Card(
+          margin: EdgeInsets.all(8),
+          child: ListTile(
+            title: LinearProgressIndicator(),
+          ),
+        );
+      }
+
+      if (!userSnapshot.hasData || !userSnapshot.data!.exists) {
+        return Card(
+          margin: const EdgeInsets.all(8),
+          child: ListTile(
+            title: Text('user_not_found'.tr()),
+            subtitle: Text('User ID: ${data['userId']}'),
+          ),
+        );
+      }
+
+      final userData = userSnapshot.data!.data() as Map<String, dynamic>;
+
+      // الحصول على معلومات الترخيص الحالي للمستخدم
+      return FutureBuilder<QuerySnapshot>(
+        future: _firestore
+            .collection('licenses')
+            .where('userId', isEqualTo: data['userId'])
+            .where('isActive', isEqualTo: true)
+            .limit(1)
+            .get(),
+        builder: (context, licenseSnapshot) {
+          if (licenseSnapshot.connectionState == ConnectionState.waiting) {
+            return _buildUserCard(userData, data, null);
+          }
+
+          LicenseInfo? licenseInfo;
+          if (licenseSnapshot.hasData && licenseSnapshot.data!.docs.isNotEmpty) {
+            final licenseData = licenseSnapshot.data!.docs.first.data() as Map<String, dynamic>;
+            licenseInfo = LicenseInfo(
+              maxDevices: licenseData['maxDevices'] ?? 1,
+              usedDevices: (licenseData['devices'] as List?)?.length ?? 0,
+              expiryDate: (licenseData['expiryDate'] as Timestamp?)?.toDate(),
+              isActive: licenseData['isActive'] ?? false,
+            );
+          }
+
+          return _buildUserCard(userData, data, licenseInfo);
+        },
+      );
+    },
+  );
+}
+ */
+
+/* Widget _buildUserCard(Map<String, dynamic> userData, Map<String, dynamic> requestData, LicenseInfo? licenseInfo) {
+  return Card(
+    margin: const EdgeInsets.all(8),
+    child: Padding(
+      padding: const EdgeInsets.all(12.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // معلومات المستخدم
+          Row(
+            children: [
+              CircleAvatar(
+                backgroundImage: userData['photoUrl'] != null
+                    ? NetworkImage(userData['photoUrl'])
+                    : null,
+                child: userData['photoUrl'] == null
+                    ? const Icon(Icons.person)
+                    : null,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      userData['displayName'] ?? 'unknown_user'.tr(),
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                    ),
+                    Text(
+                      userData['email'] ?? 'N/A',
+                      style: TextStyle(color: Colors.grey[600]),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          
+          const SizedBox(height: 12),
+          const Divider(),
+          
+          // معلومات الطلب
+          Text(
+            'request_details'.tr(),
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+          ),
+          const SizedBox(height: 8),
+          _buildInfoRow('requested_devices'.tr(), '${requestData['maxDevices']}'),
+          _buildInfoRow('duration'.tr(), '${requestData['durationMonths']} ${'months'.tr()}'),
+          _buildInfoRow('request_date'.tr(), _formatDate(requestData['createdAt']?.toDate())),
+          if (requestData['reason'] != null)
+            _buildInfoRow('reason'.tr(), requestData['reason']),
+          
+          const SizedBox(height: 12),
+          const Divider(),
+          
+          // معلومات الترخيص الحالي
+          Text(
+            'current_license'.tr(),
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+          ),
+          const SizedBox(height: 8),
+          
+          if (licenseInfo != null) ...[
+            _buildInfoRow('status'.tr(), licenseInfo.isActive ? 'active'.tr() : 'inactive'.tr()),
+            _buildInfoRow('devices_used'.tr(), '${licenseInfo.usedDevices}/${licenseInfo.maxDevices}'),
+            if (licenseInfo.expiryDate != null)
+              _buildInfoRow('expiry_date'.tr(), _formatDate(licenseInfo.expiryDate)),
+          ] else {
+            _buildInfoRow('status'.tr(), 'no_active_license'.tr()),
+          },
+          
+          const SizedBox(height: 16),
+          
+          // أزرار التحكم
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              ElevatedButton.icon(
+                icon: const Icon(Icons.check, size: 18),
+                label: Text('approve'.tr()),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                  foregroundColor: Colors.white,
+                ),
+                onPressed: () => _processRequest(requestData.id, true),
+              ),
+              
+              ElevatedButton.icon(
+                icon: const Icon(Icons.close, size: 18),
+                label: Text('reject'.tr()),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  foregroundColor: Colors.white,
+                ),
+                onPressed: () => _processRequest(requestData.id, false),
+              ),
+              
+              if (licenseInfo != null && licenseInfo.isActive)
+                ElevatedButton.icon(
+                  icon: const Icon(Icons.block, size: 18),
+                  label: Text('deactivate'.tr()),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.orange,
+                    foregroundColor: Colors.white,
+                  ),
+                  onPressed: () => _deactivateUserLicense(licenseInfo, requestData['userId']),
+                ),
+            ],
+          ),
+        ],
+      ),
+    ),
+  );
+}
+ */
+
+
+/* Future<void> _deactivateUserLicense(LicenseInfo licenseInfo, String userId) async {
+  try {
+    final licenseQuery = await _firestore
+        .collection('licenses')
+        .where('userId', isEqualTo: userId)
+        .where('isActive', isEqualTo: true)
+        .get();
+
+    for (final doc in licenseQuery.docs) {
+      await doc.reference.update({
+        'isActive': false,
+        'deactivatedAt': FieldValue.serverTimestamp(),
+        'deactivatedBy': FirebaseAuth.instance.currentUser?.uid,
+      });
+    }
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('license_deactivated'.tr())),
+      );
+    }
+  } catch (e) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('deactivation_failed'.tr())),
+      );
+    }
+    safeDebugPrint('Error deactivating license: $e');
+  }
+}
+ */
+
+
+
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:easy_localization/easy_localization.dart';
+import 'package:puresip_purchasing/widgets/app_scaffold.dart';
+import '../../services/license_service.dart';
+import 'package:puresip_purchasing/debug_helper.dart';
+
+class LicenseInfo {
+  final int maxDevices;
+  final int usedDevices;
+  final DateTime? expiryDate;
+  final bool isActive;
+  final String? licenseKey;
+
+  LicenseInfo({
+    required this.maxDevices,
+    required this.usedDevices,
+    this.expiryDate,
+    required this.isActive,
+    this.licenseKey,
+  });
+
+  // دالة مساعدة لإنشاء LicenseInfo من بيانات Firestore
+  factory LicenseInfo.fromFirestore(Map<String, dynamic> data, String docId) {
+    return LicenseInfo(
+      maxDevices: data['maxDevices'] ?? 1,
+      usedDevices: (data['devices'] as List?)?.length ?? 0,
+      expiryDate: (data['expiryDate'] as Timestamp?)?.toDate(),
+      isActive: data['isActive'] ?? false,
+      licenseKey: docId,
+    );
+  }
+}
+
+class AdminLicenseManagementPage extends StatefulWidget {
+  const AdminLicenseManagementPage({super.key});
+
+  @override
+  State<AdminLicenseManagementPage> createState() =>
+      _AdminLicenseManagementPageState();
+}
+
+class _AdminLicenseManagementPageState
+    extends State<AdminLicenseManagementPage> {
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+//  final FirebaseAuth _auth = FirebaseAuth.instance;
+  late final LicenseService _licenseService;
+
+  @override
+  void initState() {
+    super.initState();
+    _licenseService = LicenseService();
+    testQuery();
+  }
+
+// أضف هذا قبل تعريف class AdminLicenseManagementPage
+
+
+  @override
+  Widget build(BuildContext context) {
+    return DefaultTabController(
+      length: 3,
+      child: AppScaffold(
+        title: 'license_management'.tr(),
+        isDashboard: false, // لأن هذه صفحة فرعية وليست صفحة رئيسية
+        body: Column(
+          children: [
+            TabBar(
+              tabs: [
+                Tab(text: 'pending_requests'.tr()),
+                Tab(text: 'active_licenses'.tr()),
+                Tab(text: 'device_requests'.tr()),
+              ],
+            ),
+            Expanded(
+              child: TabBarView(
+                children: [
+                  _buildPendingRequestsList(),
+                  _buildActiveLicensesList(),
+                    _buildDeviceRequestsList(),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+
+  Widget _buildDeviceRequestsList() {
+  return StreamBuilder<QuerySnapshot>(
+    stream: _firestore
+        .collection('device_requests')
+        .where('status', isEqualTo: 'pending')
+        .orderBy('createdAt', descending: true)
+        .snapshots(),
+    builder: (context, snapshot) {
+      if (snapshot.connectionState == ConnectionState.waiting) {
+        return const Center(child: CircularProgressIndicator());
+      }
+
+      if (snapshot.hasError) {
+        return Center(child: Text('error_loading_requests'.tr()));
+      }
+
+      if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+        return Center(child: Text('no_pending_device_requests'.tr()));
+      }
+
+      final requests = snapshot.data!.docs;
+      return ListView.builder(
+        itemCount: requests.length,
+        itemBuilder: (context, index) {
+          final request = requests[index];
+          return _buildDeviceRequestCard(request);
+        },
+      );
+    },
+  );
+}
+
+  // دالة لبناء بطاقة طلب الجهاز
+  Widget _buildDeviceRequestCard(DocumentSnapshot request) {
+    final data = request.data() as Map<String, dynamic>;
+    
+    return FutureBuilder(
+      future: Future.wait([
+        _firestore.collection('users').doc(data['userId']).get(),
+        _firestore.collection('licenses').doc(data['licenseId']).get(),
+      ]),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const ListTile(title: CircularProgressIndicator());
+        }
+
+        final results = snapshot.data as List<DocumentSnapshot>;
+        final userDoc = results[0];
+        final licenseDoc = results[1];
+
+        if (!userDoc.exists || !licenseDoc.exists) {
+          return const ListTile(title: Text('Data not found'));
+        }
+
+        final userData = userDoc.data() as Map<String, dynamic>;
+        final licenseData = licenseDoc.data() as Map<String, dynamic>;
+
+        return Card(
+          margin: const EdgeInsets.all(8),
+          child: ListTile(
+            title: Text(userData['displayName'] ?? 'Unknown User'),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('${'license'.tr()}: ${licenseData['licenseKey']}'),
+                Text('${'reason'.tr()}: ${data['reason']}'),
+                Text('${'current_devices'.tr()}: ${(licenseData['devices'] as List).length}/${licenseData['maxDevices']}'),
+                Text('${'request_date_args'.tr()}: ${_formatDate(data['createdAt']?.toDate())}'),
+              ],
+            ),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.check, color: Colors.green),
+                  onPressed: () => _processDeviceRequest(request.id, true),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close, color: Colors.red),
+                  onPressed: () => _processDeviceRequest(request.id, false),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // دالة معالجة طلب الجهاز
+  Future<void> _processDeviceRequest(String requestId, bool approve) async {
+    try {
+      final requestDoc = await _firestore.collection('device_requests').doc(requestId).get();
+      final requestData = requestDoc.data() as Map<String, dynamic>;
+      
+      if (approve) {
+        // الموافقة على الطلب - زيادة عدد الأجهزة المسموحة
+        final licenseId = requestData['licenseId'];
+        final licenseDoc = await _firestore.collection('licenses').doc(licenseId).get();
+        final licenseData = licenseDoc.data() as Map<String, dynamic>;
+        
+        final currentMaxDevices = licenseData['maxDevices'] ?? 1;
+        
+        await _firestore.collection('licenses').doc(licenseId).update({
+          'maxDevices': currentMaxDevices + 1,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+
+        // تحديث حالة الطلب
+        await _firestore.collection('device_requests').doc(requestId).update({
+          'status': 'approved',
+          'processedAt': FieldValue.serverTimestamp(),
+          'processedBy': 'admin', // يمكن استبدالها بـ user ID الأدمن
+        });
+
+        // إرسال إشعار للمستخدم
+        await _sendNotificationToUser(
+          requestData['userId'],
+          'device_request_approved_title'.tr(),
+          'device_request_approved_message'.tr(),
+        );
+
+      } else {
+        // رفض الطلب
+        await _firestore.collection('device_requests').doc(requestId).update({
+          'status': 'rejected',
+          'processedAt': FieldValue.serverTimestamp(),
+          'processedBy': 'admin',
+          'rejectionReason': 'rejected_by_admin'.tr(),
+        });
+
+        // إرسال إشعار للمستخدم
+        await _sendNotificationToUser(
+          requestData['userId'],
+          'device_request_rejected_title'.tr(),
+          'device_request_rejected_message'.tr(),
+        );
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(approve ? 'request_approvedA'.tr() : 'request_rejected'.tr())),
+        );
+      }
+
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('processing_failed'.tr())),
+        );
+      }
+      safeDebugPrint('Error processing device request: $e');
+    }
+  }
+
+  // دالة إرسال الإشعارات للمستخدم
+  Future<void> _sendNotificationToUser(String userId, String title, String body) async {
+    try {
+      // هنا يمكنك إضافة كود إرسال الإشعارات عبر FCM
+      // مثال:
+      final userDoc = await _firestore.collection('users').doc(userId).get();
+      final userData = userDoc.data() as Map<String, dynamic>;
+      
+      safeDebugPrint('Notification sent to user: ${userData['email']}');
+      safeDebugPrint('Title: $title, Body: $body');
+      
+    } catch (e) {
+      safeDebugPrint('Error sending notification: $e');
+    }
+  }
+
+  String _formatDate(DateTime? date) {
+    if (date == null) return 'N/A';
+    return '${date.day}/${date.month}/${date.year} ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
+  }
+
+
+  Widget _buildPendingRequestsList() {
+    return StreamBuilder<QuerySnapshot>(
+      stream: _firestore
+          .collection('license_requests')
+          .where('status', isEqualTo: 'pending')
+          .orderBy('createdAt', descending: true)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        final requests = snapshot.data!.docs;
+        if (requests.isEmpty) {
+          return Center(child: Text('no_pending_requests'.tr()));
+        }
+
+        return ListView.builder(
+          itemCount: requests.length,
+          itemBuilder: (context, index) {
+            final request = requests[index];
+            return _buildRequestCard(request);
+          },
+        );
+      },
+    );
+  }
+
+Widget _buildRequestCard(DocumentSnapshot request) {
+  final data = request.data() as Map<String, dynamic>;
+  final requestId = request.id;
+
+  return FutureBuilder<DocumentSnapshot>(
+    future: _firestore.collection('users').doc(data['userId']).get(),
+    builder: (context, userSnapshot) {
+      if (userSnapshot.connectionState == ConnectionState.waiting) {
+        return const Card(
+          margin: EdgeInsets.all(8),
+          child: ListTile(
+            title: LinearProgressIndicator(),
+          ),
+        );
+      }
+
+      if (!userSnapshot.hasData || !userSnapshot.data!.exists) {
+        return Card(
+          margin: const EdgeInsets.all(8),
+          child: ListTile(
+            title: Text('user_not_found'.tr()),
+            subtitle: Text('User ID: ${data['userId']}'),
+          ),
+        );
+      }
+
+      final userData = userSnapshot.data!.data() as Map<String, dynamic>;
+
+      // الحصول على معلومات الترخيص الحالي للمستخدم
+      return FutureBuilder<QuerySnapshot>(
+        future: _firestore
+            .collection('licenses')
+            .where('userId', isEqualTo: data['userId'])
+            .where('isActive', isEqualTo: true)
+            .limit(1)
+            .get(),
+        builder: (context, licenseSnapshot) {
+          if (licenseSnapshot.connectionState == ConnectionState.waiting) {
+            return _buildUserCard(userData, data, null, requestId);
+          }
+
+          LicenseInfo? licenseInfo;
+          if (licenseSnapshot.hasData && licenseSnapshot.data!.docs.isNotEmpty) {
+            final licenseDoc = licenseSnapshot.data!.docs.first;
+            final licenseData = licenseDoc.data() as Map<String, dynamic>;
+            licenseInfo = LicenseInfo.fromFirestore(licenseData, licenseDoc.id);
+          }
+
+           return _buildUserCard(userData, data, licenseInfo, requestId);
+        },
+      );
+    },
+  );
+}
+
+Widget _buildUserCard(Map<String, dynamic> userData, Map<String, dynamic> requestData, LicenseInfo? licenseInfo, String requestId) {
+  return Card(
+    margin: const EdgeInsets.all(8),
+    child: Padding(
+      padding: const EdgeInsets.all(12.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // معلومات المستخدم
+          Row(
+            children: [
+              CircleAvatar(
+                backgroundImage: userData['photoUrl'] != null
+                    ? NetworkImage(userData['photoUrl'])
+                    : null,
+                child: userData['photoUrl'] == null
+                    ? const Icon(Icons.person)
+                    : null,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      userData['displayName'] ?? 'unknown_user'.tr(),
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                    ),
+                    Text(
+                      userData['email'] ?? 'N/A',
+                      style: TextStyle(color: Colors.grey[600]),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          
+          const SizedBox(height: 12),
+          const Divider(),
+          
+          // معلومات الطلب
+          Text(
+            'request_details'.tr(),
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+          ),
+          const SizedBox(height: 8),
+          _buildInfoRow('requested_devices'.tr(), '${requestData['maxDevices']}'),
+          _buildInfoRow('duration'.tr(), '${requestData['durationMonths']} ${'months'.tr()}'),
+          _buildInfoRow('request_date'.tr(), _formatDate(requestData['createdAt']?.toDate())),
+          if (requestData['reason'] != null)
+            _buildInfoRow('reason'.tr(), requestData['reason']),
+          
+          const SizedBox(height: 12),
+          const Divider(),
+          
+          // معلومات الترخيص الحالي
+          Text(
+            'current_license'.tr(),
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+          ),
+          const SizedBox(height: 8),
+          
+ if (licenseInfo != null) 
+  Column(
+    children: [
+      _buildInfoRow('status'.tr(), licenseInfo.isActive ? 'active'.tr() : 'inactive'.tr()),
+      _buildInfoRow('devices_used'.tr(), '${licenseInfo.usedDevices}/${licenseInfo.maxDevices}'),
+      if (licenseInfo.expiryDate != null)
+        _buildInfoRow('expiry_date'.tr(), _formatDate(licenseInfo.expiryDate)),
+      if (licenseInfo.licenseKey != null)
+        _buildInfoRow('license_key'.tr(), licenseInfo.licenseKey!),
+    ],
+  )
+else 
+  _buildInfoRow('status'.tr(), 'no_active_license'.tr()),
+          
+          const SizedBox(height: 16),
+          
+          // أزرار التحكم
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              ElevatedButton.icon(
+                icon: const Icon(Icons.check, size: 18),
+                label: Text('approve'.tr()),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                  foregroundColor: Colors.white,
+                ),
+                onPressed: () => _processRequest(requestId, true),
+              ),
+              
+              ElevatedButton.icon(
+                icon: const Icon(Icons.close, size: 18),
+                label: Text('reject'.tr()),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  foregroundColor: Colors.white,
+                ),
+                onPressed: () => _processRequest(requestId, false),
+              ),
+              
+              if (licenseInfo != null && licenseInfo.isActive)
+                ElevatedButton.icon(
+                  icon: const Icon(Icons.block, size: 18),
+                  label: Text('deactivate'.tr()),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.orange,
+                    foregroundColor: Colors.white,
+                  ),
+                  onPressed: () => _deactivateUserLicense(licenseInfo, requestData['userId']),
+                ),
+            ],
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+
+Widget _buildInfoRow(String label, String value) {
+  return Padding(
+    padding: const EdgeInsets.symmetric(vertical: 4.0),
+    child: Row(
+      children: [
+        Text(
+          '$label: ',
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            style: TextStyle(color: Colors.grey[700]),
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+Future<void> _deactivateUserLicense(LicenseInfo licenseInfo, String userId) async {
+  try {
+    if (licenseInfo.licenseKey == null) return;
+    
+    await _firestore.collection('licenses').doc(licenseInfo.licenseKey).update({
+      'isActive': false,
+      'deactivatedAt': FieldValue.serverTimestamp(),
+      'deactivatedBy': FirebaseAuth.instance.currentUser?.uid,
+    });
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('license_deactivated'.tr())),
+      );
+      
+      // إعادة تحميل البيانات لتحديث الواجهة
+      setState(() {});
+    }
+  } catch (e) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('deactivation_failed'.tr())),
+      );
+    }
+    safeDebugPrint('Error deactivating license: $e');
+  }
+}
+
 
   Future<void> _deactivateLicense(String licenseId, String userId) async {
     try {
@@ -3412,7 +4156,7 @@ class _AdminLicenseManagementPageState
   }
 
 
-  Widget _buildActiveLicensesList() {
+ /*  Widget _buildActiveLicensesList() {
     return StreamBuilder<QuerySnapshot>(
       stream: _firestore
           .collection('licenses')
@@ -3444,8 +4188,41 @@ class _AdminLicenseManagementPageState
       },
     );
   }
+ */
 
-  Widget _buildLicenseCard(DocumentSnapshot license) {
+Widget _buildActiveLicensesList() {
+  return StreamBuilder<QuerySnapshot>(
+    stream: _firestore
+        .collection('licenses')
+        .where('isActive', isEqualTo: true)
+        .orderBy('createdAt', descending: true)
+        .snapshots(),
+    builder: (context, snapshot) {
+      if (snapshot.connectionState == ConnectionState.waiting) {
+        return const Center(child: CircularProgressIndicator());
+      }
+
+      if (snapshot.hasError) {
+        return Center(child: Text('error_loading_licenses'.tr()));
+      }
+
+      if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+        return Center(child: Text('no_active_licenses'.tr()));
+      }
+
+      final licenses = snapshot.data!.docs;
+      return ListView.builder(
+        itemCount: licenses.length,
+        itemBuilder: (context, index) {
+          final license = licenses[index];
+          return _buildLicenseCard(license);
+        },
+      );
+    },
+  );
+}
+
+/*   Widget _buildLicenseCard(DocumentSnapshot license) {
     final data = license.data() as Map<String, dynamic>;
     return FutureBuilder<DocumentSnapshot>(
       future: _firestore.collection('users').doc(data['userId']).get(),
@@ -3490,6 +4267,60 @@ class _AdminLicenseManagementPageState
   },
     );
   }
+ */
+
+Widget _buildLicenseCard(DocumentSnapshot license) {
+  final data = license.data() as Map<String, dynamic>;
+  
+  return FutureBuilder<DocumentSnapshot>(
+    future: _firestore.collection('users').doc(data['userId']).get(),
+    builder: (context, userSnapshot) {
+      if (userSnapshot.connectionState == ConnectionState.waiting) {
+        return const Card(child: LinearProgressIndicator());
+      }
+
+      if (!userSnapshot.hasData || !userSnapshot.data!.exists) {
+        return Card(
+          child: ListTile(
+            title: Text('user_not_found'.tr()),
+            subtitle: Text('User ID: ${data['userId']}'),
+          ),
+        );
+      }
+
+      final userData = userSnapshot.data!.data() as Map<String, dynamic>;
+
+      return Card(
+        margin: const EdgeInsets.all(8),
+        child: ExpansionTile(
+          title: Text(data['licenseKey'] ?? 'unknown_license'.tr()),
+          subtitle: Text('${'expires'.tr()}: ${_formatDate(data['expiryDate']?.toDate())}'),
+          trailing: IconButton(
+            icon: const Icon(Icons.cancel, color: Colors.red),
+            tooltip: 'deactivate_license'.tr(),
+            onPressed: () => _deactivateLicense(license.id, data['userId']),
+          ),
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('${'user'.tr()}: ${userData['displayName']}'),
+                  Text('${'email'.tr()}: ${userData['email']}'),
+                  Text('${'devices'.tr()}: ${(data['devices'] as List?)?.length ?? 0}/${data['maxDevices']}'),
+                  Text('${'created'.tr()}: ${_formatDate(data['createdAt']?.toDate())}'),
+                  if (data['originalRequestId'] != null)
+                    _buildRequestInfo(data['originalRequestId']),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    },
+  );
+}
 
   Widget _buildRequestInfo(String requestId) {
     return FutureBuilder<DocumentSnapshot>(
@@ -3517,8 +4348,18 @@ class _AdminLicenseManagementPageState
     );
   }
 
-  String _formatDate(DateTime? date) {
+/*   String _formatDate(DateTime? date) {
     if (date == null) return 'N/A';
     return '${date.day}/${date.month}/${date.year}';
-  }
+  } */
+  // أضف هذا في initState أو في زر مؤقت للاختبار
+void testQuery() {
+  _firestore.collection('device_requests').get().then(
+    (querySnapshot) {
+      debugPrint("نجح الاستعلام، عدد المستندات: ${querySnapshot.docs.length}");
+    },
+  ).catchError((error) {
+    debugPrint("فشل الاستعلام بالخطأ: $error"); // هذا هو الخطأ الحقيقي!
+  });
+}
 }
