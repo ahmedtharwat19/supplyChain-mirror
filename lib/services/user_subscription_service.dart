@@ -1339,7 +1339,7 @@ class UserSubscriptionService {
   }
 
   /// التحقق من بصمة الجهاز وإمكانية التسجيل
-  Future<Map<String, dynamic>> _checkDeviceFingerprint(String licenseId) async {
+/*   Future<Map<String, dynamic>> _checkDeviceFingerprint(String licenseId) async {
     try {
       final currentFingerprint = await DeviceFingerprint.generate();
       final box = await Hive.openBox('auth');
@@ -1384,6 +1384,75 @@ class UserSubscriptionService {
       return {'isValid': false, 'needsRegistration': false};
     }
   }
+ */
+
+/// التحقق من بصمة الجهاز وإمكانية التسجيل
+Future<Map<String, dynamic>> _checkDeviceFingerprint(String licenseId) async {
+  try {
+    final currentFingerprint = await DeviceFingerprint.generate();
+    final deviceInfo = await DeviceFingerprint.getDeviceInfo(); // ✅ الحصول على بيانات الجهاز
+    final box = await Hive.openBox('auth');
+    final localFingerprint = box.get('fingerprint');
+
+    // ✅ إذا كانت البصمة المحلية مطابقة للبصمة الحالية
+    if (localFingerprint != null && localFingerprint == currentFingerprint) {
+      return {'isValid': true, 'needsRegistration': false};
+    }
+
+    final licenseDoc = await _fs.collection('licenses').doc(licenseId).get();
+    if (!licenseDoc.exists) {
+      return {'isValid': false, 'needsRegistration': false};
+    }
+
+    final data = licenseDoc.data()!;
+    final devices = data['devices'] as List<dynamic>? ?? [];
+    final maxDevices = data['maxDevices'] as int? ?? 1;
+
+    // ✅ البحث عن البصمة الحالية في الأجهزة المسجلة
+    final isDeviceRegistered = devices.any((device) =>
+        device is Map<String, dynamic> &&
+        device['fingerprint'] == currentFingerprint);
+
+    if (isDeviceRegistered) {
+      await box.put('fingerprint', currentFingerprint);
+      return {'isValid': true, 'needsRegistration': false};
+    }
+
+    // ✅ إذا لم يكن مسجل وهناك مساحة لتسجيل الجهاز
+    if (devices.length < maxDevices) {
+      // ✅ تسجيل بيانات الجهاز بالكامل
+      final updatedDevices = [
+        ...devices,
+        {
+          'fingerprint': currentFingerprint,
+          'registeredAt': DateTime.now().toIso8601String(),
+          'deviceName': deviceInfo['deviceName'],
+          'platform': deviceInfo['platform'],
+          'model': deviceInfo['model'],
+          'os': deviceInfo['os'],
+          'browser': deviceInfo['browser'],
+          'lastActive': DateTime.now().toIso8601String(),
+        }
+      ];
+
+      await _fs.collection('licenses').doc(licenseId).update({
+        'devices': updatedDevices,
+        'deviceIds': FieldValue.arrayUnion([currentFingerprint]),
+      });
+
+      await box.put('fingerprint', currentFingerprint);
+
+      return {'isValid': true, 'needsRegistration': false}; // ✅ الجهاز سُجّل تلقائياً
+    }
+
+    // لا توجد مساحة لأجهزة جديدة
+    return {'isValid': false, 'needsRegistration': false};
+  } catch (e) {
+    debugPrint('❌ Error checking device fingerprint: $e');
+    return {'isValid': false, 'needsRegistration': false};
+  }
+}
+
 
 Future<bool> registerDeviceFingerprint(String licenseId) async {
   try {

@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import 'package:puresip_purchasing/pages/dashboard/dashboard_metrics.dart';
 import 'package:puresip_purchasing/pages/dashboard/dashboard_tile_widget.dart';
 import 'package:puresip_purchasing/pages/settings_page.dart';
+//import 'package:puresip_purchasing/services/license_service.dart';
 import 'package:puresip_purchasing/services/subscription_notifier.dart';
 import 'package:puresip_purchasing/services/user_subscription_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -29,7 +30,9 @@ enum DashboardView { short, long }
 class DashboardPageState extends State<DashboardPage> {
   StreamSubscription<DocumentSnapshot>? _userSubscription;
   StreamSubscription<QuerySnapshot>? _licenseStatusSubscription;
-
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+//  final FirebaseAuth _auth = FirebaseAuth.instance;
+//  late final LicenseService _licenseService;
   String? subscriptionTimeLeft;
   Timer? _timer;
 
@@ -56,6 +59,7 @@ class DashboardPageState extends State<DashboardPage> {
   @override
   void initState() {
     super.initState();
+   //  _licenseService = LicenseService();
     safeDebugPrint('🔄 DashboardPage initState called');
     _initializeData();
     _checkSubscriptionStatus();
@@ -66,6 +70,86 @@ class DashboardPageState extends State<DashboardPage> {
     _testExpiryDate();
     _checkLicenseExpiryStatus();
     _saveExpiryDateToLocalStorage();
+        _listenForNewDeviceRequests();
+    _listenForNewLicenseRequests();
+  }
+
+  void _listenForNewLicenseRequests() {
+    _firestore
+        .collection('license_requests')
+        .where('status', isEqualTo: 'pending')
+        .orderBy('createdAt', descending: true)
+        .limit(1)
+        .snapshots()
+        .listen((snapshot) {
+      if (snapshot.docs.isNotEmpty) {
+        final doc = snapshot.docs.first;
+        final createdAt = (doc['createdAt'] as Timestamp?)?.toDate();
+
+        if (createdAt == null) return;
+
+        final now = DateTime.now();
+        final difference = now.difference(createdAt);
+
+        // فقط إشعار إذا الطلب جديد (أقل من 10 ثواني)
+        if (difference.inSeconds < 10) {
+          final userName = doc['displayName'];
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('📝${'new_license_request'.tr()} $userName'),
+              action: SnackBarAction(
+                label: 'view'.tr(),
+                onPressed: () {
+                  DefaultTabController.of(context)
+                      .animateTo(0); // الانتقال إلى تبويب التراخيص
+                },
+              ),
+              duration: const Duration(seconds: 6),
+            ),
+          );
+        }
+      }
+    });
+  }
+
+  void _listenForNewDeviceRequests() {
+    _firestore
+        .collection('device_requests')
+        .where('status', isEqualTo: 'pending')
+        .orderBy('createdAt', descending: true)
+        .limit(1)
+        .snapshots()
+        .listen((snapshot) {
+      if (snapshot.docs.isNotEmpty) {
+        final doc = snapshot.docs.first;
+        final createdAt = (doc['createdAt'] as Timestamp).toDate();
+
+        final now = DateTime.now();
+        final difference = now.difference(createdAt);
+
+        // فقط أظهر الإشعار إذا تم إنشاء الطلب في آخر 10 ثواني (حديث)
+        if (difference.inSeconds < 10) {
+          final userName = doc['displayName'];
+          final licenseId = doc['licenseId'];
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                  '📱 ${'request_device_from'.tr()} $userName ${'licence_id'.tr()} $licenseId'),
+              action: SnackBarAction(
+                label: 'view'.tr(),
+                onPressed: () {
+                  DefaultTabController.of(context)
+                      .animateTo(2); // التوجه إلى تبويب الأجهزة
+                },
+              ),
+              duration: const Duration(seconds: 6),
+            ),
+          );
+        }
+      }
+    });
   }
 
   Future<void> _saveExpiryDateToLocalStorage() async {
@@ -236,145 +320,6 @@ class DashboardPageState extends State<DashboardPage> {
       },
     );
   }
-
-/*   Widget _buildTimeLeftBar() {
-    safeDebugPrint(
-        '📊 Building time left bar. isExpiringSoon: $isSubscriptionExpiringSoon, timeLeft: $subscriptionTimeLeft');
-
-    // إذا لم يكن الاشتراك على وشك الانتهاء، لا تعرض أي شيء
-    if (!isSubscriptionExpiringSoon) {
-      safeDebugPrint('📊 License is not expiring soon, hiding time left bar');
-      return const SizedBox();
-    }
-
-    // إذا لم يكن هناك وقت متبقي، لا تعرض أي شيء
-    if (subscriptionTimeLeft == null || subscriptionTimeLeft!.isEmpty) {
-      safeDebugPrint('❌ No time left data available');
-      return const SizedBox();
-    }
-
-    return FutureBuilder<DateTime?>(
-      future: _getExpiryDateFromLocalStorage(),
-      builder: (context, dateSnapshot) {
-        safeDebugPrint(
-            '📅 Date snapshot state: ${dateSnapshot.connectionState}, hasData: ${dateSnapshot.hasData}');
-
-        if (dateSnapshot.connectionState != ConnectionState.done) {
-          safeDebugPrint('⏳ Waiting for date snapshot...');
-          return const CircularProgressIndicator();
-        }
-
-        if (!dateSnapshot.hasData) {
-          safeDebugPrint('❌ No expiry date data available');
-          return _buildSimpleTimeLeftBar();
-        }
-
-        final expiryDate = dateSnapshot.data!;
-        final now = DateTime.now();
-        final daysLeft = expiryDate.difference(now).inDays;
-
-        // تحديد اللون حسب الأيام المتبقية
-        Color progressColor;
-        if (daysLeft > 7) {
-          progressColor = Colors.green;
-        } else if (daysLeft > 4) {
-          progressColor = Colors.orange;
-        } else {
-          progressColor = Colors.red;
-        }
-
-        return Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(16),
-          margin: const EdgeInsets.only(bottom: 16, top: 8),
-          decoration: BoxDecoration(
-            color: progressColor.withAlpha(75),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: progressColor.withAlpha(75)),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // العنوان
-              Row(
-                children: [
-                  Icon(
-                    Icons.warning_amber,
-                    color: progressColor,
-                    size: 24,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    tr('license_expiring_soon'),
-                    style: TextStyle(
-                      color: progressColor,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-
-              // الرسالة التحذيرية
-              Text(
-                tr('license_expiring_message'),
-                style: TextStyle(
-                  color: progressColor,
-                  fontSize: 14,
-                ),
-              ),
-              const SizedBox(height: 8),
-
-              // الوقت المتبقي
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    '${tr('time_left')}:',
-                    style: TextStyle(
-                      color: progressColor,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  Text(
-                    subscriptionTimeLeft!,
-                    style: TextStyle(
-                      color: progressColor,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-
-              // تاريخ الانتهاء
-              const SizedBox(height: 8),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    '${tr('expiry_date')}:',
-                    style: TextStyle(
-                      color: progressColor,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  Text(
-                    '${expiryDate.year}-${expiryDate.month.toString().padLeft(2, '0')}-${expiryDate.day.toString().padLeft(2, '0')}',
-                    style: TextStyle(
-                      color: progressColor,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
- */
   Widget _buildSimpleTimeLeftBar() {
     return Container(
       width: double.infinity,
@@ -395,149 +340,6 @@ class DashboardPageState extends State<DashboardPage> {
     );
   }
 
-/*   Widget _buildTimeLeftBarWithFallbackDate() {
-    // حاول الحصول على تاريخ الانتهاء من Firebase مباشرة
-    return FutureBuilder<DateTime?>(
-      future: _getExpiryDateFromFirebase(),
-      builder: (context, firebaseSnapshot) {
-        if (firebaseSnapshot.connectionState != ConnectionState.done ||
-            !firebaseSnapshot.hasData) {
-          return const SizedBox();
-        }
-
-        final expiryDate = firebaseSnapshot.data!;
-        return _buildTimeLeftBarContent(expiryDate, subscriptionTimeLeft!);
-      },
-    );
-  }
- */
-
-/*   Widget _buildTimeLeftBarContent(DateTime expiryDate, String timeLeft) {
-    final now = DateTime.now();
-    final totalDays = 30;
-    final daysLeft = expiryDate.difference(now).inDays;
-    final progress = (daysLeft / totalDays).clamp(0.0, 1.0);
-
-    safeDebugPrint(
-        '📅 Expiry date: $expiryDate, Now: $now, Days left: $daysLeft, Progress: $progress');
-
-    // تحديد اللون حسب الأيام المتبقية
-    Color progressColor;
-    if (daysLeft > 7) {
-      progressColor = Colors.green;
-    } else if (daysLeft > 4) {
-      progressColor = Colors.orange;
-    } else {
-      progressColor = Colors.red;
-    }
-
-    safeDebugPrint('🎨 Progress color: $progressColor');
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      margin: const EdgeInsets.only(bottom: 16, top: 8),
-      decoration: BoxDecoration(
-        color: progressColor.withAlpha(75),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: progressColor.withAlpha(75)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // العنوان
-          Row(
-            children: [
-              Icon(
-                Icons.access_time,
-                color: progressColor,
-                size: 20,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                tr('license'),
-                style: TextStyle(
-                  color: progressColor,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-
-          // شريط التقدم
-          LinearProgressIndicator(
-            value: progress,
-            backgroundColor: progressColor.withAlpha(80),
-            valueColor: AlwaysStoppedAnimation<Color>(progressColor),
-            minHeight: 8,
-            borderRadius: BorderRadius.circular(4),
-          ),
-          const SizedBox(height: 8),
-
-          // الوقت المتبقي
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                '${tr('time_left')}:',
-                style: TextStyle(
-                  color: progressColor,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              Text(
-                timeLeft,
-                style: TextStyle(
-                  color: progressColor,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-
-          // تاريخ الانتهاء
-          const SizedBox(height: 8),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                '${tr('expiry_date')}:',
-                style: TextStyle(
-                  color: progressColor,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              Text(
-                '${expiryDate.year}-${expiryDate.month.toString().padLeft(2, '0')}-${expiryDate.day.toString().padLeft(2, '0')}',
-                style: TextStyle(
-                  color: progressColor,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-
-          // رسالة تحذير إذا كان الوقت قليل
-          if (daysLeft <= 7)
-            Padding(
-              padding: const EdgeInsets.only(top: 12),
-              child: Text(
-                tr('renew_license_warning'),
-                style: TextStyle(
-                  color: progressColor,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ),
-        ],
-      ),
-    );
-  }
- */
   Future<DateTime?> _getExpiryDateFromFirebase() async {
     try {
       safeDebugPrint('🔥 Getting expiry date from Firebase');
@@ -620,58 +422,7 @@ class DashboardPageState extends State<DashboardPage> {
     });
   }
 
-/*   void _checkLicenseExpiryStatus() async {
-    safeDebugPrint('🔍 Checking license expiry status');
-    final subscriptionService = UserSubscriptionService();
-    final result = await subscriptionService.checkUserSubscription();
-
-    if (!mounted) return;
-
-    setState(() {
-      isSubscriptionExpiringSoon = result.isExpiringSoon;
-      isSubscriptionExpired = result.isExpired;
-      subscriptionTimeLeft = result.timeLeftFormatted;
-    });
-
-    safeDebugPrint('📋 License Status:');
-    safeDebugPrint('   isValid: ${result.isValid}');
-    safeDebugPrint('   isExpiringSoon: $isSubscriptionExpiringSoon');
-    safeDebugPrint('   isExpired: $isSubscriptionExpired');
-    safeDebugPrint('   timeLeft: $subscriptionTimeLeft');
-    safeDebugPrint('   expiryDate: ${result.expiryDate}');
-
-    // تأكد من حفظ تاريخ الانتهاء في التخزين المحلي
-    if (result.expiryDate != null) {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(
-          'expiry_date', result.expiryDate!.toIso8601String());
-      safeDebugPrint('💾 Saved expiry date from check: ${result.expiryDate}');
-    }
-  }
- */
-/*   String _formatTimeLeft(Duration difference) {
-    final days = difference.inDays;
-    final hours = difference.inHours % 24;
-    final minutes = difference.inMinutes % 60;
-
-    if (days > 0) {
-      return tr('time_left_days', namedArgs: {
-        'days': days.toString(),
-        'hours': hours.toString(),
-      });
-    } else if (hours > 0) {
-      return tr('time_left_hours', namedArgs: {
-        'hours': hours.toString(),
-        'minutes': minutes.toString(),
-      });
-    } else {
-      return tr('time_left_minutes', namedArgs: {
-        'minutes': minutes.toString(),
-      });
-    }
-  }
- */
-  void _testExpiryDate() {
+ void _testExpiryDate() {
     safeDebugPrint('🧪 Testing expiry date calculation');
     // إصلاح: استخدام Timestamp مباشرة بدلاً من seconds و nanoseconds
     final expiryTimestamp = Timestamp(1757504727, 573000000);
@@ -1447,58 +1198,6 @@ class DashboardPageState extends State<DashboardPage> {
     );
   }
 
-/*   Widget _buildLicenseExpiringWarning() {
-    safeDebugPrint('⚠️ Building license expiring warning');
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      margin: const EdgeInsets.only(bottom: 16),
-      decoration: BoxDecoration(
-        color: Colors.orange.shade100,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.orange.shade300),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.warning_amber, color: Colors.orange, size: 24),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  tr('license_expiring_soon'),
-                  style: TextStyle(
-                    color: Colors.orange.shade800,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  tr('license_expiring_message',
-                      args: [subscriptionTimeLeft ?? '']),
-                  style: TextStyle(
-                    color: Colors.orange.shade800,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                if (subscriptionTimeLeft != null)
-                  Text(
-                    '⏰ ${tr('time_left')}: $subscriptionTimeLeft',
-                    style: TextStyle(
-                      color: Colors.orange.shade800,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
- */
   @override
   Widget build(BuildContext context) {
     safeDebugPrint('🏗️ Building DashboardPage');
@@ -1618,3 +1317,395 @@ class DashboardStats {
     };
   }
 }
+
+
+
+/*   Widget _buildTimeLeftBarWithFallbackDate() {
+    // حاول الحصول على تاريخ الانتهاء من Firebase مباشرة
+    return FutureBuilder<DateTime?>(
+      future: _getExpiryDateFromFirebase(),
+      builder: (context, firebaseSnapshot) {
+        if (firebaseSnapshot.connectionState != ConnectionState.done ||
+            !firebaseSnapshot.hasData) {
+          return const SizedBox();
+        }
+
+        final expiryDate = firebaseSnapshot.data!;
+        return _buildTimeLeftBarContent(expiryDate, subscriptionTimeLeft!);
+      },
+    );
+  }
+ */
+
+
+/*   Widget _buildTimeLeftBar() {
+    safeDebugPrint(
+        '📊 Building time left bar. isExpiringSoon: $isSubscriptionExpiringSoon, timeLeft: $subscriptionTimeLeft');
+
+    // إذا لم يكن الاشتراك على وشك الانتهاء، لا تعرض أي شيء
+    if (!isSubscriptionExpiringSoon) {
+      safeDebugPrint('📊 License is not expiring soon, hiding time left bar');
+      return const SizedBox();
+    }
+
+    // إذا لم يكن هناك وقت متبقي، لا تعرض أي شيء
+    if (subscriptionTimeLeft == null || subscriptionTimeLeft!.isEmpty) {
+      safeDebugPrint('❌ No time left data available');
+      return const SizedBox();
+    }
+
+    return FutureBuilder<DateTime?>(
+      future: _getExpiryDateFromLocalStorage(),
+      builder: (context, dateSnapshot) {
+        safeDebugPrint(
+            '📅 Date snapshot state: ${dateSnapshot.connectionState}, hasData: ${dateSnapshot.hasData}');
+
+        if (dateSnapshot.connectionState != ConnectionState.done) {
+          safeDebugPrint('⏳ Waiting for date snapshot...');
+          return const CircularProgressIndicator();
+        }
+
+        if (!dateSnapshot.hasData) {
+          safeDebugPrint('❌ No expiry date data available');
+          return _buildSimpleTimeLeftBar();
+        }
+
+        final expiryDate = dateSnapshot.data!;
+        final now = DateTime.now();
+        final daysLeft = expiryDate.difference(now).inDays;
+
+        // تحديد اللون حسب الأيام المتبقية
+        Color progressColor;
+        if (daysLeft > 7) {
+          progressColor = Colors.green;
+        } else if (daysLeft > 4) {
+          progressColor = Colors.orange;
+        } else {
+          progressColor = Colors.red;
+        }
+
+        return Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          margin: const EdgeInsets.only(bottom: 16, top: 8),
+          decoration: BoxDecoration(
+            color: progressColor.withAlpha(75),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: progressColor.withAlpha(75)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // العنوان
+              Row(
+                children: [
+                  Icon(
+                    Icons.warning_amber,
+                    color: progressColor,
+                    size: 24,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    tr('license_expiring_soon'),
+                    style: TextStyle(
+                      color: progressColor,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+
+              // الرسالة التحذيرية
+              Text(
+                tr('license_expiring_message'),
+                style: TextStyle(
+                  color: progressColor,
+                  fontSize: 14,
+                ),
+              ),
+              const SizedBox(height: 8),
+
+              // الوقت المتبقي
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    '${tr('time_left')}:',
+                    style: TextStyle(
+                      color: progressColor,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  Text(
+                    subscriptionTimeLeft!,
+                    style: TextStyle(
+                      color: progressColor,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+
+              // تاريخ الانتهاء
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    '${tr('expiry_date')}:',
+                    style: TextStyle(
+                      color: progressColor,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  Text(
+                    '${expiryDate.year}-${expiryDate.month.toString().padLeft(2, '0')}-${expiryDate.day.toString().padLeft(2, '0')}',
+                    style: TextStyle(
+                      color: progressColor,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+ */
+
+
+/*   Widget _buildTimeLeftBarContent(DateTime expiryDate, String timeLeft) {
+    final now = DateTime.now();
+    final totalDays = 30;
+    final daysLeft = expiryDate.difference(now).inDays;
+    final progress = (daysLeft / totalDays).clamp(0.0, 1.0);
+
+    safeDebugPrint(
+        '📅 Expiry date: $expiryDate, Now: $now, Days left: $daysLeft, Progress: $progress');
+
+    // تحديد اللون حسب الأيام المتبقية
+    Color progressColor;
+    if (daysLeft > 7) {
+      progressColor = Colors.green;
+    } else if (daysLeft > 4) {
+      progressColor = Colors.orange;
+    } else {
+      progressColor = Colors.red;
+    }
+
+    safeDebugPrint('🎨 Progress color: $progressColor');
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.only(bottom: 16, top: 8),
+      decoration: BoxDecoration(
+        color: progressColor.withAlpha(75),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: progressColor.withAlpha(75)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // العنوان
+          Row(
+            children: [
+              Icon(
+                Icons.access_time,
+                color: progressColor,
+                size: 20,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                tr('license'),
+                style: TextStyle(
+                  color: progressColor,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // شريط التقدم
+          LinearProgressIndicator(
+            value: progress,
+            backgroundColor: progressColor.withAlpha(80),
+            valueColor: AlwaysStoppedAnimation<Color>(progressColor),
+            minHeight: 8,
+            borderRadius: BorderRadius.circular(4),
+          ),
+          const SizedBox(height: 8),
+
+          // الوقت المتبقي
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                '${tr('time_left')}:',
+                style: TextStyle(
+                  color: progressColor,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              Text(
+                timeLeft,
+                style: TextStyle(
+                  color: progressColor,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+
+          // تاريخ الانتهاء
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                '${tr('expiry_date')}:',
+                style: TextStyle(
+                  color: progressColor,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              Text(
+                '${expiryDate.year}-${expiryDate.month.toString().padLeft(2, '0')}-${expiryDate.day.toString().padLeft(2, '0')}',
+                style: TextStyle(
+                  color: progressColor,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+
+          // رسالة تحذير إذا كان الوقت قليل
+          if (daysLeft <= 7)
+            Padding(
+              padding: const EdgeInsets.only(top: 12),
+              child: Text(
+                tr('renew_license_warning'),
+                style: TextStyle(
+                  color: progressColor,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+ */
+
+/*   void _checkLicenseExpiryStatus() async {
+    safeDebugPrint('🔍 Checking license expiry status');
+    final subscriptionService = UserSubscriptionService();
+    final result = await subscriptionService.checkUserSubscription();
+
+    if (!mounted) return;
+
+    setState(() {
+      isSubscriptionExpiringSoon = result.isExpiringSoon;
+      isSubscriptionExpired = result.isExpired;
+      subscriptionTimeLeft = result.timeLeftFormatted;
+    });
+
+    safeDebugPrint('📋 License Status:');
+    safeDebugPrint('   isValid: ${result.isValid}');
+    safeDebugPrint('   isExpiringSoon: $isSubscriptionExpiringSoon');
+    safeDebugPrint('   isExpired: $isSubscriptionExpired');
+    safeDebugPrint('   timeLeft: $subscriptionTimeLeft');
+    safeDebugPrint('   expiryDate: ${result.expiryDate}');
+
+    // تأكد من حفظ تاريخ الانتهاء في التخزين المحلي
+    if (result.expiryDate != null) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(
+          'expiry_date', result.expiryDate!.toIso8601String());
+      safeDebugPrint('💾 Saved expiry date from check: ${result.expiryDate}');
+    }
+  }
+ */
+/*   String _formatTimeLeft(Duration difference) {
+    final days = difference.inDays;
+    final hours = difference.inHours % 24;
+    final minutes = difference.inMinutes % 60;
+
+    if (days > 0) {
+      return tr('time_left_days', namedArgs: {
+        'days': days.toString(),
+        'hours': hours.toString(),
+      });
+    } else if (hours > 0) {
+      return tr('time_left_hours', namedArgs: {
+        'hours': hours.toString(),
+        'minutes': minutes.toString(),
+      });
+    } else {
+      return tr('time_left_minutes', namedArgs: {
+        'minutes': minutes.toString(),
+      });
+    }
+  }
+ */
+ 
+ /*   Widget _buildLicenseExpiringWarning() {
+    safeDebugPrint('⚠️ Building license expiring warning');
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Colors.orange.shade100,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.orange.shade300),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.warning_amber, color: Colors.orange, size: 24),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  tr('license_expiring_soon'),
+                  style: TextStyle(
+                    color: Colors.orange.shade800,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  tr('license_expiring_message',
+                      args: [subscriptionTimeLeft ?? '']),
+                  style: TextStyle(
+                    color: Colors.orange.shade800,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                if (subscriptionTimeLeft != null)
+                  Text(
+                    '⏰ ${tr('time_left')}: $subscriptionTimeLeft',
+                    style: TextStyle(
+                      color: Colors.orange.shade800,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+ */

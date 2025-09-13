@@ -787,13 +787,51 @@
   "license": "الترخيص",
  "device_added_successfully": "تمت إضافة الجهاز بنجاح",
     "request_device_button": "طلب جهاز جديد",
+    "request_device_from": "طلب جهاز جديد من",
    "device_limit_title": "تم الوصول إلى حد الأجهزة",
   "max_devices_reached": "لقد وصلت إلى الحد الأقصى للأجهزة المسموحة ({max}). يرجى التواصل مع المدير لإضافة جهاز جديد أو استخدام أحد أجهزتك المسجلة.",
   "device_check_error": "خطأ في التحقق من الجهاز. يرجى المحاولة مرة أخرى.",
  "request_sent_to_admin": "تم إرسال طلبك إلى الإدارة.",
-
+"licence_id": "معرف الترخيص",
 "device_management": "إدارة الأجهزة",
 "registered_devices": "الأجهزة المسجلة",
+"submit": "إرسال",
+
+  "missing_device_data": "بيانات الجهاز غير مكتملة",
+  "missing_device_data_warning": "⚠️ بيانات الجهاز ناقصة",
+  "device_already_exists": "هذا الجهاز مسجل مسبقاً",
+
+
+
+  "unknown_model": "موديل غير معروف",
+  "unknown_os": "نظام تشغيل غير معروف",
+
+  "current_device": "الجهاز الحالي",
+
+  "license_already_valid": "الترخيص صالح بالفعل",
+  "pending_request_exists": "يوجد طلب معلق بالفعل",
+
+  "failed_to_create_request": "فشل إنشاء الطلب",
+
+  "license_check_timeout": "انتهى وقت التحقق من الترخيص",
+
+
+  "refresh_data": "تحديث البيانات",
+  "data_not_found": "البيانات غير موجودة",
+  "unknown_device": "جهاز غير معروف",
+  "unknown_platform": "منصة غير معروفة",
+  "unknown_browser": "متصفح غير معروف",
+  "no_reason_provided": "لم يتم تقديم سبب",
+ "license_already_valid_no_need_for_request": "لديك ترخيص صالح بالفعل، لا حاجة لطلب جديد.",
+  "device_request_info": "معلومات طلب الجهاز",
+
+  "device_name": "اسم الجهاز",
+ 
+  "fingerprint": "البصمة",
+   "device_request_approved_success": "تمت الموافقة على طلب الجهاز بنجاح",
+  "redirecting_to_dashboard": "جاري الانتقال إلى لوحة التحكم...",
+
+  "license_not_found": "الترخيص غير موجود",
 "no_devices_registered": "لا توجد أجهزة مسجلة",
 "register_current_device": "تسجيل الجهاز الحالي",
 "request_new_slot": "طلب مساحة جديدة",

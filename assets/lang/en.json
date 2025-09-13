@@ -476,6 +476,46 @@
   "request_new_device_slot": "Request New Device Slot",
   "reason_for_request": "Reason for request",
   "request_submitted": "Request submitted",
+  "submit": "Submit",
+  
+  "missing_device_data": "Incomplete device data",
+  "missing_device_data_warning": "⚠️ Device data is missing",
+  "device_already_exists": "This device is already registered",
+ "license_already_valid_no_need_for_request":"License is currently valid, no need for a new request",
+  "device_request_sent": "Device request sent successfully",
+  "device_request_approved_success": "Device request approved successfully",
+  "redirecting_to_dashboard": "Redirecting to dashboard...",
+
+
+
+  "unknown_model": "Unknown Model",
+  "unknown_os": "Unknown Operating System",
+
+  "current_device": "Current Device",
+
+  "license_already_valid": "License is already valid",
+  "pending_request_exists": "A pending request already exists",
+
+  "failed_to_create_request": "Failed to Create Request",
+
+  "license_check_timeout": "License Check Timeout",
+
+
+  "refresh_data": "Refresh Data",
+  "data_not_found": "Data not found",
+  "unknown_device": "Unknown device",
+  "unknown_platform": "Unknown platform",
+  "unknown_browser": "Unknown browser",
+  "no_reason_provided": "No reason provided",
+
+  "device_request_info": "Device Request Info",
+
+  "device_name": "Device Name",
+
+  "fingerprint": "Fingerprint",
+
+
+  "license_not_found": "License not found",
   "device_registration": "Device Registration",
   "device_not_registered": "Your device is not registered",
   "register_device_description": "You need to register your device to use the app. Tap the button below to register.",
@@ -512,8 +552,8 @@
     "deactivate_license": "Deactivate License",
     "user": "User",
     "created": "Created",
-
-
+"request_device_from": "Request new device from ",
+"licence_id": "License ID: ",
   "approval_failed": "Failed to approve the request",
   "device_request_approved": "Device request approved",
   "your_device_request_approved": "Your request to add a new device has been approved",
