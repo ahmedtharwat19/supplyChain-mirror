@@ -655,7 +655,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:go_router/go_router.dart';
 import '../../widgets/app_scaffold.dart';
 import 'package:puresip_purchasing/debug_helper.dart';
-
+import 'package:file_picker/file_picker.dart';
+import 'package:excel/excel.dart';
 
 class ItemsPage extends StatefulWidget {
   const ItemsPage({super.key});
@@ -727,7 +728,6 @@ class _ItemsPageState extends State<ItemsPage> {
         setState(() => isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('${tr('error_occurred')}: $e')),
-          
         );
         safeDebugPrint("❌ Error fetching items: $e");
       }
@@ -776,6 +776,94 @@ class _ItemsPageState extends State<ItemsPage> {
     }
   }
 
+Future<void> _handleBulkUpload() async {
+  try {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['xlsx'],
+    );
+
+    if (result != null && result.files.single.bytes != null) {
+      final fileBytes = result.files.single.bytes!;
+      final excel = Excel.decodeBytes(fileBytes);
+      final Sheet sheet = excel.sheets.values.first;
+
+      if (sheet.maxRows < 2) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(tr('empty_excel'))),
+        );
+        return;
+      }
+
+      // ✅ جلب العناصر الحالية لتفادي التكرار
+      final existingSnapshot = await FirebaseFirestore.instance
+          .collection('items')
+          .where('userId', isEqualTo: userId)
+          .get();
+      final existingNames = existingSnapshot.docs
+          .map((doc) => (doc['nameEn'] ?? '').toString().toLowerCase())
+          .toSet();
+
+      int addedCount = 0;
+      final batch = FirebaseFirestore.instance.batch();
+
+      for (int i = 1; i < sheet.maxRows; i++) {
+        final row = sheet.row(i);
+
+        if (row.isEmpty || row.length < 7) continue;
+
+        final nameEn = row[0]?.value?.toString().trim() ?? '';
+        final nameAr = row[1]?.value?.toString().trim() ?? '';
+        final description = row[2]?.value?.toString() ?? '';
+        final category = row[3]?.value?.toString() ?? 'raw_material';
+        final unit = row[4]?.value?.toString() ?? '';
+        final unitPriceStr = row[5]?.value?.toString();
+        final isTaxableStr = row[6]?.value?.toString().toLowerCase();
+
+        if (nameEn.isEmpty || unit.isEmpty || unitPriceStr == null) continue;
+
+        // ✅ منع التكرار
+        if (existingNames.contains(nameEn.toLowerCase())) continue;
+
+        final unitPrice = double.tryParse(unitPriceStr) ?? 0.0;
+        final isTaxable = isTaxableStr == 'true';
+
+        final data = {
+          'nameEn': nameEn,
+          'nameAr': nameAr,
+          'description': description,
+          'category': category,
+          'unit': unit,
+          'unitPrice': unitPrice,
+          'isTaxable': isTaxable,
+          'createdAt': Timestamp.now(),
+          'userId': userId,
+        };
+
+        final docRef = FirebaseFirestore.instance.collection('items').doc();
+        batch.set(docRef, data);
+        existingNames.add(nameEn.toLowerCase()); // حتى لا يتكرر داخل الملف نفسه
+        addedCount++;
+      }
+
+      await batch.commit();
+      await _fetchUserItems();
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${tr('items_uploaded_successfully')}: $addedCount')),
+      );
+    }
+  } catch (e) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('${tr('upload_error')}: $e')),
+    );
+    safeDebugPrint('❌ Error during bulk upload: $e');
+  }
+}
+
   Future<void> _editItem(Map<String, dynamic> itemData) async {
     await context.push('/edit-item/${itemData['id']}', extra: itemData);
     if (mounted) _fetchUserItems();
@@ -805,17 +893,31 @@ class _ItemsPageState extends State<ItemsPage> {
   Widget build(BuildContext context) {
     final currentLocale = context.locale.languageCode;
     final filteredItems = items.where((item) {
-      final name = (currentLocale == 'ar'
-              ? item['nameAr'] ?? ''
-              : item['nameEn'] ?? '')
-          .toString()
-          .toLowerCase();
+      final name =
+          (currentLocale == 'ar' ? item['nameAr'] ?? '' : item['nameEn'] ?? '')
+              .toString()
+              .toLowerCase();
       return name.contains(searchQuery.toLowerCase());
     }).toList();
 
     return AppScaffold(
       title: tr('items_list'),
       userName: userName,
+      actions: [
+        IconButton(
+          tooltip: tr('bulk_add'),
+          icon: const Icon(Icons.upload_file),
+          onPressed: _handleBulkUpload,
+        ),
+        IconButton(
+          tooltip: tr('add_item'),
+          icon: const Icon(Icons.add),
+          onPressed: () async {
+            await context.push('/items/add');
+            if (mounted) _fetchUserItems();
+          },
+        ),
+      ],
       body: isLoading
           ? const Center(child: CircularProgressIndicator())
           : Column(
@@ -891,7 +993,21 @@ class _ItemsPageState extends State<ItemsPage> {
                 ),
               ],
             ),
-      floatingActionButton: FloatingActionButton(
+/*       floatingActionButton: Padding(
+  padding: const EdgeInsets.only(bottom: 16.0, right: 16.0),
+  child: Column(
+    mainAxisSize: MainAxisSize.min,
+    crossAxisAlignment: CrossAxisAlignment.end,
+    children: [
+      FloatingActionButton.extended(
+        heroTag: 'bulk_add',
+        icon: const Icon(Icons.upload_file),
+        label: Text(tr('bulk_add')),
+        onPressed: _handleBulkUpload,
+      ),
+      const SizedBox(height: 10),
+      FloatingActionButton(
+        heroTag: 'single_add',
         onPressed: () async {
           await context.push('/items/add');
           if (mounted) _fetchUserItems();
@@ -899,6 +1015,19 @@ class _ItemsPageState extends State<ItemsPage> {
         tooltip: tr('add_item'),
         child: const Icon(Icons.add),
       ),
+    ],
+  ),
+),
+ */
+
+      /* floatingActionButton: FloatingActionButton(
+        onPressed: () async {
+          await context.push('/items/add');
+          if (mounted) _fetchUserItems();
+        },
+        tooltip: tr('add_item'),
+        child: const Icon(Icons.add),
+      ), */
     );
   }
 }

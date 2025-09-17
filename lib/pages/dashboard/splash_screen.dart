@@ -1,8 +1,587 @@
+// splash_screen.dart
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:puresip_purchasing/services/app_initializer_service.dart';
+import 'package:puresip_purchasing/debug_helper.dart';
+import 'package:package_info_plus/package_info_plus.dart';
+
+class SplashScreen extends StatefulWidget {
+  const SplashScreen({super.key});
+
+  @override
+  State<SplashScreen> createState() => _SplashScreenState();
+}
+
+class _SplashScreenState extends State<SplashScreen> {
+  final AppInitializerService _initializer = AppInitializerService();
+  String _loadingMessage = "initializing".tr();
+  bool _showError = false;
+  String _appVersion = "";
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAppVersion();
+    _initializeApp();
+  }
+
+  Future<void> _loadAppVersion() async {
+    final info = await PackageInfo.fromPlatform();
+    setState(() {
+      _appVersion = info.version; // مثال: 1.0.0
+    });
+  }
+
+  Future<void> _initializeApp() async {
+    try {
+      // تحديث رسالة التحميل بشكل تدريجي
+      _updateLoadingMessage("preparing_storage".tr());
+      await Future.delayed(const Duration(milliseconds: 500));
+
+      _updateLoadingMessage("checking_auth".tr());
+      await Future.delayed(const Duration(milliseconds: 300));
+
+      _updateLoadingMessage("checking_connection".tr());
+      await Future.delayed(const Duration(milliseconds: 300));
+
+      // تنفيذ التهيئة الفعلية
+      final result = await _initializer.initializeApp();
+
+      if (!mounted) return;
+
+      // معالجة الرسائل إذا وجدت
+      if (result.showMessage != null) {
+        await _showMessageDialog(result.showMessage!);
+      }
+
+      // التنقل إلى الصفحة المناسبة
+      _safeNavigate(() {
+        if (result.extraData != null) {
+          context.go(result.shouldNavigateTo, extra: result.extraData);
+        } else {
+          context.go(result.shouldNavigateTo);
+        }
+      });
+    } catch (e) {
+      safeDebugPrint('❌ Splash screen initialization error: $e');
+
+      if (mounted) {
+        setState(() {
+          _loadingMessage = "initialization_failed".tr();
+          _showError = true;
+        });
+
+        // الانتقال إلى login بعد فترة في حالة الخطأ
+        await Future.delayed(const Duration(seconds: 2));
+        if (mounted) {
+          _safeNavigate(() => context.go('/login'));
+        }
+      }
+    }
+  }
+
+  void _updateLoadingMessage(String message) {
+    if (mounted) {
+      setState(() => _loadingMessage = message);
+    }
+  }
+
+  Future<void> _showMessageDialog(String message) async {
+    return showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: Text("notice".tr()),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text("ok".tr()),
+          )
+        ],
+      ),
+    );
+  }
+
+  void _safeNavigate(VoidCallback navigation) {
+    if (!mounted) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) navigation();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final currentYear = DateTime.now().year;
+
+    return Scaffold(
+      backgroundColor: Colors.white,
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            _buildAppLogo(),
+            const SizedBox(height: 32),
+            _buildLoadingIndicator(),
+            const SizedBox(height: 24),
+            _buildLoadingMessage(),
+            if (_showError) _buildErrorWidget(),
+            const SizedBox(height: 48),
+            _buildFooterInfo(currentYear),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAppLogo() {
+    return Container(
+      width: 220,
+      height: 220,
+      decoration: BoxDecoration(
+        color: Colors.green[50],
+        shape: BoxShape.circle,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.green.withAlpha(75),
+            blurRadius: 10,
+            spreadRadius: 2,
+          )
+        ],
+      ),
+      child: ClipOval(
+        child: Image.asset(
+          'assets/logo.png',
+          fit: BoxFit.cover,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLoadingIndicator() {
+    return SizedBox(
+      width: 40,
+      height: 40,
+      child: CircularProgressIndicator(
+        valueColor: AlwaysStoppedAnimation<Color>(
+          _showError ? Colors.red : Colors.green,
+        ),
+        strokeWidth: 3,
+      ),
+    );
+  }
+
+  Widget _buildLoadingMessage() {
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 300),
+      child: Text(
+        _loadingMessage,
+        key: ValueKey<String>(_loadingMessage),
+        style: TextStyle(
+          fontSize: 16,
+          color: _showError ? Colors.red : Colors.grey[700],
+          fontWeight: FontWeight.w500,
+        ),
+        textAlign: TextAlign.center,
+      ),
+    );
+  }
+
+  Widget _buildErrorWidget() {
+    return Padding(
+      padding: const EdgeInsets.only(top: 16),
+      child: Text(
+        "splash_error_message".tr(),
+        style: const TextStyle(
+          fontSize: 14,
+          color: Colors.red,
+          fontStyle: FontStyle.italic,
+        ),
+        textAlign: TextAlign.center,
+      ),
+    );
+  }
+
+  Widget _buildFooterInfo(int currentYear) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12.0),
+      child: Column(
+        children: [
+          const Text(
+            'Ahmed Tharwat tech.',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '© $currentYear ALL RIGHTS ARE RESERVED',
+            style: const TextStyle(
+              fontSize: 12,
+              letterSpacing: 1.2,
+              color: Colors.grey,
+            ),
+          ),
+          if (_appVersion.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              "v$_appVersion",
+              style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/* // splash_screen.dart
+import 'package:easy_localization/easy_localization.dart';
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:puresip_purchasing/services/app_initializer_service.dart';
+import 'package:puresip_purchasing/debug_helper.dart';
+
+class SplashScreen extends StatefulWidget {
+  const SplashScreen({super.key});
+
+  @override
+  State<SplashScreen> createState() => _SplashScreenState();
+}
+
+class _SplashScreenState extends State<SplashScreen> {
+  final AppInitializerService _initializer = AppInitializerService();
+  String _loadingMessage = "initializing".tr();
+  bool _showError = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeApp();
+  }
+
+  Future<void> _initializeApp() async {
+    try {
+      // تحديث رسالة التحميل بشكل تدريجي
+      _updateLoadingMessage("preparing_storage".tr());
+      await Future.delayed(const Duration(milliseconds: 500));
+
+      _updateLoadingMessage("checking_auth".tr());
+      await Future.delayed(const Duration(milliseconds: 300));
+
+      _updateLoadingMessage("checking_connection".tr());
+      await Future.delayed(const Duration(milliseconds: 300));
+
+      // تنفيذ التهيئة الفعلية
+      final result = await _initializer.initializeApp();
+
+      if (!mounted) return;
+
+      // معالجة الرسائل إذا وجدت
+      if (result.showMessage != null) {
+        await _showMessageDialog(result.showMessage!);
+      }
+
+      // التنقل إلى الصفحة المناسبة
+      _safeNavigate(() {
+        if (result.extraData != null) {
+          context.go(result.shouldNavigateTo, extra: result.extraData);
+        } else {
+          context.go(result.shouldNavigateTo);
+        }
+      });
+
+    } catch (e) {
+      safeDebugPrint('❌ Splash screen initialization error: $e');
+      
+      if (mounted) {
+        setState(() {
+          _loadingMessage = "initialization_failed".tr();
+          _showError = true;
+        });
+
+        // الانتقال إلى login بعد فترة في حالة الخطأ
+        await Future.delayed(const Duration(seconds: 2));
+        if (mounted) {
+          _safeNavigate(() => context.go('/login'));
+        }
+      }
+    }
+  }
+
+  void _updateLoadingMessage(String message) {
+    if (mounted) {
+      setState(() => _loadingMessage = message);
+    }
+  }
+
+  Future<void> _showMessageDialog(String message) async {
+    return showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: Text("notice".tr()),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text("ok".tr()),
+          )
+        ],
+      ),
+    );
+  }
+
+  void _safeNavigate(VoidCallback navigation) {
+    if (!mounted) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) navigation();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.white,
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // شعار التطبيق
+            _buildAppLogo(),
+            const SizedBox(height: 32),
+            
+            // مؤشر التحميل
+            _buildLoadingIndicator(),
+            const SizedBox(height: 24),
+            
+            // رسالة التحميل
+            _buildLoadingMessage(),
+            
+            // رسالة الخطأ إذا وجدت
+            if (_showError) _buildErrorWidget(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAppLogo() {
+    return Container(
+      width: 120,
+      height: 120,
+      decoration: BoxDecoration(
+        color: Colors.green[50],
+        shape: BoxShape.circle,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.green.withAlpha(75),
+            blurRadius: 10,
+            spreadRadius: 2,
+          )
+        ],
+      ),
+      child: Icon(
+        Icons.inventory_2,
+        size: 60,
+        color: Colors.green[700],
+      ),
+    );
+  }
+
+  Widget _buildLoadingIndicator() {
+    return SizedBox(
+      width: 40,
+      height: 40,
+      child: CircularProgressIndicator(
+        valueColor: AlwaysStoppedAnimation<Color>(
+          _showError ? Colors.red : Colors.green,
+        ),
+        strokeWidth: 3,
+      ),
+    );
+  }
+
+  Widget _buildLoadingMessage() {
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 300),
+      child: Text(
+        _loadingMessage,
+        key: ValueKey<String>(_loadingMessage),
+        style: TextStyle(
+          fontSize: 16,
+          color: _showError ? Colors.red : Colors.grey[700],
+          fontWeight: FontWeight.w500,
+        ),
+        textAlign: TextAlign.center,
+      ),
+    );
+  }
+
+  Widget _buildErrorWidget() {
+    return Padding(
+      padding: const EdgeInsets.only(top: 16),
+      child: Text(
+        "splash_error_message".tr(),
+        style: const TextStyle(
+          fontSize: 14,
+          color: Colors.red,
+          fontStyle: FontStyle.italic,
+        ),
+        textAlign: TextAlign.center,
+      ),
+    );
+  }
+} */
+
+/* import 'package:easy_localization/easy_localization.dart';
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:puresip_purchasing/services/firestore_date_services.dart';
+import 'package:puresip_purchasing/services/hive_service.dart';
+//import 'package:puresip_purchasing/services/firestore_data_service.dart';
+import 'package:puresip_purchasing/services/user_subscription_service.dart';
+
+class SplashScreen extends StatefulWidget {
+  const SplashScreen({super.key});
+
+  @override
+  State<SplashScreen> createState() => _SplashScreenState();
+}
+
+class _SplashScreenState extends State<SplashScreen> {
+  String _loadingMessage = "Initializing...";
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeAndNavigate();
+  }
+
+  Future<void> _initializeAndNavigate() async {
+    try {
+      setState(() => _loadingMessage = "Preparing local storage...");
+      await HiveService.init();
+
+      final hasAuthData = await HiveService.hasAuthData();
+      final hasLicense = await HiveService.getLicense() != null;
+
+      if (!hasAuthData) {
+        _safeNavigate(() => context.go('/login'));
+        return;
+      }
+
+      if (hasAuthData && hasLicense) {
+        // ✅ جلب البيانات في الخلفية بدون تعطيل الانتقال
+        _fetchUserDataInBackground();
+
+        final authData = await HiveService.getAuthData();
+        _safeNavigate(() => context.go('/dashboard', extra: authData));
+        return;
+      }
+
+      setState(() => _loadingMessage = "Checking subscription...");
+      final hasInternet = await _checkInternetConnection();
+
+      if (hasInternet) {
+        final subscriptionService = UserSubscriptionService();
+        final result = await subscriptionService.checkUserSubscription();
+
+        if (!mounted) return;
+
+        if (result.isValid && !result.isExpired) {
+          if (result.licenseId != null) {
+            await HiveService.saveLicense(result.licenseId!);
+          }
+
+          // ✅ جلب البيانات في الخلفية
+          _fetchUserDataInBackground();
+
+          _safeNavigate(() => context.go('/dashboard'));
+        } else {
+          if (result.timeLeftFormatted != null &&
+              result.timeLeftFormatted!.contains('device')) {
+            await _showDeviceLimitMessage(result.timeLeftFormatted!);
+          }
+          _safeNavigate(() => context.go('/license/request'));
+        }
+      } else {
+        final authData = await HiveService.getAuthData();
+        await _showDeviceLimitMessage('no_internet'.tr());
+        _safeNavigate(() => context.go('/dashboard', extra: authData));
+      }
+    } catch (e) {
+      debugPrint('Splash screen error: $e');
+      final hasAuthData = await HiveService.hasAuthData();
+      _safeNavigate(() => context.go(hasAuthData ? '/dashboard' : '/login'));
+    }
+  }
+
+  Future<void> _fetchUserDataInBackground() async {
+    try {
+      setState(() => _loadingMessage = "Syncing data in background...");
+      final firestoreService = FirestoreDataService();
+      await firestoreService.fetchAllUserData();
+    } catch (e) {
+      debugPrint('⚠️ Error fetching user data: $e');
+    }
+  }
+
+  Future<bool> _checkInternetConnection() async {
+    // ضع كود التحقق من الانترنت هنا
+    return true;
+  }
+
+  void _safeNavigate(VoidCallback callback) {
+    if (!mounted) return;
+    callback();
+  }
+
+  Future<void> _showDeviceLimitMessage(String message) async {
+    if (!mounted) return;
+    await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Device Limit"),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text("OK"),
+          )
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.white,
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const CircularProgressIndicator(),
+            const SizedBox(height: 16),
+            Text(
+              _loadingMessage,
+              style: const TextStyle(fontSize: 16),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+ */
+
+/* import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:hive/hive.dart';
+import 'package:puresip_purchasing/debug_helper.dart';
+import 'package:puresip_purchasing/services/hive_service.dart';
 import 'package:puresip_purchasing/services/user_subscription_service.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -17,9 +596,66 @@ class _SplashScreenState extends State<SplashScreen> {
   void initState() {
     super.initState();
     _startApp();
+   _initializeAndNavigate();
   }
 
+Future<void> _initializeAndNavigate() async {
+    try {
+      // تهيئة Hive أولاً
+      await HiveService.init();
+
+      // التحقق من وجود بيانات المصادقة والترخيص
+      final hasAuthData = await HiveService.hasAuthData();
+      final hasLicense = await HiveService.getLicense() != null;
+
+      if (!hasAuthData) {
+        _safeNavigate(() => context.go('/login'));
+        return;
+      }
+
+      if (hasAuthData && hasLicense) {
+        // تحميل البيانات المخزنة بسرعة
+        final authData = await HiveService.getAuthData();
+        _safeNavigate(() => context.go('/dashboard', extra: authData));
+        return;
+      }
+
+      // الباقي من منطقك الأصلي...
+      final hasInternet = await _checkInternetConnection();
+
+      if (hasInternet) {
+        final subscriptionService = UserSubscriptionService();
+        final result = await subscriptionService.checkUserSubscription();
+
+        if (!mounted) return;
+
+        if (result.isValid && !result.isExpired) {
+          // حفظ الترخيص الجديد
+          if (result.licenseId != null) {
+            await HiveService.saveLicense(result.licenseId!);
+          }
+          _safeNavigate(() => context.go('/dashboard'));
+        } else {
+          if (result.timeLeftFormatted != null &&
+              result.timeLeftFormatted!.contains('device')) {
+            await _showDeviceLimitMessage(result.timeLeftFormatted!);
+          }
+          _safeNavigate(() => context.go('/license/request'));
+        }
+      } else {
+        // استخدام البيانات المخزنة محلياً
+        final authData = await HiveService.getAuthData();
+        await _showDeviceLimitMessage('no_internet'.tr());
+        _safeNavigate(() => context.go('/dashboard', extra: authData));
+      }
+    } catch (e) {
+      safeDebugPrint('Splash screen error: $e');
+      final hasAuthData = await HiveService.hasAuthData();
+      _safeNavigate(() => context.go(hasAuthData ? '/dashboard' : '/login'));
+    }
+  }
   Future<void> _startApp() async {
+      await Future.delayed(const Duration(milliseconds: 500));
     try {
       final hasUserInHive = await _checkUserExistsInHive();
       final hasLicenseInHive = await _checkLicenseInHive();
@@ -85,13 +721,19 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   Future<bool> _checkInternetConnection() async {
-    final result = await Connectivity().checkConnectivity();
+    try {
+      final result = await Connectivity().checkConnectivity();
 
-    debugPrint('Connectivity result: $result, type: ${result.runtimeType}');
-    debugPrint(
-        'ConnectivityResult.none type: ${ConnectivityResult.none.runtimeType}');
-    //return result != ConnectivityResult.none; // error here
-    return result.isNotEmpty && result.any((r) => r != ConnectivityResult.none);
+      debugPrint('Connectivity result: $result, type: ${result.runtimeType}');
+      debugPrint(
+          'ConnectivityResult.none type: ${ConnectivityResult.none.runtimeType}');
+      //return result != ConnectivityResult.none; // error here
+      return result.isNotEmpty &&
+          result.any((r) => r != ConnectivityResult.none);
+    } catch (e) {
+      debugPrint('Connectivity error: $e');
+      return false;
+    }
   }
 
   Future<bool> _checkUserExistsInHive() async {
@@ -120,7 +762,7 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 }
 
-
+ */
 /* import 'dart:async';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';

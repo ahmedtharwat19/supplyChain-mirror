@@ -7,16 +7,14 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:go_router/go_router.dart';
 import 'package:puresip_purchasing/pages/dashboard/dashboard_metrics.dart';
 import 'package:puresip_purchasing/pages/dashboard/dashboard_tile_widget.dart';
-import 'package:puresip_purchasing/pages/settings_page.dart';
-//import 'package:puresip_purchasing/services/license_service.dart';
+import 'package:puresip_purchasing/services/hive_service.dart';
 import 'package:puresip_purchasing/services/subscription_notifier.dart';
 import 'package:puresip_purchasing/services/user_subscription_service.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import '../../utils/user_local_storage.dart';
-import '../../widgets/app_scaffold.dart';
+import 'package:puresip_purchasing/widgets/app_scaffold.dart';
 import 'package:pull_to_refresh/pull_to_refresh.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:puresip_purchasing/debug_helper.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
@@ -31,27 +29,23 @@ class DashboardPageState extends State<DashboardPage> {
   StreamSubscription<DocumentSnapshot>? _userSubscription;
   StreamSubscription<QuerySnapshot>? _licenseStatusSubscription;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-//  final FirebaseAuth _auth = FirebaseAuth.instance;
-//  late final LicenseService _licenseService;
   String? subscriptionTimeLeft;
   Timer? _timer;
 
-  // Controllers and State
   final RefreshController _refreshController =
       RefreshController(initialRefresh: false);
   DashboardView _dashboardView = DashboardView.short;
   Set<String> _selectedCards = {};
+  Map<String, dynamic>? userData;
+  bool isAdmin = false;
 
-  // Loading state
   bool isLoading = true;
   bool isSubscriptionExpiringSoon = false;
   bool isSubscriptionExpired = false;
-  // Dashboard metrics
   final DashboardStats _stats = DashboardStats.empty();
   final FirebaseMessaging _fcm = FirebaseMessaging.instance;
   StreamSubscription? _notificationSubscription;
 
-  // User data
   String? userId;
   String? userName;
   List<String> userCompanyIds = [];
@@ -59,19 +53,36 @@ class DashboardPageState extends State<DashboardPage> {
   @override
   void initState() {
     super.initState();
-   //  _licenseService = LicenseService();
     safeDebugPrint('🔄 DashboardPage initState called');
+
     _initializeData();
     _checkSubscriptionStatus();
     _startListeningToUserChanges();
-    _setupFCM();
     _checkInitialNotification();
     _setupLicenseStatusListener();
     _testExpiryDate();
     _checkLicenseExpiryStatus();
     _saveExpiryDateToLocalStorage();
-        _listenForNewDeviceRequests();
+    _listenForNewDeviceRequests();
     _listenForNewLicenseRequests();
+    _debugAdminStatus();
+    _loadUserData();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await loadSettings(); // تحميل الإعدادات أولاً
+      await _debugAndFixSettings(); // ثم تصحيحها إذا لزم الأمر
+      _checkAndFixSettings(); // فحص إضافي
+    });
+  }
+
+  Future<void> _loadUserData() async {
+    final data = await HiveService.getUserData();
+    if (mounted) {
+      setState(() {
+        userData = data;
+        isAdmin = data?['isAdmin'] == true;
+      });
+    }
   }
 
   void _listenForNewLicenseRequests() {
@@ -91,7 +102,6 @@ class DashboardPageState extends State<DashboardPage> {
         final now = DateTime.now();
         final difference = now.difference(createdAt);
 
-        // فقط إشعار إذا الطلب جديد (أقل من 10 ثواني)
         if (difference.inSeconds < 10) {
           final userName = doc['displayName'];
           if (!mounted) return;
@@ -101,8 +111,7 @@ class DashboardPageState extends State<DashboardPage> {
               action: SnackBarAction(
                 label: 'view'.tr(),
                 onPressed: () {
-                  DefaultTabController.of(context)
-                      .animateTo(0); // الانتقال إلى تبويب التراخيص
+                  DefaultTabController.of(context).animateTo(0);
                 },
               ),
               duration: const Duration(seconds: 6),
@@ -128,7 +137,6 @@ class DashboardPageState extends State<DashboardPage> {
         final now = DateTime.now();
         final difference = now.difference(createdAt);
 
-        // فقط أظهر الإشعار إذا تم إنشاء الطلب في آخر 10 ثواني (حديث)
         if (difference.inSeconds < 10) {
           final userName = doc['displayName'];
           final licenseId = doc['licenseId'];
@@ -140,8 +148,7 @@ class DashboardPageState extends State<DashboardPage> {
               action: SnackBarAction(
                 label: 'view'.tr(),
                 onPressed: () {
-                  DefaultTabController.of(context)
-                      .animateTo(2); // التوجه إلى تبويب الأجهزة
+                  DefaultTabController.of(context).animateTo(2);
                 },
               ),
               duration: const Duration(seconds: 6),
@@ -156,27 +163,28 @@ class DashboardPageState extends State<DashboardPage> {
     try {
       final expiryDate = await _getExpiryDateFromFirebase();
       if (expiryDate != null) {
-        safeDebugPrint('💾 Expiry date saved to local storage: $expiryDate');
+        await HiveService.cacheData(
+            'expiry_date', expiryDate.toIso8601String());
+        safeDebugPrint('💾 Expiry date saved to Hive: $expiryDate');
       }
     } catch (e) {
-      safeDebugPrint('❌ Error saving expiry date to local storage: $e');
+      safeDebugPrint('❌ Error saving expiry date to Hive: $e');
     }
   }
 
   Future<DateTime?> _getExpiryDateFromLocalStorage() async {
     try {
-      safeDebugPrint('📦 Getting expiry date from local storage');
-      final prefs = await SharedPreferences.getInstance();
-      final expiryString = prefs.getString('expiry_date');
+      safeDebugPrint('📦 Getting expiry date from Hive');
+      final expiryString = await HiveService.getCachedData('expiry_date');
 
       if (expiryString != null) {
-        safeDebugPrint('📦 Found expiry date in local storage: $expiryString');
+        safeDebugPrint('📦 Found expiry date in Hive: $expiryString');
         return DateTime.parse(expiryString);
       } else {
-        safeDebugPrint('❌ No expiry date found in local storage');
+        safeDebugPrint('❌ No expiry date found in Hive');
       }
     } catch (e) {
-      safeDebugPrint('❌ Error getting expiry date from local storage: $e');
+      safeDebugPrint('❌ Error getting expiry date from Hive: $e');
     }
     return null;
   }
@@ -185,7 +193,6 @@ class DashboardPageState extends State<DashboardPage> {
     safeDebugPrint(
         '📊 Building time left bar. isExpiringSoon: $isSubscriptionExpiringSoon, timeLeft: $subscriptionTimeLeft');
 
-    // إذا لم يكن الاشتراك على وشك الانتهاء أو لا يوجد وقت متبقي، لا تعرض أي شيء
     if (!isSubscriptionExpiringSoon ||
         subscriptionTimeLeft == null ||
         subscriptionTimeLeft!.isEmpty) {
@@ -193,7 +200,6 @@ class DashboardPageState extends State<DashboardPage> {
       return const SizedBox();
     }
 
-    // إذا كانت الرسالة تتعلق بحدود الأجهزة، لا تعرض الشريط
     if (subscriptionTimeLeft!.contains('maximum number of devices')) {
       safeDebugPrint('📊 Device limit message, not showing time bar');
       return const SizedBox();
@@ -219,7 +225,6 @@ class DashboardPageState extends State<DashboardPage> {
         final now = DateTime.now();
         final daysLeft = expiryDate.difference(now).inDays;
 
-        // تحديد اللون حسب الأيام المتبقية
         Color progressColor;
         if (daysLeft > 7) {
           progressColor = Colors.green;
@@ -241,7 +246,6 @@ class DashboardPageState extends State<DashboardPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // العنوان
               Row(
                 children: [
                   Icon(
@@ -261,8 +265,6 @@ class DashboardPageState extends State<DashboardPage> {
                 ],
               ),
               const SizedBox(height: 12),
-
-              // الرسالة التحذيرية
               Text(
                 tr('license_expiring_message'),
                 style: TextStyle(
@@ -271,8 +273,6 @@ class DashboardPageState extends State<DashboardPage> {
                 ),
               ),
               const SizedBox(height: 8),
-
-              // الوقت المتبقي
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -292,8 +292,6 @@ class DashboardPageState extends State<DashboardPage> {
                   ),
                 ],
               ),
-
-              // تاريخ الانتهاء
               const SizedBox(height: 8),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -320,6 +318,7 @@ class DashboardPageState extends State<DashboardPage> {
       },
     );
   }
+
   Widget _buildSimpleTimeLeftBar() {
     return Container(
       width: double.infinity,
@@ -359,10 +358,9 @@ class DashboardPageState extends State<DashboardPage> {
       final expiryDate = expiryTimestamp?.toDate();
 
       if (expiryDate != null) {
-        // احفظ التاريخ في التخزين المحلي للاستخدام المستقبلي
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('expiry_date', expiryDate.toIso8601String());
-        safeDebugPrint('💾 Saved expiry date to local storage: $expiryDate');
+        await HiveService.cacheData(
+            'expiry_date', expiryDate.toIso8601String());
+        safeDebugPrint('💾 Saved expiry date to Hive: $expiryDate');
       }
 
       return expiryDate;
@@ -372,12 +370,16 @@ class DashboardPageState extends State<DashboardPage> {
     }
   }
 
-  void _checkLicenseExpiryStatus() async {
+  Future<void> _checkLicenseExpiryStatus() async {
     safeDebugPrint('🔍 Checking license expiry status');
     final subscriptionService = UserSubscriptionService();
     final result = await subscriptionService.checkUserSubscription();
 
     if (!mounted) return;
+
+    // 🟢 الحصول على بيانات المستخدم من Hive أولاً
+    final userData = await HiveService.getUserData();
+    final bool isAdmin = userData?['isAdmin'] == true;
 
     setState(() {
       isSubscriptionExpiringSoon = result.isExpiringSoon;
@@ -391,23 +393,41 @@ class DashboardPageState extends State<DashboardPage> {
     safeDebugPrint('   isExpired: $isSubscriptionExpired');
     safeDebugPrint('   timeLeft: $subscriptionTimeLeft');
     safeDebugPrint('   expiryDate: ${result.expiryDate}');
+    safeDebugPrint('   isAdmin: $isAdmin'); // ✅ تأكد من ظهور هذه القيمة
 
-    // إذا كان الترخيص غير صالح بسبب حدود الأجهزة، لا تعتبره منتهياً
-    // ولكن أظهر رسالة المستخدم
     if (!result.isValid &&
         subscriptionTimeLeft != null &&
         subscriptionTimeLeft!.contains('maximum number of devices')) {
-      // أظهر رسالة للمستخدم حول حدود الأجهزة
       _showDeviceLimitWarning(subscriptionTimeLeft!);
     }
 
-    // تأكد من حفظ تاريخ الانتهاء في التخزين المحلي
     if (result.expiryDate != null) {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(
+      await HiveService.cacheData(
           'expiry_date', result.expiryDate!.toIso8601String());
       safeDebugPrint('💾 Saved expiry date from check: ${result.expiryDate}');
     }
+
+    // 🟢 التحقق من أن isAdmin true قبل تجاهل التوجيه
+    if (isSubscriptionExpired) {
+      if (isAdmin) {
+        safeDebugPrint(
+            '✅ License expired but user is ADMIN → bypassing redirect');
+        // لا يتم التوجيه للمسؤول
+      } else {
+        safeDebugPrint(
+            '⏰ License expired and user is NOT admin → redirecting...');
+        _redirectToExpiredPage();
+      }
+    }
+  }
+
+  /// Safe redirect to the license-request page (call from async callbacks / listeners)
+  void _redirectToExpiredPage() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      // using go_router's navigation (you already import go_router)
+      context.go('/license/request');
+    });
   }
 
   void _showDeviceLimitWarning(String message) {
@@ -422,9 +442,8 @@ class DashboardPageState extends State<DashboardPage> {
     });
   }
 
- void _testExpiryDate() {
+  void _testExpiryDate() {
     safeDebugPrint('🧪 Testing expiry date calculation');
-    // إصلاح: استخدام Timestamp مباشرة بدلاً من seconds و nanoseconds
     final expiryTimestamp = Timestamp(1757504727, 573000000);
     final expiryDate = expiryTimestamp.toDate();
     final now = DateTime.now();
@@ -452,26 +471,70 @@ class DashboardPageState extends State<DashboardPage> {
 
   Future<void> _initializeData() async {
     safeDebugPrint('🔄 Initializing data');
+    await _migrateFromSharedPreferences();
     await _syncUserData();
     await _reloadUserData();
     await loadSettings();
     await _loadInitialData();
-
-    // تحقق من انتهاء الصلاحية بعد تحميل البيانات
     await _checkIfLicenseExpired();
+  }
+
+  Future<void> _migrateFromSharedPreferences() async {
+    try {
+      final hasMigrated = await HiveService.getSetting<bool>('has_migrated',
+          defaultValue: false);
+
+      if (hasMigrated != true) {
+        safeDebugPrint('🔄 Migrating data from SharedPreferences to Hive');
+
+        final prefs = await SharedPreferences.getInstance();
+
+        // هجرة إعدادات Dashboard
+        final dashboardView = prefs.getString('prefDashboardView');
+        final selectedCards = prefs.getStringList('prefSelectedCards');
+
+        if (dashboardView != null) {
+          // إصلاح: حفظ القيمة كما هي دون استخدام .name
+          await HiveService.saveSetting('dashboard_view', dashboardView);
+          safeDebugPrint('💾 Migrated dashboard_view: $dashboardView');
+        }
+        if (selectedCards != null) {
+          await HiveService.saveSetting('selected_cards', selectedCards);
+          safeDebugPrint('💾 Migrated selected_cards: $selectedCards');
+        }
+
+        // هجرة تاريخ الانتهاء
+        final expiryDate = prefs.getString('expiry_date');
+        if (expiryDate != null) {
+          await HiveService.cacheData('expiry_date', expiryDate);
+          safeDebugPrint('💾 Migrated expiry_date: $expiryDate');
+        }
+
+        await HiveService.saveSetting('has_migrated', true);
+        safeDebugPrint('✅ Migration completed successfully');
+      }
+    } catch (e) {
+      safeDebugPrint('❌ Error during migration: $e');
+    }
   }
 
   Future<void> _checkIfLicenseExpired() async {
     final subscriptionService = UserSubscriptionService();
     final result = await subscriptionService.checkUserSubscription();
 
-    if (result.isExpired && mounted) {
+    // 🟢 التحقق من صلاحية المسؤول هنا أيضاً
+    final userData = await HiveService.getUserData();
+    final bool isAdmin = userData?['isAdmin'] == true;
+
+    if (result.isExpired && mounted && !isAdmin) {
       safeDebugPrint('⏰ License expired during initialization, redirecting...');
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
           context.go('/license/request');
         }
       });
+    } else if (result.isExpired && isAdmin) {
+      safeDebugPrint('✅ Admin user - skipping license expiration redirect');
     }
   }
 
@@ -492,11 +555,20 @@ class DashboardPageState extends State<DashboardPage> {
       final docs = snapshot.docs.where((doc) => doc.exists).toList();
       if (docs.isEmpty) {
         safeDebugPrint('❌ No license found');
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) {
-            context.go('/license/request');
-          }
-        });
+
+        // 🟢 التحقق من صلاحية المسؤول قبل التوجيه
+        final userData = await HiveService.getUserData();
+        final bool isAdmin = userData?['isAdmin'] == true;
+
+        if (!isAdmin) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              context.go('/license/request');
+            }
+          });
+        } else {
+          safeDebugPrint('✅ Admin user - skipping license check redirect');
+        }
         return;
       }
 
@@ -510,33 +582,36 @@ class DashboardPageState extends State<DashboardPage> {
 
       if (activeLicense == null) {
         safeDebugPrint('❌ No active license found or license expired');
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) {
-            context.go('/license/request');
-          }
-        });
+
+        // 🟢 التحقق من صلاحية المسؤول قبل التوجيه
+        final userData = await HiveService.getUserData();
+        final bool isAdmin = userData?['isAdmin'] == true;
+
+        if (!isAdmin) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              context.go('/license/request');
+            }
+          });
+        } else {
+          safeDebugPrint('✅ Admin user - skipping expired license redirect');
+        }
       }
     });
   }
 
-  Future<void> _setupFCM() async {
-    safeDebugPrint('📱 Setting up FCM');
-    await _fcm.requestPermission();
-    _notificationSubscription = FirebaseMessaging.onMessage.listen((message) {
-      _showNotification(message);
-    });
-    safeDebugPrint(
-        '✅ FCM onMessage listener initialized: $_notificationSubscription');
-  }
-
   void _checkInitialNotification() async {
     safeDebugPrint('🔔 Checking for initial notification');
-    RemoteMessage? initialMessage = await _fcm.getInitialMessage();
-    if (initialMessage != null) {
-      safeDebugPrint('🔔 Initial notification found: ${initialMessage.data}');
-      _handleNotification(initialMessage);
-    } else {
-      safeDebugPrint('🔔 No initial notification found');
+    try {
+      RemoteMessage? initialMessage = await _fcm.getInitialMessage();
+      if (initialMessage != null) {
+        safeDebugPrint('🔔 Initial notification found: ${initialMessage.data}');
+        _handleNotification(initialMessage);
+      } else {
+        safeDebugPrint('🔔 No initial notification found');
+      }
+    } catch (e) {
+      safeDebugPrint('❌ Error checking initial notification: $e');
     }
   }
 
@@ -598,23 +673,6 @@ class DashboardPageState extends State<DashboardPage> {
     Navigator.pushNamed(context, '/license-requests');
   }
 
-  void _showNotification(RemoteMessage message) {
-    safeDebugPrint('📲 Showing notification: ${message.notification?.title}');
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(message.notification?.title ?? 'New Notification'),
-        content: Text(message.notification?.body ?? 'New license request'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('ok'.tr()),
-          ),
-        ],
-      ),
-    );
-  }
-
   bool isSameDate(DateTime? a, DateTime? b) {
     if (a == null || b == null) return false;
     return a.year == b.year && a.month == b.month && a.day == b.day;
@@ -636,152 +694,272 @@ class DashboardPageState extends State<DashboardPage> {
       final data = snapshot.data();
       if (data == null) return;
 
-      final localUser = await UserLocalStorage.getUser();
-      bool needUpdate = false;
+      try {
+        final localUser = await HiveService.getUserData();
+        bool needUpdate = false;
 
-      final cloudCreatedAt = (data['createdAt'] as Timestamp?)?.toDate();
-      final cloudDuration = data['subscriptionDurationInDays'] ?? 30;
-      final cloudIsActive = data['isActive'] ?? true;
+        final cloudCreatedAt = (data['createdAt'] as Timestamp?)?.toDate();
+        final cloudDuration = data['subscriptionDurationInDays'] ?? 30;
+        final cloudIsActive = data['isActive'] ?? true;
 
-      final localCreatedAt = localUser?['createdAt'] as DateTime?;
-      final localDuration = localUser?['subscriptionDurationInDays'];
-      final localIsActive = localUser?['isActive'];
+        final localCreatedAt = localUser?['createdAt'] as DateTime?;
+        final localDuration = localUser?['subscriptionDurationInDays'];
+        final localIsActive = localUser?['isActive'];
 
-      safeDebugPrint('🔍 Comparing:');
-      safeDebugPrint(
-          '📦 cloud => createdAt=$cloudCreatedAt, duration=$cloudDuration, isActive=$cloudIsActive');
-      safeDebugPrint(
-          '📦 local => createdAt=$localCreatedAt, duration=$localDuration, isActive=$localIsActive');
-
-      if (localCreatedAt == null ||
-          !localCreatedAt.isAtSameMomentAs(cloudCreatedAt!) ||
-          localDuration != cloudDuration ||
-          localIsActive != cloudIsActive) {
-        needUpdate = true;
-      }
-      if (localCreatedAt != null && cloudCreatedAt != null) {
+        safeDebugPrint('🔍 Comparing:');
         safeDebugPrint(
-            '📏 Time diff: ${localCreatedAt.difference(cloudCreatedAt).inMilliseconds} ms');
-      }
+            '📦 cloud => createdAt=$cloudCreatedAt, duration=$cloudDuration, isActive=$cloudIsActive');
+        safeDebugPrint(
+            '📦 local => createdAt=$localCreatedAt, duration=$localDuration, isActive=$localIsActive');
 
-      if (needUpdate) {
-        await UserLocalStorage.saveUser(
-          userId: firebaseUser.uid,
-          email: firebaseUser.email ?? '',
-          displayName: firebaseUser.displayName,
-          companyIds: (data['companyIds'] is List)
-              ? (data['companyIds'] as List).cast<String>()
-              : [],
-          factoryIds: (data['factoryIds'] is List)
-              ? (data['factoryIds'] as List).cast<String>()
-              : [],
-          supplierIds: (data['supplierIds'] is List)
-              ? (data['supplierIds'] as List).cast<String>()
-              : [],
-          createdAt: cloudCreatedAt!,
-          subscriptionDurationInDays: cloudDuration,
-          isActive: cloudIsActive,
-        );
-
-        safeDebugPrint('✅ Local user data updated from Firestore.');
-
-        if (mounted) {
-          setState(() {
-            userName = firebaseUser.displayName;
-            userId = firebaseUser.uid;
-            userCompanyIds =
-                (data['companyIds'] as List?)?.cast<String>() ?? [];
-          });
-          _reloadUserData();
+        // إصلاح: التحقق من أن cloudCreatedAt ليس null قبل استخدامه
+        if (localCreatedAt == null ||
+            cloudCreatedAt == null ||
+            !localCreatedAt.isAtSameMomentAs(cloudCreatedAt) ||
+            localDuration != cloudDuration ||
+            localIsActive != cloudIsActive) {
+          needUpdate = true;
         }
+
+        if (needUpdate && cloudCreatedAt != null) {
+          final userData = {
+            'userId': firebaseUser.uid,
+            'email': firebaseUser.email ?? '',
+            'displayName': firebaseUser.displayName,
+            'companyIds': (data['companyIds'] as List?)?.cast<String>() ?? [],
+            'factoryIds': (data['factoryIds'] as List?)?.cast<String>() ?? [],
+            'supplierIds': (data['supplierIds'] as List?)?.cast<String>() ?? [],
+            'createdAt': cloudCreatedAt,
+            'subscriptionDurationInDays': cloudDuration,
+            'isActive': cloudIsActive,
+            'isAdmin': data['isAdmin'] ?? false,
+          };
+
+          await HiveService.saveUserData(userData);
+          safeDebugPrint('✅ Hive user data updated from Firestore.');
+
+          if (mounted) {
+            setState(() {
+              userName = firebaseUser.displayName;
+              userId = firebaseUser.uid;
+              userCompanyIds =
+                  (data['companyIds'] as List?)?.cast<String>() ?? [];
+            });
+            _reloadUserData();
+          }
+        }
+      } catch (e) {
+        safeDebugPrint('❌ Error updating user data: $e');
       }
     });
   }
 
   Future<void> _reloadUserData() async {
-    safeDebugPrint('🔄 Reloading user data');
-    final user = await UserLocalStorage.getUser();
-    if (user == null || !mounted) return;
+    safeDebugPrint('🔄 Reloading user data from Hive');
+    try {
+      final user = await HiveService.getUserData();
+      if (user == null || !mounted) return;
 
-    setState(() {
-      userName = user['displayName'];
-      userId = user['userId'];
-      userCompanyIds = (user['companyIds'] as List?)?.cast<String>() ?? [];
-      _stats.totalCompanies = userCompanyIds.length;
-      final createdAt = user['createdAt'] as DateTime?;
-      final subscriptionDuration = user['subscriptionDurationInDays'] as int?;
-      final isActive = user['isActive'] as bool?;
+    
+    final displayName = user['displayName'] ?? '';
+    final email = user['email'] ?? '';
+    
+    safeDebugPrint('🔍 Hive user data:');
+    safeDebugPrint('   - displayName: $displayName');
+    safeDebugPrint('   - email: $email');
+    safeDebugPrint('   - isAdmin: ${user['isAdmin']}');
+    
+      setState(() {
+        userName =  displayName.isNotEmpty ? displayName : email;
+        userId = user['userId'];
+        userCompanyIds = (user['companyIds'] as List?)?.cast<String>() ?? [];
+        _stats.totalCompanies = userCompanyIds.length;
+        final createdAt = user['createdAt'] as DateTime?;
+        final subscriptionDuration = user['subscriptionDurationInDays'] as int?;
+        final isActive = user['isActive'] as bool?;
+        final isAdmin = user['isAdmin'] as bool?; // 🟢 أضف هذا السطر
 
-      safeDebugPrint(
-          '🔁 Local reload: createdAt=$createdAt, duration=$subscriptionDuration, isActive=$isActive');
-    });
+        safeDebugPrint(
+            '🔁 Hive reload: createdAt=$createdAt, duration=$subscriptionDuration, isActive=$isActive, isAdmin=$isAdmin');
+      });
+    } catch (e) {
+      safeDebugPrint('❌ Error reloading user data: $e');
+    }
   }
 
   Future<void> loadSettings() async {
-    safeDebugPrint('⚙️ Loading settings');
-    final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      _dashboardView = prefs.getString(prefDashboardView) == 'long'
-          ? DashboardView.long
-          : DashboardView.short;
-      _selectedCards = (prefs.getStringList(prefSelectedCards) ?? []).toSet();
-    });
+    safeDebugPrint('⚙️ Loading settings from Hive');
+
+    try {
+      // قراءة القيم من Hive
+      final dashboardView = await HiveService.getDashboardView();
+      final selectedCards = await HiveService.getSelectedCards();
+
+      safeDebugPrint('🔍 Loaded from Hive:');
+      safeDebugPrint('   - dashboard_view: $dashboardView');
+      safeDebugPrint('   - selected_cards: $selectedCards');
+
+      setState(() {
+        _dashboardView = dashboardView;
+        _selectedCards = (selectedCards.isNotEmpty)
+            ? selectedCards
+            : _getDefaultMetrics(); // استخدام دالة للحصول على الافتراضيات
+      });
+
+      safeDebugPrint('✅ Settings loaded successfully:');
+      safeDebugPrint('   - View: $_dashboardView');
+      safeDebugPrint('   - Cards: $_selectedCards');
+    } catch (e) {
+      safeDebugPrint('❌ Error loading settings: $e');
+
+      // استخدام القيم الافتراضية في حالة الخطأ
+      setState(() {
+        _dashboardView = DashboardView.short;
+        _selectedCards = _getDefaultMetrics();
+      });
+
+      safeDebugPrint('🔄 Using default settings:');
+      safeDebugPrint('   - View: $_dashboardView');
+      safeDebugPrint('   - Cards: $_selectedCards');
+    }
+  }
+
+  // دالة مساعدة للحصول على البطاقات الافتراضية
+  Set<String> _getDefaultMetrics() {
+    final viewType = _dashboardView == DashboardView.long ? 'long' : 'short';
+    return dashboardMetrics
+        .where((metric) => metric.defaultMenuType == viewType)
+        .map((metric) => metric.titleKey)
+        .toSet();
+  }
+
+  Future<void> _debugAndFixSettings() async {
+    safeDebugPrint('🔧 Debugging and fixing settings...');
+
+    try {
+      final currentView = await HiveService.getDashboardView();
+      final currentCards = await HiveService.getSelectedCards();
+
+      safeDebugPrint('   - Current view in Hive: $currentView');
+      safeDebugPrint('   - Current cards in Hive: $currentCards');
+
+      // إذا كانت البطاقات فارغة أو null، تعيين البطاقات الافتراضية
+      if (currentCards.isEmpty) {
+        safeDebugPrint('   - No cards found, setting defaults...');
+        final defaultCards = _getDefaultMetrics();
+        await HiveService.saveSelectedCards(defaultCards);
+        safeDebugPrint('   - Default cards set: $defaultCards');
+
+        if (mounted) {
+          setState(() {
+            _selectedCards = defaultCards;
+          });
+        }
+      }
+
+      // تأكد من أن العرض الحالي متوافق مع البطاقات
+      if (currentView == DashboardView.long && currentCards.length < 4) {
+        safeDebugPrint('   - Long view with few cards, adjusting...');
+        final defaultCards = _getDefaultMetrics();
+        await HiveService.saveSelectedCards(defaultCards);
+        safeDebugPrint('   - Adjusted cards: $defaultCards');
+      }
+    } catch (e) {
+      safeDebugPrint('❌ Error debugging settings: $e');
+    }
+  }
+
+  Future<void> _checkAndFixSettings() async {
+    try {
+      // التحقق من وجود إعدادات صالحة
+      if (_selectedCards.isEmpty) {
+        safeDebugPrint(
+            '🔍 No selected cards found, checking default metrics...');
+
+        // الحصول على البطاقات الافتراضية للنوع الحالي
+        final defaultViewType =
+            _dashboardView == DashboardView.long ? 'long' : 'short';
+        final defaultMetrics = dashboardMetrics
+            .where((metric) => metric.defaultMenuType == defaultViewType)
+            .map((metric) => metric.titleKey)
+            .toSet();
+
+        safeDebugPrint(
+            '🔍 Default metrics for $defaultViewType: $defaultMetrics');
+
+        // حفظ الإعدادات الافتراضية إذا لزم الأمر
+        if (defaultMetrics.isNotEmpty) {
+          await HiveService.saveSetting(
+              'selected_cards', defaultMetrics.toList());
+          setState(() {
+            _selectedCards = defaultMetrics;
+          });
+          safeDebugPrint('✅ Saved default cards to Hive: $defaultMetrics');
+        }
+      }
+    } catch (e) {
+      safeDebugPrint('❌ Error checking settings: $e');
+    }
   }
 
   Future<void> _loadInitialData() async {
     safeDebugPrint('📊 Loading initial data');
-    final user = await UserLocalStorage.getUser();
-    if (user == null || !mounted) return;
+    try {
+      final user = await HiveService.getUserData();
+      if (user == null || !mounted) return;
 
-    setState(() {
-      userName = user['displayName'];
-      userId = user['userId'];
-      userCompanyIds = (user['companyIds'] as List?)?.cast<String>() ?? [];
-      _stats.totalCompanies = userCompanyIds.length;
-    });
+      setState(() {
+        userName = user['displayName'];
+        userId = user['userId'];
+        userCompanyIds = (user['companyIds'] as List?)?.cast<String>() ?? [];
+        _stats.totalCompanies = userCompanyIds.length;
+      });
 
-    await _loadCachedData();
-    await fetchStats();
+      await _loadCachedData();
+      await fetchStats();
+    } catch (e) {
+      safeDebugPrint('❌ Error loading initial data: $e');
+      setState(() => isLoading = false);
+    }
   }
 
   Future<void> _checkSubscriptionStatus() async {
     safeDebugPrint('🔍 Checking subscription status');
-    final subscriptionService = UserSubscriptionService();
-    final result = await subscriptionService.checkUserSubscription();
+    try {
+      final subscriptionService = UserSubscriptionService();
+      final result = await subscriptionService.checkUserSubscription();
 
-    if (!mounted) return;
+      if (!mounted) return;
 
-    setState(() {
-      isSubscriptionExpiringSoon = result.isExpiringSoon;
-      isSubscriptionExpired = result.isExpired;
-      subscriptionTimeLeft = result.timeLeftFormatted;
-      isLoading = false;
-    });
+      setState(() {
+        isSubscriptionExpiringSoon = result.isExpiringSoon;
+        isSubscriptionExpired = result.isExpired;
+        subscriptionTimeLeft = result.timeLeftFormatted;
+        isLoading = false;
+      });
 
-    _debugSubscriptionStatus(); // إضافة لعرض حالة الاشتراك
+      _debugSubscriptionStatus();
 
-    _timer?.cancel();
-    // if (!result.isExpired && result.expiryDate != null) {
-    //   _timer = Timer.periodic(const Duration(seconds: 1), (_) async {
-    //     final updated = await subscriptionService.checkUserSubscription();
-    //     if (mounted) {
-    //       setState(() => subscriptionTimeLeft = updated.timeLeftFormatted);
-    //     }
-    //   });
-    // }
+      _timer?.cancel();
 
-    if (result.isExpiringSoon) {
-      SubscriptionNotifier.showWarning(
-        context,
-        timeLeft: result.timeLeftFormatted ?? '',
-      );
-    }
+      if (result.isExpiringSoon) {
+        SubscriptionNotifier.showWarning(
+          context,
+          timeLeft: result.timeLeftFormatted ?? '',
+        );
+      }
 
-    if (result.isExpired && result.expiryDate != null) {
-      SubscriptionNotifier.showExpiredDialog(
-        context,
-        expiryDate: result.expiryDate!,
-      );
+      if (result.isExpired && result.expiryDate != null) {
+        SubscriptionNotifier.showExpiredDialog(
+          context,
+          expiryDate: result.expiryDate!,
+        );
+      }
+    } catch (e) {
+      safeDebugPrint('❌ Error checking subscription status: $e');
+      if (mounted) {
+        setState(() => isLoading = false);
+      }
     }
   }
 
@@ -795,23 +973,27 @@ class DashboardPageState extends State<DashboardPage> {
   }
 
   Future<void> _loadCachedData() async {
-    safeDebugPrint('💾 Loading cached data');
-    final cached = await UserLocalStorage.getDashboardData();
-    final extended = await UserLocalStorage.getExtendedStats();
+    safeDebugPrint('💾 Loading cached data from Hive');
+    try {
+      final cached = await HiveService.getCachedData('dashboard_stats') ?? {};
+      final extended = await HiveService.getCachedData('extended_stats') ?? {};
 
-    if (!mounted) return;
+      if (!mounted) return;
 
-    setState(() {
-      _stats
-        ..totalSuppliers = cached['totalSuppliers'] ?? 0
-        ..totalOrders = cached['totalOrders'] ?? 0
-        ..totalAmount = cached['totalAmount'] ?? 0.0
-        ..totalItems = cached['totalItems'] ?? 0
-        ..totalMovements = extended['totalStockMovements'] ?? 0
-        ..totalManufacturingOrders = extended['totalManufacturingOrders'] ?? 0
-        ..totalFinishedProducts = extended['totalFinishedProducts'] ?? 0
-        ..totalFactories = extended['totalFactories'] ?? 0;
-    });
+      setState(() {
+        _stats
+          ..totalSuppliers = cached['totalSuppliers'] ?? 0
+          ..totalOrders = cached['totalOrders'] ?? 0
+          ..totalAmount = cached['totalAmount'] ?? 0.0
+          ..totalItems = cached['totalItems'] ?? 0
+          ..totalMovements = extended['totalStockMovements'] ?? 0
+          ..totalManufacturingOrders = extended['totalManufacturingOrders'] ?? 0
+          ..totalFinishedProducts = extended['totalFinishedProducts'] ?? 0
+          ..totalFactories = extended['totalFactories'] ?? 0;
+      });
+    } catch (e) {
+      safeDebugPrint('❌ Error loading cached data: $e');
+    }
   }
 
   Future<void> fetchStats() async {
@@ -822,7 +1004,7 @@ class DashboardPageState extends State<DashboardPage> {
     setState(() => isLoading = true);
 
     try {
-      final localUser = await UserLocalStorage.getUser();
+      final localUser = await HiveService.getUserData();
       if (localUser == null) {
         safeDebugPrint('❌ No local user data found');
         return;
@@ -1015,84 +1197,150 @@ class DashboardPageState extends State<DashboardPage> {
   }
 
   Future<void> _syncUserData() async {
-    safeDebugPrint('🔄 Syncing user data');
+    safeDebugPrint('🔄 Syncing user data with Hive');
     final firebaseUser = FirebaseAuth.instance.currentUser;
     if (firebaseUser == null) return;
 
-    final userDoc = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(firebaseUser.uid)
-        .get();
+    try {
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(firebaseUser.uid)
+          .get();
 
-    if (!userDoc.exists) return;
+      if (!userDoc.exists) return;
 
-    final data = userDoc.data();
-    if (data == null) return;
+      final data = userDoc.data();
+      if (data == null) return;
 
-    final Timestamp? createdAtTimestamp = data['createdAt'];
-    final createdAt = createdAtTimestamp?.toDate();
-    final subscriptionDurationInDays = data['subscriptionDurationInDays'] ?? 30;
-    final isActive = data['isActive'] ?? true;
+      final Timestamp? createdAtTimestamp = data['createdAt'];
+      final createdAt = createdAtTimestamp?.toDate();
+      final subscriptionDurationInDays =
+          data['subscriptionDurationInDays'] ?? 30;
+      final isActive = data['isActive'] ?? true;
+      final isAdmin = data['isAdmin'] ?? false; // 🟢 أضف هذا السطر
 
-    final localUser = await UserLocalStorage.getUser();
+      // الحصول على displayName من Firebase Auth وليس من Firestore
+      final displayName = firebaseUser.displayName ?? data['displayName'] ?? '';
 
-    bool needUpdateLocal = false;
+      safeDebugPrint('🔥 Firestore user data:');
+      safeDebugPrint('   - displayName from Firestore: ${data['displayName']}');
+      safeDebugPrint(
+          '   - displayName from Firebase Auth: ${firebaseUser.displayName}');
+      safeDebugPrint('   - email: ${firebaseUser.email}');
+      safeDebugPrint('   - isAdmin: $isAdmin');
 
-    if (localUser == null) {
-      needUpdateLocal = true;
-    } else {
-      final localCreatedAt = localUser['createdAt'] as DateTime?;
-      final localSubscriptionDuration =
-          localUser['subscriptionDurationInDays'] ?? 30;
-      final localIsActive = localUser['isActive'] ?? true;
+      final localUser = await HiveService.getUserData();
 
-      if (localCreatedAt == null ||
-          !isSameDate(localCreatedAt, createdAt) ||
-          localSubscriptionDuration != subscriptionDurationInDays ||
-          localIsActive != isActive) {
+      bool needUpdateLocal = false;
+
+      if (localUser == null) {
         needUpdateLocal = true;
+      } else {
+        final localCreatedAt = localUser['createdAt'] as DateTime?;
+        final localSubscriptionDuration =
+            localUser['subscriptionDurationInDays'] ?? 30;
+        final localIsActive = localUser['isActive'] ?? true;
+        final localIsAdmin = localUser['isAdmin'] ?? false; // 🟢 أضف هذا السطر
+        final localDisplayName = localUser['displayName'] ?? '';
+
+        safeDebugPrint('🔍 Comparing local vs remote:');
+        safeDebugPrint('   - local displayName: $localDisplayName');
+        safeDebugPrint('   - remote displayName: $displayName');
+        safeDebugPrint('   - local isAdmin: $localIsAdmin');
+        safeDebugPrint('   - remote isAdmin: $isAdmin');
+
+        // إصلاح: التحقق من أن createdAt ليس null قبل استخدامه
+        if (localCreatedAt == null ||
+            createdAt == null ||
+            !isSameDate(localCreatedAt, createdAt) ||
+            localSubscriptionDuration != subscriptionDurationInDays ||
+            localIsActive != isActive ||
+            localIsAdmin != isAdmin ||
+            localDisplayName != displayName) {
+          needUpdateLocal = true;
+          safeDebugPrint('🔍 Differences detected, need to update local data');
+        }
       }
+
+      if (needUpdateLocal && createdAt != null) {
+        final userData = {
+          'userId': firebaseUser.uid,
+          'email': firebaseUser.email ?? '',
+          'displayName': displayName, //firebaseUser.displayName,
+          'companyIds': (data['companyIds'] as List?)?.cast<String>() ?? [],
+          'factoryIds': (data['factoryIds'] as List?)?.cast<String>() ?? [],
+          'supplierIds': (data['supplierIds'] as List?)?.cast<String>() ?? [],
+          'createdAt': createdAt,
+          'subscriptionDurationInDays': subscriptionDurationInDays,
+          'isActive': isActive,
+          'isAdmin': data['isAdmin'] ?? false,
+        };
+
+        await HiveService.saveUserData(userData);
+        safeDebugPrint(
+            '💾 Hive user data updated from Firestore. isAdmin: $isAdmin');
+        safeDebugPrint('   - displayName saved: $displayName');
+        safeDebugPrint('   - isAdmin saved: $isAdmin');
+
+        if (mounted) {
+          setState(() {
+            userName = displayName.isNotEmpty ? displayName : firebaseUser.email;
+            userId = firebaseUser.uid;
+            userCompanyIds =
+                (data['companyIds'] as List?)?.cast<String>() ?? [];
+          });
+          safeDebugPrint('✅ UI updated with new user data');
+        }  else {
+      safeDebugPrint('✅ Local data is up to date, no need to update');
     }
-
-    if (needUpdateLocal) {
-      await UserLocalStorage.saveUser(
-        userId: firebaseUser.uid,
-        email: firebaseUser.email ?? '',
-        displayName: firebaseUser.displayName,
-        companyIds: (data['companyIds'] as List?)?.cast<String>() ?? [],
-        factoryIds: (data['factoryIds'] as List?)?.cast<String>() ?? [],
-        supplierIds: (data['supplierIds'] as List?)?.cast<String>() ?? [],
-        createdAt: createdAt,
-        subscriptionDurationInDays: subscriptionDurationInDays,
-        isActive: isActive,
-      );
-
-      if (mounted) {
-        setState(() {
-          userName = firebaseUser.displayName;
-          userId = firebaseUser.uid;
-          userCompanyIds = (data['companyIds'] as List?)?.cast<String>() ?? [];
-        });
       }
+    } catch (e) {
+      safeDebugPrint('❌ Error syncing user data: $e');
     }
   }
 
   Future<void> _saveToLocalStorage() async {
-    safeDebugPrint('💾 Saving to local storage');
-    await UserLocalStorage.saveDashboardData(
-      totalCompanies: _stats.totalCompanies,
-      totalSuppliers: _stats.totalSuppliers,
-      totalOrders: _stats.totalOrders,
-      totalAmount: _stats.totalAmount,
-    );
+    safeDebugPrint('💾 Saving to Hive');
+    try {
+      await HiveService.cacheData('dashboard_stats', {
+        'totalCompanies': _stats.totalCompanies,
+        'totalSuppliers': _stats.totalSuppliers,
+        'totalOrders': _stats.totalOrders,
+        'totalAmount': _stats.totalAmount,
+      });
 
-    await UserLocalStorage.saveExtendedStats(
-      totalFactories: _stats.totalFactories,
-      totalItems: _stats.totalItems,
-      totalStockMovements: _stats.totalMovements,
-      totalManufacturingOrders: _stats.totalManufacturingOrders,
-      totalFinishedProducts: _stats.totalFinishedProducts,
-    );
+      await HiveService.cacheData('extended_stats', {
+        'totalFactories': _stats.totalFactories,
+        'totalItems': _stats.totalItems,
+        'totalStockMovements': _stats.totalMovements,
+        'totalManufacturingOrders': _stats.totalManufacturingOrders,
+        'totalFinishedProducts': _stats.totalFinishedProducts,
+      });
+    } catch (e) {
+      safeDebugPrint('❌ Error saving to Hive: $e');
+    }
+  }
+
+  void _debugAdminStatus() async {
+    final userData = await HiveService.getUserData();
+    final isAdmin = userData?['isAdmin'] == true;
+
+    safeDebugPrint('👨‍💼 ADMIN STATUS DEBUG:');
+    safeDebugPrint('   User ID: $userId');
+    safeDebugPrint('   User Name: $userName');
+    safeDebugPrint('   isAdmin from Hive: $isAdmin');
+    safeDebugPrint('   User Data Keys: ${userData?.keys.toList()}');
+
+    // تحقق من Firestore مباشرة
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+      final firestoreIsAdmin = doc.get('isAdmin') ?? false;
+      safeDebugPrint('   isAdmin from Firestore: $firestoreIsAdmin');
+    }
   }
 
   Future<void> _handleRefresh() async {
@@ -1101,14 +1349,19 @@ class DashboardPageState extends State<DashboardPage> {
       await _syncUserData();
       await fetchStats();
 
-      // تحقق من حالة الاشتراك بعد التحديث
       final subscriptionService = UserSubscriptionService();
       final result = await subscriptionService.checkUserSubscription();
 
-      if (result.isExpired && mounted) {
+      // 🟢 التحقق من صلاحية المسؤول قبل التوجيه
+      final userData = await HiveService.getUserData();
+      final bool isAdmin = userData?['isAdmin'] == true;
+
+      if (result.isExpired && mounted && !isAdmin) {
         safeDebugPrint('⏰ License expired after refresh, redirecting...');
         context.go('/license/request');
         return;
+      } else if (result.isExpired && isAdmin) {
+        safeDebugPrint('✅ Admin user - skipping refresh redirect');
       }
 
       _refreshController.refreshCompleted();
@@ -1127,12 +1380,43 @@ class DashboardPageState extends State<DashboardPage> {
     safeDebugPrint('📊 Building stats grid');
     final statsMap = _stats.toMap();
 
-    final filteredMetrics = _selectedCards.isEmpty
-        ? dashboardMetrics.where((metric) =>
-            metric.defaultMenuType ==
-            (_dashboardView == DashboardView.long ? 'long' : 'short'))
-        : dashboardMetrics
-            .where((metric) => _selectedCards.contains(metric.titleKey));
+    safeDebugPrint('🟢 Selected Cards from Hive: $_selectedCards');
+    safeDebugPrint(
+        '🟢 Available Metrics: ${dashboardMetrics.map((m) => m.titleKey).toList()}');
+    safeDebugPrint('🟢 Dashboard View: $_dashboardView');
+
+    List<DashboardMetric> filteredMetrics;
+
+    if (_selectedCards.isEmpty) {
+      // إذا لم يتم اختيار أي بطاقات، عرض البطاقات الافتراضية بناءً على نوع العرض
+      final defaultViewType =
+          _dashboardView == DashboardView.long ? 'long' : 'short';
+      filteredMetrics = dashboardMetrics
+          .where((metric) => metric.defaultMenuType == defaultViewType)
+          .toList();
+
+      safeDebugPrint('🔵 Using default $defaultViewType view metrics');
+    } else {
+      // إذا تم اختيار بطاقات، عرض البطاقات المحددة فقط
+      filteredMetrics = dashboardMetrics
+          .where((metric) => _selectedCards.contains(metric.titleKey))
+          .toList();
+
+      safeDebugPrint('🔵 Using custom selected metrics');
+    }
+
+    // إذا كانت القائمة仍然 فارغة، استخدم البطاقات الافتراضية كحل بديل
+    if (filteredMetrics.isEmpty) {
+      safeDebugPrint(
+          '⚠️ No metrics found, using default short view as fallback');
+      filteredMetrics = dashboardMetrics
+          .where((metric) => metric.defaultMenuType == 'short')
+          .toList();
+    }
+
+    safeDebugPrint(
+        '🟢 Metrics to display: ${filteredMetrics.map((m) => m.titleKey).toList()}');
+    safeDebugPrint('🟢 Number of metrics: ${filteredMetrics.length}');
 
     return GridView.builder(
       shrinkWrap: true,
@@ -1146,7 +1430,7 @@ class DashboardPageState extends State<DashboardPage> {
       ),
       itemCount: filteredMetrics.length,
       itemBuilder: (context, index) {
-        final metric = filteredMetrics.elementAt(index);
+        final metric = filteredMetrics[index];
         return DashboardTileWidget(
           metric: metric,
           data: statsMap,
@@ -1157,6 +1441,13 @@ class DashboardPageState extends State<DashboardPage> {
   }
 
   Widget _buildLicenseExpiredWarning() {
+    // التحقق من حالة الأدمن قبل البناء
+    final isAdmin = userData?['isAdmin'] == true; // يتحول لـ false لو null
+    if (isAdmin) {
+      safeDebugPrint('✅ Admin user → skipping license expired warning');
+      return const SizedBox.shrink(); // لا تبني أي شيء
+    }
+
     safeDebugPrint('⚠️ Building license expired warning');
     return Container(
       width: double.infinity,
@@ -1200,58 +1491,62 @@ class DashboardPageState extends State<DashboardPage> {
 
   @override
   Widget build(BuildContext context) {
-    safeDebugPrint('🏗️ Building DashboardPage');
+    safeDebugPrint('🏗️ Building DashboardPage with Hive');
+
+    // لو لسه بنحمل بيانات المستخدم → اعرض Loader
+    if (isLoading || userData == null) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
     return AppScaffold(
       title: tr('dashboard'),
       userName: userName,
       isSubscriptionExpiringSoon: isSubscriptionExpiringSoon,
       isSubscriptionExpired: isSubscriptionExpired,
       isDashboard: true,
-      body: isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : SmartRefresher(
-              controller: _refreshController,
-              onRefresh: _handleRefresh,
-              enablePullDown: true,
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // رسالة الترحيب
-                    Text(
-                      tr('welcome_back', args: [userName ?? '']),
-                      style: Theme.of(context).textTheme.headlineSmall,
-                    ),
-                    const SizedBox(height: 16),
-
-                    // عرض شريط الوقت المتبقي فقط إذا كان الاشتراك على وشك الانتهاء
-                    if (isSubscriptionExpiringSoon) _buildTimeLeftBar(),
-
-                    // عرض تحذير انتهاء الترخيص فقط (تم إزالة التحذير المكرر)
-                    if (isSubscriptionExpired) _buildLicenseExpiredWarning(),
-
-                    const SizedBox(height: 16),
-                    _buildStatsGrid(),
-                    // في AppScaffold أو مكان مناسب
-                    if (subscriptionTimeLeft != null &&
-                        subscriptionTimeLeft!
-                            .contains('maximum number of devices'))
-                      Padding(
-                        padding: const EdgeInsets.only(top: 16.0),
-                        child: FloatingActionButton(
-                          onPressed: () {
-                            // انتقل إلى صفحة إدارة الأجهزة
-                            context.push('/device-request');
-                          },
-                          backgroundColor: Colors.orange,
-                          child: const Icon(Icons.device_hub),
-                        ),
-                      ),
-                  ],
-                ),
+      body: SmartRefresher(
+        controller: _refreshController,
+        onRefresh: _handleRefresh,
+        enablePullDown: true,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                tr('welcome_back', args: [userName ?? '']),
+                style: Theme.of(context).textTheme.headlineSmall,
               ),
-            ),
+              const SizedBox(height: 16),
+
+              if (isSubscriptionExpiringSoon) _buildTimeLeftBar(),
+
+              // ✅ لا تعرض التحذير لو المستخدم Admin
+              if (isSubscriptionExpired && !(userData?['isAdmin'] == true))
+                _buildLicenseExpiredWarning(),
+
+              const SizedBox(height: 16),
+
+              _buildStatsGrid(),
+
+              if (subscriptionTimeLeft != null &&
+                  subscriptionTimeLeft!.contains('maximum number of devices'))
+                Padding(
+                  padding: const EdgeInsets.only(top: 16.0),
+                  child: FloatingActionButton(
+                    onPressed: () {
+                      context.push('/device-request');
+                    },
+                    backgroundColor: Colors.orange,
+                    child: const Icon(Icons.device_hub),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -1317,395 +1612,3 @@ class DashboardStats {
     };
   }
 }
-
-
-
-/*   Widget _buildTimeLeftBarWithFallbackDate() {
-    // حاول الحصول على تاريخ الانتهاء من Firebase مباشرة
-    return FutureBuilder<DateTime?>(
-      future: _getExpiryDateFromFirebase(),
-      builder: (context, firebaseSnapshot) {
-        if (firebaseSnapshot.connectionState != ConnectionState.done ||
-            !firebaseSnapshot.hasData) {
-          return const SizedBox();
-        }
-
-        final expiryDate = firebaseSnapshot.data!;
-        return _buildTimeLeftBarContent(expiryDate, subscriptionTimeLeft!);
-      },
-    );
-  }
- */
-
-
-/*   Widget _buildTimeLeftBar() {
-    safeDebugPrint(
-        '📊 Building time left bar. isExpiringSoon: $isSubscriptionExpiringSoon, timeLeft: $subscriptionTimeLeft');
-
-    // إذا لم يكن الاشتراك على وشك الانتهاء، لا تعرض أي شيء
-    if (!isSubscriptionExpiringSoon) {
-      safeDebugPrint('📊 License is not expiring soon, hiding time left bar');
-      return const SizedBox();
-    }
-
-    // إذا لم يكن هناك وقت متبقي، لا تعرض أي شيء
-    if (subscriptionTimeLeft == null || subscriptionTimeLeft!.isEmpty) {
-      safeDebugPrint('❌ No time left data available');
-      return const SizedBox();
-    }
-
-    return FutureBuilder<DateTime?>(
-      future: _getExpiryDateFromLocalStorage(),
-      builder: (context, dateSnapshot) {
-        safeDebugPrint(
-            '📅 Date snapshot state: ${dateSnapshot.connectionState}, hasData: ${dateSnapshot.hasData}');
-
-        if (dateSnapshot.connectionState != ConnectionState.done) {
-          safeDebugPrint('⏳ Waiting for date snapshot...');
-          return const CircularProgressIndicator();
-        }
-
-        if (!dateSnapshot.hasData) {
-          safeDebugPrint('❌ No expiry date data available');
-          return _buildSimpleTimeLeftBar();
-        }
-
-        final expiryDate = dateSnapshot.data!;
-        final now = DateTime.now();
-        final daysLeft = expiryDate.difference(now).inDays;
-
-        // تحديد اللون حسب الأيام المتبقية
-        Color progressColor;
-        if (daysLeft > 7) {
-          progressColor = Colors.green;
-        } else if (daysLeft > 4) {
-          progressColor = Colors.orange;
-        } else {
-          progressColor = Colors.red;
-        }
-
-        return Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(16),
-          margin: const EdgeInsets.only(bottom: 16, top: 8),
-          decoration: BoxDecoration(
-            color: progressColor.withAlpha(75),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: progressColor.withAlpha(75)),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // العنوان
-              Row(
-                children: [
-                  Icon(
-                    Icons.warning_amber,
-                    color: progressColor,
-                    size: 24,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    tr('license_expiring_soon'),
-                    style: TextStyle(
-                      color: progressColor,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-
-              // الرسالة التحذيرية
-              Text(
-                tr('license_expiring_message'),
-                style: TextStyle(
-                  color: progressColor,
-                  fontSize: 14,
-                ),
-              ),
-              const SizedBox(height: 8),
-
-              // الوقت المتبقي
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    '${tr('time_left')}:',
-                    style: TextStyle(
-                      color: progressColor,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  Text(
-                    subscriptionTimeLeft!,
-                    style: TextStyle(
-                      color: progressColor,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-
-              // تاريخ الانتهاء
-              const SizedBox(height: 8),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    '${tr('expiry_date')}:',
-                    style: TextStyle(
-                      color: progressColor,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  Text(
-                    '${expiryDate.year}-${expiryDate.month.toString().padLeft(2, '0')}-${expiryDate.day.toString().padLeft(2, '0')}',
-                    style: TextStyle(
-                      color: progressColor,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
- */
-
-
-/*   Widget _buildTimeLeftBarContent(DateTime expiryDate, String timeLeft) {
-    final now = DateTime.now();
-    final totalDays = 30;
-    final daysLeft = expiryDate.difference(now).inDays;
-    final progress = (daysLeft / totalDays).clamp(0.0, 1.0);
-
-    safeDebugPrint(
-        '📅 Expiry date: $expiryDate, Now: $now, Days left: $daysLeft, Progress: $progress');
-
-    // تحديد اللون حسب الأيام المتبقية
-    Color progressColor;
-    if (daysLeft > 7) {
-      progressColor = Colors.green;
-    } else if (daysLeft > 4) {
-      progressColor = Colors.orange;
-    } else {
-      progressColor = Colors.red;
-    }
-
-    safeDebugPrint('🎨 Progress color: $progressColor');
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      margin: const EdgeInsets.only(bottom: 16, top: 8),
-      decoration: BoxDecoration(
-        color: progressColor.withAlpha(75),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: progressColor.withAlpha(75)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // العنوان
-          Row(
-            children: [
-              Icon(
-                Icons.access_time,
-                color: progressColor,
-                size: 20,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                tr('license'),
-                style: TextStyle(
-                  color: progressColor,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-
-          // شريط التقدم
-          LinearProgressIndicator(
-            value: progress,
-            backgroundColor: progressColor.withAlpha(80),
-            valueColor: AlwaysStoppedAnimation<Color>(progressColor),
-            minHeight: 8,
-            borderRadius: BorderRadius.circular(4),
-          ),
-          const SizedBox(height: 8),
-
-          // الوقت المتبقي
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                '${tr('time_left')}:',
-                style: TextStyle(
-                  color: progressColor,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              Text(
-                timeLeft,
-                style: TextStyle(
-                  color: progressColor,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-
-          // تاريخ الانتهاء
-          const SizedBox(height: 8),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                '${tr('expiry_date')}:',
-                style: TextStyle(
-                  color: progressColor,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              Text(
-                '${expiryDate.year}-${expiryDate.month.toString().padLeft(2, '0')}-${expiryDate.day.toString().padLeft(2, '0')}',
-                style: TextStyle(
-                  color: progressColor,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-
-          // رسالة تحذير إذا كان الوقت قليل
-          if (daysLeft <= 7)
-            Padding(
-              padding: const EdgeInsets.only(top: 12),
-              child: Text(
-                tr('renew_license_warning'),
-                style: TextStyle(
-                  color: progressColor,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ),
-        ],
-      ),
-    );
-  }
- */
-
-/*   void _checkLicenseExpiryStatus() async {
-    safeDebugPrint('🔍 Checking license expiry status');
-    final subscriptionService = UserSubscriptionService();
-    final result = await subscriptionService.checkUserSubscription();
-
-    if (!mounted) return;
-
-    setState(() {
-      isSubscriptionExpiringSoon = result.isExpiringSoon;
-      isSubscriptionExpired = result.isExpired;
-      subscriptionTimeLeft = result.timeLeftFormatted;
-    });
-
-    safeDebugPrint('📋 License Status:');
-    safeDebugPrint('   isValid: ${result.isValid}');
-    safeDebugPrint('   isExpiringSoon: $isSubscriptionExpiringSoon');
-    safeDebugPrint('   isExpired: $isSubscriptionExpired');
-    safeDebugPrint('   timeLeft: $subscriptionTimeLeft');
-    safeDebugPrint('   expiryDate: ${result.expiryDate}');
-
-    // تأكد من حفظ تاريخ الانتهاء في التخزين المحلي
-    if (result.expiryDate != null) {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(
-          'expiry_date', result.expiryDate!.toIso8601String());
-      safeDebugPrint('💾 Saved expiry date from check: ${result.expiryDate}');
-    }
-  }
- */
-/*   String _formatTimeLeft(Duration difference) {
-    final days = difference.inDays;
-    final hours = difference.inHours % 24;
-    final minutes = difference.inMinutes % 60;
-
-    if (days > 0) {
-      return tr('time_left_days', namedArgs: {
-        'days': days.toString(),
-        'hours': hours.toString(),
-      });
-    } else if (hours > 0) {
-      return tr('time_left_hours', namedArgs: {
-        'hours': hours.toString(),
-        'minutes': minutes.toString(),
-      });
-    } else {
-      return tr('time_left_minutes', namedArgs: {
-        'minutes': minutes.toString(),
-      });
-    }
-  }
- */
- 
- /*   Widget _buildLicenseExpiringWarning() {
-    safeDebugPrint('⚠️ Building license expiring warning');
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      margin: const EdgeInsets.only(bottom: 16),
-      decoration: BoxDecoration(
-        color: Colors.orange.shade100,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.orange.shade300),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.warning_amber, color: Colors.orange, size: 24),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  tr('license_expiring_soon'),
-                  style: TextStyle(
-                    color: Colors.orange.shade800,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  tr('license_expiring_message',
-                      args: [subscriptionTimeLeft ?? '']),
-                  style: TextStyle(
-                    color: Colors.orange.shade800,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                if (subscriptionTimeLeft != null)
-                  Text(
-                    '⏰ ${tr('time_left')}: $subscriptionTimeLeft',
-                    style: TextStyle(
-                      color: Colors.orange.shade800,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
- */

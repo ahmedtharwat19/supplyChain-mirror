@@ -479,6 +479,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:puresip_purchasing/pages/dashboard/dashboard_metrics.dart';
 import 'package:puresip_purchasing/pages/dashboard/dashboard_page.dart';
+import 'package:puresip_purchasing/services/hive_service.dart';
 //import 'package:puresip_purchasing/pages/settings_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -529,11 +530,21 @@ class AppScaffold extends StatefulWidget {
 class _AppScaffoldState extends State<AppScaffold> {
   bool _hasPendingRequests = false; // هل هناك طلبات ترخيص معلقة؟
   bool _isAdmin = false; // هل المستخدم إدمن؟
+  String? _userName;
 
   @override
   void initState() {
     super.initState();
     _checkAdminNotifications();
+     _loadUserNameFromHive();
+  }
+
+    Future<void> _loadUserNameFromHive() async {
+    final userData = await HiveService.getUserData(); // أو اسم الكلاس الفعلي
+    debugPrint('Loaded user data from Hive: $userData');
+    setState(() {
+      _userName = userData?['displayName'] ?? userData?['email'].split('@').first; // غيّر 'name' إلى اسم المفتاح الصحيح داخل الـ Map
+    });
   }
 
   Future<void> _checkAdminNotifications() async {
@@ -615,13 +626,13 @@ void _handleBackNavigation(BuildContext context) {
     if (!widget.isDashboard) return [];
 
     return [
-      if (widget.userName != null)
+      if (_userName != null)
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12),
           child: Row(
             children: [
               Text(
-                '${tr('hello')}, ${widget.userName}',
+                '${tr('hello')}, $_userName',
                 style: const TextStyle(fontSize: 16, color: Colors.white),
               ),
               // هنا نضيف الدائرة الحمراء إذا المستخدم إدمن وهناك طلبات معلقة
@@ -660,7 +671,7 @@ void _handleBackNavigation(BuildContext context) {
     ];
   }
 
-  Widget _buildDrawer(BuildContext context) {
+/*   Widget _buildDrawer(BuildContext context) {
     return Drawer(
       child: ListView(
         padding: EdgeInsets.zero,
@@ -755,8 +766,92 @@ void _handleBackNavigation(BuildContext context) {
       ),
     );
   }
+ */
 
-  Widget _buildDrawerHeader() {
+// في ملف app_scaffold.dart - تحديث الدالة _buildDrawer
+Widget _buildDrawer(BuildContext context) {
+  return Drawer(
+    child: ListView(
+      padding: EdgeInsets.zero,
+      children: [
+        _buildDrawerHeader(),
+        _buildDrawerItem(
+          icon: Icons.dashboard,
+          title: tr('dashboard_title'),
+          onTap: () => context.go('/dashboard'),
+        ),
+        _buildDrawerItem(
+          icon: Icons.business,
+          title: tr('manage_companies'),
+          onTap: () => context.go('/companies'),
+        ),
+        _buildDrawerItem(
+          icon: Icons.group,
+          title: tr('manage_suppliers'),
+          onTap: () => context.go('/suppliers'),
+        ),
+        _buildDrawerItem(
+          icon: Icons.category,
+          title: tr('manage_items'),
+          onTap: () => context.go('/items'),
+        ),
+        _buildDrawerItem(
+          icon: Icons.shopping_cart,
+          title: tr('view_purchase_orders'),
+          onTap: () => context.go('/purchase-orders'),
+        ),
+
+        if (_isAdmin)
+          _buildDrawerItem(
+            icon: Icons.security,
+            title: tr('manage_licenses'),
+            onTap: () {
+              Navigator.of(context).pop();
+              context.go('/admin/licenses');
+            },
+          ),
+
+        const Divider(),
+        
+        // 🟢 إضافة عنصر Hive Settings هنا
+        _buildDrawerItem(
+          icon: Icons.storage,
+          title: tr('hive_settings'),
+          onTap: () {
+            Navigator.of(context).pop();
+            context.push('/hive-settings');
+          },
+        ),
+        
+        _buildDrawerItem(
+          icon: Icons.settings,
+          title: tr('settings.title'),
+          onTap: () async {
+            Navigator.of(context).pop();
+            final result = await context.push<bool>(
+              '/settings',
+              extra: dashboardMetrics.map((e) => e.titleKey).toList(),
+            );
+            if (!context.mounted) return;
+            if (result == true) {
+              final dashboardState = context.findAncestorStateOfType<DashboardPageState>();
+              dashboardState?.loadSettings();
+            }
+          },
+        ),
+        
+        const Divider(),
+        _buildDrawerItem(
+          icon: Icons.logout,
+          title: tr('logout'),
+          onTap: _logout,
+        ),
+      ],
+    ),
+  );
+}
+
+/*   Widget _buildDrawerHeader() {
     return DrawerHeader(
       decoration: const BoxDecoration(color: Color.fromARGB(255, 69, 200, 218)),
       child: Column(
@@ -765,8 +860,8 @@ void _handleBackNavigation(BuildContext context) {
           const Icon(Icons.person, size: 40, color: Colors.white),
           const SizedBox(height: 8),
           Text(
-            widget.userName != null
-                ? '${tr('hello')}, ${widget.userName}'
+            _userName != null
+                ? '${tr('hello')}, $_userName'
                 : tr('welcome'),
             style: const TextStyle(fontSize: 18, color: Colors.white),
           ),
@@ -774,7 +869,111 @@ void _handleBackNavigation(BuildContext context) {
       ),
     );
   }
-
+ */
+ 
+ Widget _buildDrawerHeader() {
+  final currentDate = DateTime.now();
+  final formattedDate = '${currentDate.day}/${currentDate.month}/${currentDate.year}';
+  
+  return DrawerHeader(
+    decoration: const BoxDecoration(
+      color: Color.fromARGB(255, 69, 200, 218),
+      borderRadius: BorderRadius.only(
+        bottomRight: Radius.circular(25),
+      ),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // التاريخ والوقت
+        Text(
+          formattedDate,
+          style: const TextStyle(
+            fontSize: 12,
+            color: Colors.white70,
+          ),
+        ),
+        
+        const SizedBox(height: 8),
+        
+        // معلومات المستخدم الرئيسية
+        Expanded(
+          child: Row(
+            children: [
+              // صورة/أيقونة المستخدم
+              Container(
+                width: 50,
+                height: 50,
+                decoration: const BoxDecoration(
+                  color: Colors.white24,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.person,
+                  size: 30,
+                  color: Colors.white,
+                ),
+              ),
+              
+              const SizedBox(width: 16),
+              
+              // معلومات المستخدم
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _userName != null ? _userName! : tr('guest_user'),
+                      style: const TextStyle(
+                        fontSize: 18,
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    
+                    const SizedBox(height: 4),
+                    
+                    Text(
+                     _userName != null ? tr('welcome_message') : tr('login_to_start'),
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Colors.white70,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        
+        // حالة الاشتراك
+        if (widget.isSubscriptionExpiringSoon || widget.isSubscriptionExpired && !_isAdmin)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: widget.isSubscriptionExpired ? Colors.red : Colors.orange,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(
+              widget.isSubscriptionExpired ? tr('subscription_expired') : tr('subscription_expiring_soon'),
+              style: const TextStyle(
+                fontSize: 12,
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+      ],
+    ),
+  );
+}
+ 
   Widget _buildDrawerItem({
     required IconData icon,
     required String title,

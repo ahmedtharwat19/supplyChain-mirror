@@ -5,6 +5,9 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:go_router/go_router.dart';
 import 'package:easy_localization/easy_localization.dart';
+//import 'package:hive/hive.dart';
+import 'package:puresip_purchasing/services/hive_service.dart';
+import 'package:puresip_purchasing/services/user_subscription_service.dart';
 import '../../utils/user_local_storage.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:io';
@@ -62,7 +65,7 @@ class _LoginFormState extends State<LoginForm> {
           safeDebugPrint(
               'User not found in Firestore after Google sign-in. Redirecting to signup...');
           if (mounted) {
-             _showErrorSnackBar('user_not_found_in_db'.tr());
+            _showErrorSnackBar('user_not_found_in_db'.tr());
             context.go('/signup'); // أو '/register'
           }
           return;
@@ -83,7 +86,14 @@ class _LoginFormState extends State<LoginForm> {
           }
 
           await UserLocalStorage.setUser(userData);
-          if (mounted) context.go('/dashboard');
+/*           // بعد تسجيل الدخول الناجح
+          await Hive.box('auth').put('user', {
+            'uid': user.uid,
+            'email': user.email,
+            // أي بيانات أخرى تحتاجها
+          });
+          if (mounted) context.go('/dashboard'); */
+          _handleLogin(user);
         }
 
         //  if (mounted) context.go('/dashboard');
@@ -147,7 +157,15 @@ class _LoginFormState extends State<LoginForm> {
               SnackBar(content: Text('login_success'.tr())),
             );
             safeDebugPrint('Attempting to navigate to /dashboard');
-            context.go('/dashboard');
+/*             // بعد تسجيل الدخول الناجح
+            await Hive.box('auth').put('user', {
+              'uid': user.uid,
+              'email': user.email,
+              // أي بيانات أخرى تحتاجها
+            });
+            if (!mounted)return;
+            context.go('/dashboard'); */
+            _handleLogin(user);
           }
         }
       } catch (e) {
@@ -162,6 +180,79 @@ class _LoginFormState extends State<LoginForm> {
       } finally {
         if (mounted) setState(() => _isLoading = false);
       }
+    }
+  }
+
+  // في login_page.dart
+/* Future<void> _handleLogin(User user) async {
+  try {
+    // حفظ بيانات المصادقة
+    await HiveService.saveAuthData({
+      'userId': user.uid,
+      'email': user.email,
+      'displayName': user.displayName ?? user.email?.split('@').first,
+      'lastLogin': DateTime.now().toIso8601String(),
+    });
+
+    // حفظ بيانات المستخدم الأساسية
+    await HiveService.saveUserData({
+      'companies': [],
+      'factories': [],
+      'suppliers': [],
+      'preferences': {
+        'language': 'ar',
+        'theme': 'light'
+      }
+    });
+
+     if (mounted) { // أضف هذا التحقق
+      context.go('/dashboard');
+    }
+  } catch (e) {
+    safeDebugPrint('Login error: $e');
+  }
+}
+ */
+
+  Future<void> _handleLogin(User user) async {
+    try {
+      // حفظ بيانات المصادقة
+      await HiveService.saveAuthData({
+        'userId': user.uid,
+        'email': user.email,
+        'displayName': user.displayName ?? user.email?.split('@').first,
+        'lastLogin': DateTime.now().toIso8601String(),
+      });
+
+      // جلب بيانات المستخدم الحالية من Hive لو موجودة
+      final existingUserData = await HiveService.getUserData() ?? {};
+
+      // تحديث بيانات المستخدم مع الحفاظ على الحقول القديمة مثل isAdmin و createdAt
+      final updatedUserData = {
+        'userId': user.uid,
+        'email': user.email,
+        'displayName': user.displayName ?? user.email?.split('@').first,
+        'preferences': {
+          'language': 'ar',
+          'theme': 'light',
+        },
+        ...existingUserData, // ← لاحقًا وليس أولًا
+      };
+
+      await HiveService.saveUserData(updatedUserData);
+          /// ✅ أضف هذا الجزء: جلب الترخيص من Firestore
+    final subscriptionResult =
+        await UserSubscriptionService().checkUserSubscription();
+    if (subscriptionResult.licenseId != null) {
+      await HiveService.saveLicense(subscriptionResult.licenseId!);
+      safeDebugPrint("✅ License saved after login");
+    }
+      if (mounted) {
+        context.go('/dashboard');
+      }
+      safeDebugPrint('✅ Hive user data updated on login.');
+    } catch (e) {
+      safeDebugPrint('❌ Error handling login: $e');
     }
   }
 
@@ -199,7 +290,6 @@ class _LoginFormState extends State<LoginForm> {
       ),
     );
   }
-
 
 // دالة مساعدة لترجمة أخطاء Firebase
   String _getAuthErrorMessage(FirebaseAuthException e) {
