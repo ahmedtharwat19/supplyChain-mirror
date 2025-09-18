@@ -1,10 +1,15 @@
-// main.dart — نسخة مُحسنة للتشخيص ومنع "الشاشة البيضاء"
 import 'dart:async';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:puresip_purchasing/pages/compositions/services/composition_service.dart';
+import 'package:puresip_purchasing/pages/finished_products/services/finished_product_service.dart';
+import 'package:puresip_purchasing/pages/manufacturing/services/manufacturing_service.dart';
+import 'package:puresip_purchasing/services/company_service.dart';
+import 'package:puresip_purchasing/services/factory_service.dart';
+import 'package:puresip_purchasing/services/firestore_service.dart';
 import 'package:puresip_purchasing/services/hive_service.dart';
 import 'firebase_options.dart';
 import 'router.dart';
@@ -15,7 +20,6 @@ import 'package:provider/provider.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'debug_helper.dart';
 
-// FCM background handler
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
@@ -31,27 +35,13 @@ Future<void> _initializeFirebase() async {
 
       FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
-      final licenseService = LicenseService();
-      // ضع timeout تحوطًا لو تأخرت التهيئة
-      await licenseService.initialize().timeout(
-        const Duration(seconds: 8),
-        onTimeout: () {
-          safeDebugPrint('LicenseService.initialize() timed out');
-          return;
-        },
-      );
-      await LicenseNotifications.initialize().timeout(
-        const Duration(seconds: 6),
-        onTimeout: () {
-          safeDebugPrint('LicenseNotifications.initialize() timed out');
-          return;
-        },
-      );
+      await LicenseService().initialize();
+      await LicenseNotifications.initialize();
 
-      safeDebugPrint('Firebase initialization completed');
+      safeDebugPrint('✅ Firebase initialized');
     }
   } catch (e, st) {
-    safeDebugPrint('Firebase initialization error: $e\n$st');
+    safeDebugPrint('❌ Firebase initialization error: $e\n$st');
     rethrow;
   }
 }
@@ -68,77 +58,58 @@ Future<void> _requestPermissions() async {
         await Permission.manageExternalStorage.request();
       }
     } catch (e) {
-      safeDebugPrint('Permission request error: $e');
+      safeDebugPrint('❌ Permission error: $e');
     }
   }
 }
 
 Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
+  runZonedGuarded(() async {
+    WidgetsFlutterBinding.ensureInitialized();
 
-  // التقاط أخطاء فلاتر وعرضها بدل الشاشة البيضاء
-  FlutterError.onError = (FlutterErrorDetails details) {
-    FlutterError.presentError(details);
-    safeDebugPrint('FlutterError: ${details.exception}\n${details.stack}');
-  };
+    // Error handling: show fallback UI
+    FlutterError.onError = (FlutterErrorDetails details) {
+      FlutterError.presentError(details);
+      safeDebugPrint('❗ FlutterError: ${details.exception}\n${details.stack}');
+    };
 
-  // Error widget لعرض رسالة تظهر على الشاشة عوضًا عن white screen
-  ErrorWidget.builder = (FlutterErrorDetails details) {
-    safeDebugPrint('ErrorWidget: ${details.exception}\n${details.stack}');
-    return Material(
-      color: Colors.white,
-      child: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.error_outline, size: 64),
-              const SizedBox(height: 12),
-              const Text('An error occurred', style: TextStyle(fontSize: 18)),
-              const SizedBox(height: 8),
-              Text(
-                details.exceptionAsString(),
-                textAlign: TextAlign.center,
-              ),
-            ],
+    ErrorWidget.builder = (FlutterErrorDetails details) {
+      return Material(
+        color: Colors.white,
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.error_outline, size: 64, color: Colors.red),
+                const SizedBox(height: 12),
+                const Text('حدث خطأ في التطبيق', style: TextStyle(fontSize: 18)),
+                const SizedBox(height: 8),
+                Text(
+                  details.exceptionAsString(),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
           ),
         ),
-      ),
-    );
-  };
+      );
+    };
 
-  // احرص على تهيئة easy_localization و hive
-  await EasyLocalization.ensureInitialized();
-  await Hive.initFlutter();
+    // Localization & Hive
+    await EasyLocalization.ensureInitialized();
+    await Hive.initFlutter();
 
-  // إياك أن تنفذ init مرتين — نفّذها مرة واحدة
-  try {
-    await HiveService.init().timeout(const Duration(seconds: 8),
-        onTimeout: () {
-      safeDebugPrint('HiveService.init() timed out');
-      // لا نرمي هنا — نتابع حتى نعرض رسالة واضحة
-      return;
-    });
+    // HiveService.init يفتح الصناديق التي تحتاجها الخدمات
+    await HiveService.init();
 
-    // جهّز الباقي (Firebase + permissions) مع حماية من الانتظار الطويل
+    // Initialize Firebase and permissions in parallel
     await Future.wait([
-      _initializeFirebase().timeout(const Duration(seconds: 12), onTimeout: () {
-        safeDebugPrint('_initializeFirebase() timed out');
-        return;
-      }),
-      _requestPermissions().timeout(const Duration(seconds: 6), onTimeout: () {
-        safeDebugPrint('_requestPermissions() timed out');
-        return;
-      }),
+      _initializeFirebase(),
+      _requestPermissions(),
     ]);
-  } catch (e, st) {
-    safeDebugPrint('Initialization failed: $e\n$st');
-    // لا ترجع / لا توقف؛ نسمح للتطبيق بالاقلاع ليعرض ErrorWidget إن احتاج
-  }
 
-  // تشغيل التطبيق ضمن runZonedGuarded لالتقاط كل الاستثناءات الغير متوقعة
-  runZonedGuarded(() {
     runApp(
       EasyLocalization(
         supportedLocales: const [Locale('en'), Locale('ar')],
@@ -146,16 +117,19 @@ Future<void> main() async {
         fallbackLocale: const Locale('ar'),
         child: MultiProvider(
           providers: [
-            // ضع هنا نفس Providers لكن تأكد أن منشئي الخدمات لا يصلون للـ Hive/Firestore في constructor بشكل متزامن
-            Provider(create: (_) => /* FirestoreService() */ null),
-            // ... بقيّة providers مؤقتًا أو اجعلها lazy
+            Provider<FirestoreService>(create: (_) => FirestoreService()),
+            Provider<FinishedProductService>(create: (_) => FinishedProductService()),
+            ChangeNotifierProvider(create: (_) => CompanyService()),
+            ChangeNotifierProvider(create: (_) => FactoryService()),
+            ChangeNotifierProvider(create: (_) => CompositionService()),
+            Provider<ManufacturingService>(create: (_) => ManufacturingService()),
           ],
           child: const MyApp(),
         ),
       ),
     );
   }, (error, stack) {
-    safeDebugPrint('runZonedGuarded caught error: $error\n$stack');
+    safeDebugPrint('❌ runZonedGuarded caught: $error\n$stack');
   });
 }
 
@@ -175,12 +149,12 @@ class MyApp extends StatelessWidget {
       localizationsDelegates: context.localizationDelegates,
       routerConfig: appRouter,
       builder: (context, child) {
-        // حماية: لا نفرض child! — نتحقق أولاً
         if (child == null) {
           return const Scaffold(
             body: Center(child: CircularProgressIndicator()),
           );
         }
+
         return MediaQuery(
           data: MediaQuery.of(context).copyWith(textScaler: TextScaler.noScaling),
           child: child,

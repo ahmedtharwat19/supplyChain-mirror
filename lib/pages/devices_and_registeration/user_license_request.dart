@@ -1903,7 +1903,6 @@ class LicenseException implements Exception {
   String toString() => message;
 }
  */
-
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -1914,7 +1913,7 @@ import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:go_router/go_router.dart';
 import 'package:uuid/uuid.dart';
-import '../../services/license_service.dart';
+//import '../../services/license_service.dart';
 import 'package:collection/collection.dart';
 import 'package:puresip_purchasing/debug_helper.dart';
 
@@ -1926,7 +1925,7 @@ class UserLicenseRequestPage extends StatefulWidget {
 }
 
 class _UserLicenseRequestPageState extends State<UserLicenseRequestPage> {
-  final _licenseService = LicenseService();
+  //final _licenseService = LicenseService();
   final _auth = FirebaseAuth.instance;
   final _firestore = FirebaseFirestore.instance;
   final _uuid = const Uuid();
@@ -1936,13 +1935,15 @@ class _UserLicenseRequestPageState extends State<UserLicenseRequestPage> {
   StreamSubscription? _licenseStatusSubscription;
   StreamSubscription? _requestStatusSubscription;
   StreamSubscription? _licenseListenerSubscription;
-
+  bool _isPending = false;
   int _selectedDuration = 1;
   int _selectedDevices = 1;
   bool _isSubmitting = false;
   int _currentDevicesCount = 0;
   String _currentDeviceId = '';
-  //bool _licenseActivated = false;
+
+  /// ✅ غيرت من final إلى متغير عادي ليسمح بالتحديث
+  bool _hasSubmittedRequest = false;
 
   @override
   void initState() {
@@ -1961,6 +1962,7 @@ class _UserLicenseRequestPageState extends State<UserLicenseRequestPage> {
     super.dispose();
   }
 
+  /// تراقب الترخيص النشط وتنقل المستخدم بناءً على الحالة
   void _setupLicenseStatusListener() {
     final user = _auth.currentUser;
     if (user == null) return;
@@ -1972,7 +1974,6 @@ class _UserLicenseRequestPageState extends State<UserLicenseRequestPage> {
         .listen((snapshot) {
       if (!mounted) return;
 
-      //  final licenseDoc = snapshot.docs.firstWhereOrNull((doc) => doc.exists);
       final licenseDoc =
           snapshot.docs.where((doc) => doc.exists).firstWhereOrNull((doc) {
         final isActive = doc.get('isActive') as bool? ?? false;
@@ -1983,7 +1984,6 @@ class _UserLicenseRequestPageState extends State<UserLicenseRequestPage> {
       });
 
       if (licenseDoc == null) {
-        // لا يوجد ترخيص على الإطلاق، توجه المستخدم لطلب ترخيص
         safeDebugPrint('user license page : No License found ...');
         context.go('/license/request');
         return;
@@ -1993,22 +1993,20 @@ class _UserLicenseRequestPageState extends State<UserLicenseRequestPage> {
       final expiryDate = (licenseDoc.get('expiryDate') as Timestamp?)?.toDate();
       final nowUtc = DateTime.now().toUtc();
       final isExpired = expiryDate != null && expiryDate.isBefore(nowUtc);
+
       safeDebugPrint('expiryDate: $expiryDate');
       safeDebugPrint('nowUtc: $nowUtc');
       safeDebugPrint('isExpired: $isExpired');
       safeDebugPrint('isActive: $isActive');
 
-      // final isExpired =
-      //     expiryDate != null && expiryDate.isBefore(DateTime.now());
-
       if (!isActive || isExpired) {
-        // الترخيص ملغي أو منتهي
-        safeDebugPrint('user license page : Licesne is canseled or expired...');
+        safeDebugPrint('user license page : License is canceled or expired...');
         context.go('/license/request');
       }
     });
   }
 
+  /// تراقب حالة طلبات الترخيص النشطة (pending أو approved)
   void _setupRequestStatusListener() {
     final user = _auth.currentUser;
     if (user == null) return;
@@ -2016,37 +2014,37 @@ class _UserLicenseRequestPageState extends State<UserLicenseRequestPage> {
     _requestStatusSubscription = _firestore
         .collection('license_requests')
         .where('userId', isEqualTo: user.uid)
-        .where('status',
-            whereIn: ['pending', 'approved']) // نستمع فقط للحالات المهمة
+        .where('status', whereIn: ['pending', 'approved'])
         .snapshots()
         .listen((snapshot) {
-          if (!mounted) return;
+      if (!mounted) return;
 
-          if (snapshot.docs.isNotEmpty) {
-            final doc = snapshot.docs.first;
-            final status = doc.get('status');
+      if (snapshot.docs.isNotEmpty) {
+        final doc = snapshot.docs.first;
+        final status = doc.get('status');
 
-            if (status == 'approved') {
-              // الطلب تم قبوله
-              setState(() {
-                return;
-              }); //=> _licenseActivated = true);
-              //    setState(() => _licenseActivated = true);
-              // توجيه المستخدم إلى لوحة التحكم
-              context.go('/dashboard');
-            } else if (status == 'pending') {
-              // يمكن هنا تحديث واجهة المستخدم مثلا للإشارة إلى أن الطلب قيد المراجعة
-              setState(() {
-                // تحديثات حسب الحاجة
-                return;
-              });
-            }
-          }
-        });
+        switch (status) {
+          case 'approved':
+            // أوقف الاشتراك بعد الموافقة
+            _requestStatusSubscription?.cancel();
+            _requestStatusSubscription = null;
+
+            Future.microtask(() {
+              if (mounted) context.go('/dashboard');
+            });
+            break;
+
+          case 'pending':
+            setState(() {
+              _isPending = true;
+            });
+            break;
+        }
+      }
+    });
   }
 
-  final bool _hasSubmittedRequest = false;
-
+  /// تراقب الترخيص النشط بعد إرسال الطلب للتحويل التلقائي
   void _setupLicenseListener() {
     final user = _auth.currentUser;
     if (user == null) return;
@@ -2060,15 +2058,12 @@ class _UserLicenseRequestPageState extends State<UserLicenseRequestPage> {
       if (!mounted) return;
 
       if (snapshot.docs.isNotEmpty && _hasSubmittedRequest) {
-        //setState(() => _licenseActivated = true);
-        setState(() {
-          return;
-        }); //=> _licenseActivated = true);
-        context.go('/dashboard');
+        Future.microtask(() {
+          if (mounted) context.go('/dashboard');
+        });
       }
     });
   }
-
 
   Future<void> _loadDeviceData() async {
     await _loadCurrentDeviceCount();
@@ -2109,42 +2104,42 @@ class _UserLicenseRequestPageState extends State<UserLicenseRequestPage> {
   }
 
   Future<void> _loadCurrentDeviceId() async {
-  try {
-    String deviceId;
+    try {
+      String deviceId;
 
-    if (kIsWeb) {
-      // استخدام التخزين الآمن للويب
-      deviceId = await _secureStorage.read(key: 'deviceId') ?? 'web_${_uuid.v4()}';
-      await _secureStorage.write(key: 'deviceId', value: deviceId);
-    } else {
-      // باقي المنصات: Android / iOS
-      final androidInfo = await _deviceInfo.androidInfo;
-      final iosInfo = await _deviceInfo.iosInfo;
-
-      if (defaultTargetPlatform == TargetPlatform.android) {
-        deviceId = 'android_${androidInfo.id}';
-      } else if (defaultTargetPlatform == TargetPlatform.iOS) {
-        deviceId = 'ios_${iosInfo.identifierForVendor ?? _uuid.v4()}';
+      if (kIsWeb) {
+        // استخدام التخزين الآمن للويب
+        deviceId =
+            await _secureStorage.read(key: 'deviceId') ?? 'web_${_uuid.v4()}';
+        await _secureStorage.write(key: 'deviceId', value: deviceId);
       } else {
-        deviceId = 'unknown_${_uuid.v4()}';
+        // باقي المنصات: Android / iOS
+        final androidInfo = await _deviceInfo.androidInfo;
+        final iosInfo = await _deviceInfo.iosInfo;
+
+        if (defaultTargetPlatform == TargetPlatform.android) {
+          deviceId = 'android_${androidInfo.id}';
+        } else if (defaultTargetPlatform == TargetPlatform.iOS) {
+          deviceId = 'ios_${iosInfo.identifierForVendor ?? _uuid.v4()}';
+        } else {
+          deviceId = 'unknown_${_uuid.v4()}';
+        }
+      }
+
+      if (mounted) {
+        setState(() => _currentDeviceId = deviceId);
+      }
+    } catch (e) {
+      safeDebugPrint('Error loading device ID: $e');
+      if (mounted) {
+        setState(() => _currentDeviceId = 'error_${_uuid.v4()}');
       }
     }
-
-    if (mounted) {
-      setState(() => _currentDeviceId = deviceId);
-    }
-  } catch (e) {
-    safeDebugPrint('Error loading device ID: $e');
-    if (mounted) {
-      setState(() => _currentDeviceId = 'error_${_uuid.v4()}');
-    }
   }
-}
 
   @override
   Widget build(BuildContext context) {
-    // تحقق من حالة الترخيص عند بناء الصفحة
-  return Scaffold(
+    return Scaffold(
       appBar: AppBar(
         title: Text('license_request.title'.tr()),
         centerTitle: true,
@@ -2167,6 +2162,28 @@ class _UserLicenseRequestPageState extends State<UserLicenseRequestPage> {
                 const SizedBox(height: 14),
                 _buildRequestInfoCard(),
                 const SizedBox(height: 14),
+
+                if (_isPending)
+                  Card(
+                    color: Colors.orange.shade50,
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.hourglass_empty,
+                              color: Colors.orange),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              'license_request_pending'.tr(),
+                              style: const TextStyle(color: Colors.orange),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                const SizedBox(height: 10),
                 _buildSubmitButton(),
               ],
             ),
@@ -2291,7 +2308,7 @@ class _UserLicenseRequestPageState extends State<UserLicenseRequestPage> {
                 'duration'.tr(), '$_selectedDuration ${'months'.tr()}'),
             _buildInfoRow('devices_allowed'.tr(), '$_selectedDevices'),
             _buildInfoRow('current_devices'.tr(), '$_currentDevicesCount'),
-            _buildInfoRow('current_device_id'.tr(), _currentDeviceId),
+            _buildInfoRow('device_id'.tr(), _currentDeviceId),
           ],
         ),
       ),
@@ -2300,146 +2317,220 @@ class _UserLicenseRequestPageState extends State<UserLicenseRequestPage> {
 
   Widget _buildInfoRow(String label, String value) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6.0),
+      padding: const EdgeInsets.symmetric(vertical: 4.0),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: Theme.of(context).textTheme.bodyMedium),
-          Text(value,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  )),
+          Text(
+            '$label: ',
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+          Expanded(child: Text(value)),
         ],
       ),
     );
   }
 
-Widget _buildSubmitButton() {
+  Widget _buildSubmitButton() {
     return SizedBox(
       width: double.infinity,
       child: ElevatedButton(
-        //onPressed: _isSubmitting ? null : _submitLicenseRequest,
-        onPressed: _isSubmitting ? null : _submitRequest,
+        onPressed: (_isSubmitting || _isPending) ? null : _submitRequest,
         child: _isSubmitting
             ? const SizedBox(
-                height: 24,
                 width: 24,
-                child: CircularProgressIndicator(
-                  color: Colors.white,
-                  strokeWidth: 2,
-                ),
+                height: 24,
+                child: CircularProgressIndicator(strokeWidth: 3),
               )
             : Text('submit_request'.tr()),
       ),
     );
   }
 
-  Future<void> _submitRequest() async {
-    if (!mounted) return;
+/*   Future<void> _submitRequest() async {
+    if (_currentDeviceId.isEmpty) {
+      _showErrorSnackBar('device_id_not_loaded'.tr());
+      return;
+    }
+
     setState(() => _isSubmitting = true);
 
     try {
       final user = _auth.currentUser;
-      if (user == null || user.email == null) {
-        throw LicenseException('user_not_logged_in'.tr());
+      if (user == null) {
+        _showErrorSnackBar('user_not_authenticated'.tr());
+        setState(() => _isSubmitting = false);
+        return;
       }
 
-      // Validate request doesn't exist
-      final requestQuery = await _firestore
+      // تأكد من عدم وجود طلب سابق معلق أو مقبول
+      final existingRequestSnapshot = await _firestore
           .collection('license_requests')
           .where('userId', isEqualTo: user.uid)
-          .where('status', isEqualTo: 'pending')
-          .limit(1)
+          .where('status', whereIn: ['pending', 'approved'])
           .get();
 
-      if (requestQuery.docs.isNotEmpty) {
-        throw LicenseException('existing_request_pending'.tr());
+      if (existingRequestSnapshot.docs.isNotEmpty) {
+        _showErrorSnackBar('existing_request_found'.tr());
+        setState(() => _isSubmitting = false);
+        return;
       }
 
-      // Validate no active license
-      final licenseQuery = await _firestore
-          .collection('licenses')
-          .where('userId', isEqualTo: user.uid)
-          .where('isActive', isEqualTo: true)
-          .limit(1)
-          .get();
-
-      if (licenseQuery.docs.isNotEmpty) {
-        final expiryDate =
-            licenseQuery.docs.first.get('expiryDate') as Timestamp?;
-        if (expiryDate?.toDate().isAfter(DateTime.now()) ?? false) {
-          throw LicenseException('active_license_exists'.tr());
-        }
-      }
-
-      // Create and submit new request
-      final requestId =
-         await _licenseService.generateStandardizedId();
       final batch = _firestore.batch();
 
-      final requestRef =
-          _firestore.collection('license_requests').doc(requestId);
-      batch.set(requestRef, {
-        'id': requestId,
-        'userId': user.uid,
-        'userEmail': user.email,
-        'durationMonths': _selectedDuration,
-        'maxDevices': _selectedDevices,
-        'status': 'pending',
-        'createdAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
+      final newRequestRef =
+          _firestore.collection('license_requests').doc(_uuid.v4());
 
-      //   await _notifyAdmins(user.email!, requestId, batch);
+      batch.set(newRequestRef, {
+        'userId': user.uid,
+        'durationMonths': _selectedDuration,
+        'deviceCount': _selectedDevices,
+        'deviceIds': [_currentDeviceId],
+        'status': 'pending',
+        'requestDate': FieldValue.serverTimestamp(),
+      });
 
       await batch.commit();
 
       if (!mounted) return;
 
-      // Show success and update UI
+      setState(() {
+        _hasSubmittedRequest = true;
+        _isSubmitting = false;
+        _isPending = true;
+      });
+
       _showSuccessMessage();
       await _loadCurrentDeviceCount();
-    } on FirebaseException catch (e) {
-      _handleError('firebase_error'.tr(namedArgs: {'errorCode': e.code}));
-    } on LicenseException catch (e) {
-      _handleError(e.message);
     } catch (e) {
-      _handleError('unknown_error'.tr(args: [e.toString()]));
-    } finally {
-      if (mounted) setState(() => _isSubmitting = false);
+      _showErrorSnackBar('request_failed'.tr(args: [e.toString()]));
+      setState(() => _isSubmitting = false);
     }
   }
+ */
+  
+ Future<void> _submitRequest() async {
+  if (_currentDeviceId.isEmpty) {
+    _showErrorSnackBar('device_id_not_loaded'.tr());
+    return;
+  }
 
-  void _handleError(String message) {
+  setState(() => _isSubmitting = true);
+
+  try {
+    final user = _auth.currentUser;
+    if (user == null) {
+      _showErrorSnackBar('user_not_authenticated'.tr());
+      setState(() => _isSubmitting = false);
+      return;
+    }
+
+    // 1. تحقق من وجود طلب سابق بحالة pending أو approved
+    final existingRequestSnapshot = await _firestore
+        .collection('license_requests')
+        .where('userId', isEqualTo: user.uid)
+        .where('status', whereIn: ['pending', 'approved'])
+        .get();
+
+    bool hasActiveRequest = false;
+
+    for (var doc in existingRequestSnapshot.docs) {
+      final status = doc.get('status');
+     // final requestId = doc.id;
+
+      if (status == 'pending') {
+        hasActiveRequest = true;
+        break; // إذا يوجد طلب معلق فلا تنشئ طلب جديد
+      }
+
+      if (status == 'approved') {
+        // تحقق من الرخصة المرتبطة بهذا الطلب
+        // نفترض أن ترخيص مرتبط بـ license_requests عبر userId وليس requestId
+        // لذا نبحث عن رخصة نشطة للمستخدم
+
+        final licenseSnapshot = await _firestore
+            .collection('licenses')
+            .where('userId', isEqualTo: user.uid)
+            .where('isActive', isEqualTo: true)
+            .get();
+
+        final now = DateTime.now().toUtc();
+
+        bool hasValidLicense = licenseSnapshot.docs.any((licenseDoc) {
+          final expiryTimestamp = licenseDoc.get('expiryDate') as Timestamp?;
+          if (expiryTimestamp == null) return false;
+          final expiryDate = expiryTimestamp.toDate();
+          return expiryDate.isAfter(now);
+        });
+
+        if (hasValidLicense) {
+          // لا تسمح بإنشاء طلب جديد طالما الترخيص فعال وغير منتهي
+          hasActiveRequest = true;
+          break;
+        }
+        // إذا الترخيص منتهي لا تمنع إنشاء طلب جديد
+      }
+    }
+
+    if (hasActiveRequest) {
+      _showErrorSnackBar('existing_request_found'.tr());
+      setState(() => _isSubmitting = false);
+      return;
+    }
+
+    // إنشاء الطلب الجديد
+    final batch = _firestore.batch();
+
+    final newRequestRef =
+        _firestore.collection('license_requests').doc(_uuid.v4());
+
+    batch.set(newRequestRef, {
+      'userId': user.uid,
+      'durationMonths': _selectedDuration,
+      'maxDevices': _selectedDevices,
+      'deviceIds': [_currentDeviceId],
+      'status': 'pending',
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+
+    await batch.commit();
+
     if (!mounted) return;
 
+    setState(() {
+      _hasSubmittedRequest = true;
+      _isSubmitting = false;
+      _isPending = true;
+    });
+
+    _showSuccessMessage();
+    await _loadCurrentDeviceCount();
+  } catch (e) {
+    _showErrorSnackBar('request_failed'.tr(args: [e.toString()]));
+    setState(() => _isSubmitting = false);
+  }
+}
+ 
+  void _showErrorSnackBar(String message) {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(message),
-          backgroundColor: Theme.of(context).colorScheme.error,
-          behavior: SnackBarBehavior.floating,
-          duration: const Duration(seconds: 5),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-          ),
-        ),
-      );
-  }
-
-   void _showSuccessMessage() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('request_submitted_successfully'.tr()),
+      ..showSnackBar(SnackBar(
+        content: Text(message),
+        backgroundColor: Theme.of(context).colorScheme.error,
         behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 3),
-        action: SnackBarAction(
-          label: 'ok'.tr(),
-          onPressed: () => ScaffoldMessenger.of(context).hideCurrentSnackBar(),
-        ),
-      ),
-    );
+        duration: const Duration(seconds: 5),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      ));
   }
 
+  void _showSuccessMessage() {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(
+        content: Text('request_successful'.tr()),
+        backgroundColor: Colors.green,
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 5),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      ));
+  }
 }

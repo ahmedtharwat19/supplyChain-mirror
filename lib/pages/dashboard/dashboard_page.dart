@@ -1,4 +1,4 @@
-import 'dart:async';
+/* import 'dart:async';
 import 'package:collection/collection.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -1539,6 +1539,1153 @@ class DashboardPageState extends State<DashboardPage> {
                     onPressed: () {
                       context.push('/device-request');
                     },
+                    backgroundColor: Colors.orange,
+                    child: const Icon(Icons.device_hub),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class DashboardStats {
+  int totalCompanies;
+  int totalSuppliers;
+  int totalOrders;
+  double totalAmount;
+  int totalItems;
+  int totalMovements;
+  int totalManufacturingOrders;
+  int totalFinishedProducts;
+  int totalFactories;
+
+  DashboardStats({
+    required this.totalCompanies,
+    required this.totalSuppliers,
+    required this.totalOrders,
+    required this.totalAmount,
+    required this.totalItems,
+    required this.totalMovements,
+    required this.totalManufacturingOrders,
+    required this.totalFinishedProducts,
+    required this.totalFactories,
+  });
+
+  factory DashboardStats.empty() => DashboardStats(
+        totalCompanies: 0,
+        totalSuppliers: 0,
+        totalOrders: 0,
+        totalAmount: 0.0,
+        totalItems: 0,
+        totalMovements: 0,
+        totalManufacturingOrders: 0,
+        totalFinishedProducts: 0,
+        totalFactories: 0,
+      );
+
+  void updateFrom(DashboardStats other) {
+    totalCompanies = other.totalCompanies;
+    totalSuppliers = other.totalSuppliers;
+    totalOrders = other.totalOrders;
+    totalAmount = other.totalAmount;
+    totalItems = other.totalItems;
+    totalMovements = other.totalMovements;
+    totalManufacturingOrders = other.totalManufacturingOrders;
+    totalFinishedProducts = other.totalFinishedProducts;
+    totalFactories = other.totalFactories;
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'totalCompanies': totalCompanies,
+      'totalSuppliers': totalSuppliers,
+      'totalOrders': totalOrders,
+      'totalAmount': totalAmount,
+      'totalItems': totalItems,
+      'totalStockMovements': totalMovements,
+      'totalManufacturingOrders': totalManufacturingOrders,
+      'totalFinishedProducts': totalFinishedProducts,
+      'totalFactories': totalFactories,
+    };
+  }
+}
+ */
+
+import 'dart:async';
+import 'package:collection/collection.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:easy_localization/easy_localization.dart';
+import 'package:go_router/go_router.dart';
+import 'package:puresip_purchasing/notifications/notification_service.dart';
+import 'package:puresip_purchasing/pages/dashboard/dashboard_metrics.dart';
+import 'package:puresip_purchasing/pages/dashboard/dashboard_tile_widget.dart';
+import 'package:puresip_purchasing/services/hive_service.dart';
+import 'package:puresip_purchasing/services/subscription_notifier.dart';
+import 'package:puresip_purchasing/services/user_subscription_service.dart';
+import 'package:puresip_purchasing/widgets/app_scaffold.dart';
+import 'package:pull_to_refresh/pull_to_refresh.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:puresip_purchasing/debug_helper.dart';
+
+class DashboardPage extends StatefulWidget {
+  const DashboardPage({super.key});
+
+  @override
+  State<DashboardPage> createState() => DashboardPageState();
+}
+
+enum DashboardView { short, long }
+
+class DashboardPageState extends State<DashboardPage> {
+  // المتغيرات الأساسية
+  final Map<String, Timer> _debounceTimers = {};
+  final Map<String, DateTime> _lastNotificationTime = {};
+  StreamSubscription<DocumentSnapshot>? _userSubscription;
+  StreamSubscription<QuerySnapshot>? _licenseStatusSubscription;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  String? subscriptionTimeLeft;
+  Timer? _timer;
+
+  final RefreshController _refreshController =
+      RefreshController(initialRefresh: false);
+  DashboardView _dashboardView = DashboardView.short;
+  Set<String> _selectedCards = {};
+  Map<String, dynamic>? userData;
+  bool isAdmin = false;
+
+  bool isLoading = true;
+  bool isSubscriptionExpiringSoon = false;
+  bool isSubscriptionExpired = false;
+  final DashboardStats _stats = DashboardStats.empty();
+  final FirebaseMessaging _fcm = FirebaseMessaging.instance;
+  StreamSubscription? _notificationSubscription;
+
+  String? userId;
+  String? userName;
+  List<String> userCompanyIds = [];
+
+  @override
+  void initState() {
+    super.initState();
+    safeDebugPrint('🔄 DashboardPage initState called');
+    _initializeFromHiveFirst();
+  }
+
+  Future<void> _initializeFromHiveFirst() async {
+    safeDebugPrint('📦 Loading data from Hive first...');
+
+    await _loadUserDataFromHive();
+    await loadSettingsFromHive();
+    await loadCachedDataFromHive();
+
+    if (mounted) {
+      setState(() => isLoading = false);
+    }
+
+    _startBackgroundUpdates();
+    _setupListenersAndNotifications();
+  }
+
+  Future<void> _loadUserDataFromHive() async {
+    try {
+      final data = await HiveService.getUserData();
+      if (data != null && mounted) {
+        setState(() {
+          userData = data;
+          isAdmin = data['isAdmin'] == true;
+          userName = data['displayName'] ?? data['email'] ?? '';
+          userId = data['userId'];
+          userCompanyIds = (data['companyIds'] as List?)?.cast<String>() ?? [];
+          _stats.totalCompanies = userCompanyIds.length;
+        });
+        safeDebugPrint('✅ User data loaded from Hive');
+      }
+    } catch (e) {
+      safeDebugPrint('❌ Error loading user data from Hive: $e');
+    }
+  }
+
+  Future<void> loadSettingsFromHive() async {
+    try {
+      final dashboardView = await HiveService.getDashboardView();
+      final selectedCards = await HiveService.getSelectedCards();
+
+      if (mounted) {
+        setState(() {
+          _dashboardView = dashboardView;
+          _selectedCards =
+              selectedCards.isNotEmpty ? selectedCards : _getDefaultMetrics();
+        });
+      }
+      safeDebugPrint('✅ Settings loaded from Hive');
+    } catch (e) {
+      safeDebugPrint('❌ Error loading settings from Hive: $e');
+      if (mounted) {
+        setState(() {
+          _dashboardView = DashboardView.short;
+          _selectedCards = _getDefaultMetrics();
+        });
+      }
+    }
+  }
+
+  Future<void> loadCachedDataFromHive() async {
+    try {
+      final cached = await HiveService.getCachedData('dashboard_stats') ?? {};
+      final extended = await HiveService.getCachedData('extended_stats') ?? {};
+
+      if (mounted) {
+        setState(() {
+          _stats
+            ..totalSuppliers = cached['totalSuppliers'] ?? 0
+            ..totalOrders = cached['totalOrders'] ?? 0
+            ..totalAmount = cached['totalAmount'] ?? 0.0
+            ..totalItems = cached['totalItems'] ?? 0
+            ..totalMovements = extended['totalStockMovements'] ?? 0
+            ..totalManufacturingOrders =
+                extended['totalManufacturingOrders'] ?? 0
+            ..totalFinishedProducts = extended['totalFinishedProducts'] ?? 0
+            ..totalFactories = extended['totalFactories'] ?? 0;
+        });
+      }
+      safeDebugPrint('✅ Cached data loaded from Hive');
+    } catch (e) {
+      safeDebugPrint('❌ Error loading cached data from Hive: $e');
+    }
+  }
+
+  void _startBackgroundUpdates() {
+    safeDebugPrint('🔄 Starting background updates from Firestore...');
+
+    Future.wait([
+      _syncUserDataWithFirestore(),
+      _checkSubscriptionStatus(),
+      fetchStats(),
+      _checkLicenseExpiryStatus(),
+      _saveExpiryDateToLocalStorage(),
+    ]).then((_) {
+      safeDebugPrint('✅ All background updates completed');
+    }).catchError((error) {
+      safeDebugPrint('❌ Error in background updates: $error');
+    });
+  }
+
+  void _setupListenersAndNotifications() {
+    _startListeningToUserChanges();
+    _setupLicenseStatusListener();
+    _listenForNewDeviceRequests();
+    _listenForNewLicenseRequests();
+    _checkInitialNotification();
+    _setupFCM();
+  }
+
+  Future<void> _syncUserDataWithFirestore() async {
+    safeDebugPrint('🔄 Syncing user data with Firestore (background)...');
+
+    final firebaseUser = FirebaseAuth.instance.currentUser;
+    if (firebaseUser == null) return;
+
+    try {
+      final userDoc =
+          await _firestore.collection('users').doc(firebaseUser.uid).get();
+
+      if (!userDoc.exists) return;
+
+      final data = userDoc.data();
+      if (data == null) return;
+
+      final Timestamp? createdAtTimestamp = data['createdAt'];
+      final createdAt = createdAtTimestamp?.toDate();
+      final subscriptionDurationInDays =
+          data['subscriptionDurationInDays'] ?? 30;
+      final isActive = data['isActive'] ?? true;
+      final remoteIsAdmin = data['isAdmin'] ?? false;
+      final displayName = firebaseUser.displayName ?? data['displayName'] ?? '';
+
+      final localUser = await HiveService.getUserData();
+      bool needUpdate = false;
+
+      if (localUser == null) {
+        needUpdate = true;
+      } else {
+        final localCreatedAt = localUser['createdAt'] as DateTime?;
+        final localSubscriptionDuration =
+            localUser['subscriptionDurationInDays'] ?? 30;
+        final localIsActive = localUser['isActive'] ?? true;
+        final localIsAdmin = localUser['isAdmin'] ?? false;
+        final localDisplayName = localUser['displayName'] ?? '';
+
+        if (localCreatedAt == null ||
+            createdAt == null ||
+            !localCreatedAt.isAtSameMomentAs(createdAt) ||
+            localSubscriptionDuration != subscriptionDurationInDays ||
+            localIsActive != isActive ||
+            localIsAdmin != remoteIsAdmin ||
+            localDisplayName != displayName) {
+          needUpdate = true;
+        }
+      }
+
+      if (needUpdate && createdAt != null) {
+        final newUserData = {
+          'userId': firebaseUser.uid,
+          'email': firebaseUser.email ?? '',
+          'displayName': displayName,
+          'companyIds': (data['companyIds'] as List?)?.cast<String>() ?? [],
+          'factoryIds': (data['factoryIds'] as List?)?.cast<String>() ?? [],
+          'supplierIds': (data['supplierIds'] as List?)?.cast<String>() ?? [],
+          'createdAt': createdAt,
+          'subscriptionDurationInDays': subscriptionDurationInDays,
+          'isActive': isActive,
+          'isAdmin': remoteIsAdmin,
+        };
+
+        await HiveService.saveUserData(newUserData);
+        safeDebugPrint('💾 User data updated from Firestore (background)');
+
+        if (mounted) {
+          setState(() {
+            userData = newUserData;
+            isAdmin = remoteIsAdmin;
+            userName =
+                displayName.isNotEmpty ? displayName : firebaseUser.email;
+            userId = firebaseUser.uid;
+            userCompanyIds =
+                (data['companyIds'] as List?)?.cast<String>() ?? [];
+          });
+        }
+      }
+    } catch (e) {
+      safeDebugPrint('❌ Error syncing user data with Firestore: $e');
+    }
+  }
+
+  void _listenForNewLicenseRequests() async {
+    final userData = await HiveService.getUserData();
+    final bool isAdmin = userData?['isAdmin'] == true;
+
+    if (!isAdmin) return;
+
+    _firestore
+        .collection('license_requests')
+        .where('status', isEqualTo: 'pending')
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .listen((snapshot) async {
+      if (snapshot.docs.isEmpty || !mounted) return;
+
+      for (final doc in snapshot.docs) {
+        final String requestId = doc.id;
+        final createdAt = (doc['createdAt'] as Timestamp?)?.toDate();
+
+        if (createdAt == null) continue;
+
+        final now = DateTime.now();
+        final difference = now.difference(createdAt);
+
+        if (difference.inSeconds < 30 &&
+            _lastNotificationTime.containsKey(requestId)) {
+          final lastTime = _lastNotificationTime[requestId]!;
+          if (now.difference(lastTime).inSeconds < 30) {
+            continue;
+          }
+        }
+
+        if (difference.inSeconds < 10) {
+          _debounceTimers[requestId]?.cancel();
+
+          _debounceTimers[requestId] = Timer(const Duration(seconds: 2), () {
+            _showLicenseRequestNotification(doc);
+            _lastNotificationTime[requestId] = DateTime.now();
+          });
+        }
+      }
+    });
+  }
+
+  void _showLicenseRequestNotification(DocumentSnapshot doc) async {
+    final userName = doc['displayName'];
+
+    await NotificationService.showNotification(
+      title: '📝 ${tr('new_license_request')}',
+      body: '${tr('from')} $userName',
+      playSound: true,
+      vibrate: true,
+    );
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('📝${'new_license_request'.tr()} $userName'),
+          action: SnackBarAction(
+            label: 'view'.tr(),
+            onPressed: () {
+              DefaultTabController.of(context).animateTo(0);
+            },
+          ),
+          duration: const Duration(seconds: 6),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  void _listenForNewDeviceRequests() async {
+    final userData = await HiveService.getUserData();
+    final bool isAdmin = userData?['isAdmin'] == true;
+
+    if (!isAdmin) return;
+
+    _firestore
+        .collection('device_requests')
+        .where('status', isEqualTo: 'pending')
+        .orderBy('createdAt', descending: true)
+        .limit(1)
+        .snapshots()
+        .listen((snapshot) {
+      if (snapshot.docs.isNotEmpty) {
+        final doc = snapshot.docs.first;
+        final createdAt = (doc['createdAt'] as Timestamp).toDate();
+
+        final now = DateTime.now();
+        final difference = now.difference(createdAt);
+
+        if (difference.inSeconds < 10) {
+          final userName = doc['displayName'];
+          final licenseId = doc['licenseId'];
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                  '📱 ${'request_device_from'.tr()} $userName ${'licence_id'.tr()} $licenseId'),
+              action: SnackBarAction(
+                label: 'view'.tr(),
+                onPressed: () {
+                  DefaultTabController.of(context).animateTo(2);
+                },
+              ),
+              duration: const Duration(seconds: 6),
+            ),
+          );
+        }
+      }
+    });
+  }
+
+  // باقي الدوال الأساسية...
+  Future<void> _saveExpiryDateToLocalStorage() async {
+    try {
+      final expiryDate = await _getExpiryDateFromFirebase();
+      if (expiryDate != null) {
+        await HiveService.cacheData(
+            'expiry_date', expiryDate.toIso8601String());
+        safeDebugPrint('💾 Expiry date saved to Hive: $expiryDate');
+      }
+    } catch (e) {
+      safeDebugPrint('❌ Error saving expiry date to Hive: $e');
+    }
+  }
+
+  Future<DateTime?> _getExpiryDateFromLocalStorage() async {
+    try {
+      final expiryString = await HiveService.getCachedData('expiry_date');
+      if (expiryString != null) {
+        return DateTime.parse(expiryString);
+      }
+    } catch (e) {
+      safeDebugPrint('❌ Error getting expiry date from Hive: $e');
+    }
+    return null;
+  }
+
+  Widget _buildTimeLeftBar() {
+    if (!isSubscriptionExpiringSoon ||
+        subscriptionTimeLeft == null ||
+        subscriptionTimeLeft!.isEmpty) {
+      return const SizedBox();
+    }
+
+    if (subscriptionTimeLeft!.contains('maximum number of devices')) {
+      return const SizedBox();
+    }
+
+    return FutureBuilder<DateTime?>(
+      future: _getExpiryDateFromLocalStorage(),
+      builder: (context, dateSnapshot) {
+        if (dateSnapshot.connectionState != ConnectionState.done) {
+          return const CircularProgressIndicator();
+        }
+
+        if (!dateSnapshot.hasData) {
+          return _buildSimpleTimeLeftBar();
+        }
+
+        final expiryDate = dateSnapshot.data!;
+        final now = DateTime.now();
+        final daysLeft = expiryDate.difference(now).inDays;
+
+        Color progressColor;
+        if (daysLeft > 7) {
+          progressColor = Colors.green;
+        } else if (daysLeft > 4) {
+          progressColor = Colors.orange;
+        } else {
+          progressColor = Colors.red;
+        }
+
+        return Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          margin: const EdgeInsets.only(bottom: 16, top: 8),
+          decoration: BoxDecoration(
+            color: progressColor.withAlpha(75),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: progressColor.withAlpha(75)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.warning_amber, color: progressColor, size: 24),
+                  const SizedBox(width: 8),
+                  Text(
+                    tr('license_expiring_soon'),
+                    style: TextStyle(
+                      color: progressColor,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Text(
+                tr('license_expiring_message'),
+                style: TextStyle(color: progressColor, fontSize: 14),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('${tr('time_left')}:',
+                      style: TextStyle(
+                          color: progressColor, fontWeight: FontWeight.w500)),
+                  Text(subscriptionTimeLeft!,
+                      style: TextStyle(
+                          color: progressColor, fontWeight: FontWeight.bold)),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('${tr('expiry_date')}:',
+                      style: TextStyle(
+                          color: progressColor, fontWeight: FontWeight.w500)),
+                  Text(
+                    '${expiryDate.year}-${expiryDate.month.toString().padLeft(2, '0')}-${expiryDate.day.toString().padLeft(2, '0')}',
+                    style: TextStyle(
+                        color: progressColor, fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildSimpleTimeLeftBar() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.only(bottom: 16, top: 8),
+      decoration: BoxDecoration(
+        color: Colors.orange.withAlpha(75),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.orange),
+      ),
+      child: Text(
+        '${tr('license_expiring_soon')}: $subscriptionTimeLeft',
+        style: TextStyle(
+            color: Colors.orange.shade800, fontWeight: FontWeight.bold),
+      ),
+    );
+  }
+
+  Future<DateTime?> _getExpiryDateFromFirebase() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return null;
+
+      final snapshot = await _firestore
+          .collection('licenses')
+          .where('userId', isEqualTo: user.uid)
+          .where('isActive', isEqualTo: true)
+          .get();
+
+      if (snapshot.docs.isEmpty) return null;
+
+      final licenseDoc = snapshot.docs.first;
+      final expiryTimestamp = licenseDoc.get('expiryDate') as Timestamp?;
+      return expiryTimestamp?.toDate();
+    } catch (e) {
+      safeDebugPrint('❌ Error getting expiry date from Firebase: $e');
+      return null;
+    }
+  }
+
+  Future<void> _checkLicenseExpiryStatus() async {
+    try {
+      final subscriptionService = UserSubscriptionService();
+      final result = await subscriptionService.checkUserSubscription();
+
+      if (!mounted) return;
+
+      setState(() {
+        isSubscriptionExpiringSoon = result.isExpiringSoon;
+        isSubscriptionExpired = result.isExpired;
+        subscriptionTimeLeft = result.timeLeftFormatted;
+      });
+
+      if (!result.isValid &&
+          subscriptionTimeLeft != null &&
+          subscriptionTimeLeft!.contains('maximum number of devices')) {
+        _showDeviceLimitWarning(subscriptionTimeLeft!);
+      }
+
+      if (result.isExpired && !isAdmin) {
+        _redirectToExpiredPage();
+      }
+    } catch (e) {
+      safeDebugPrint('❌ Error checking license expiry status: $e');
+    }
+  }
+
+  void _redirectToExpiredPage() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      context.go('/license/request');
+    });
+  }
+
+  void _showDeviceLimitWarning(String message) async {
+    if (!isAdmin) return;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await NotificationService.showNotification(
+        title: '⚠️ ${tr('device_limit_warning')}',
+        body: message,
+        playSound: true,
+        vibrate: true,
+      );
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: Colors.orange,
+          duration: const Duration(seconds: 5),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    });
+  }
+
+  @override
+  void dispose() {
+    _debounceTimers.forEach((key, timer) => timer.cancel());
+    _debounceTimers.clear();
+
+    _timer?.cancel();
+    _userSubscription?.cancel();
+    _refreshController.dispose();
+    _notificationSubscription?.cancel();
+    _licenseStatusSubscription?.cancel();
+
+    super.dispose();
+  }
+
+  void _setupLicenseStatusListener() {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    _licenseStatusSubscription = _firestore
+        .collection('licenses')
+        .where('userId', isEqualTo: user.uid)
+        .snapshots()
+        .listen((snapshot) async {
+      if (!mounted) return;
+
+      final docs = snapshot.docs.where((doc) => doc.exists).toList();
+      if (docs.isEmpty) {
+        if (!isAdmin) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) context.go('/license/request');
+          });
+        }
+        return;
+      }
+
+      final now = DateTime.now();
+      final activeLicense = docs.firstWhereOrNull((doc) {
+        final isActive = doc.get('isActive') as bool? ?? false;
+        final expiry = (doc.get('expiryDate') as Timestamp?)?.toDate();
+        final isExpired = expiry != null && expiry.isBefore(now);
+        return isActive && !isExpired;
+      });
+
+      if (activeLicense == null && !isAdmin) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) context.go('/license/request');
+        });
+      }
+    });
+  }
+
+  void _checkInitialNotification() async {
+    try {
+      RemoteMessage? initialMessage = await _fcm.getInitialMessage();
+      if (initialMessage != null) {
+        _handleNotification(initialMessage);
+      }
+    } catch (e) {
+      safeDebugPrint('❌ Error checking initial notification: $e');
+    }
+  }
+
+  void _handleNotification(RemoteMessage message) {
+    if (!mounted) return;
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(message.notification?.title ?? 'new_notification'.tr()),
+        content: Text(message.notification?.body ?? 'new_license_request'.tr()),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('ok'.tr()),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _startListeningToUserChanges() {
+    final firebaseUser = FirebaseAuth.instance.currentUser;
+    if (firebaseUser == null) return;
+
+    _userSubscription = _firestore
+        .collection('users')
+        .doc(firebaseUser.uid)
+        .snapshots()
+        .listen((snapshot) async {
+      if (!snapshot.exists) return;
+      final data = snapshot.data();
+      if (data == null) return;
+
+      await _syncUserDataWithFirestore();
+    });
+  }
+
+  Set<String> _getDefaultMetrics() {
+    final viewType = _dashboardView == DashboardView.long ? 'long' : 'short';
+    return dashboardMetrics
+        .where((metric) => metric.defaultMenuType == viewType)
+        .map((metric) => metric.titleKey)
+        .toSet();
+  }
+
+  Future<void> fetchStats() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null || !mounted) return;
+
+    try {
+      final localUser = await HiveService.getUserData();
+      if (localUser == null) return;
+
+      final updatedCompanyIds =
+          (localUser['companyIds'] as List?)?.cast<String>() ?? [];
+
+      final [itemsCount, suppliersCount, finishedProductCount] =
+          await Future.wait([
+        _fetchCollectionCount('items'),
+        _fetchCollectionCount('vendors'),
+        _fetchCollectionCount('finished_products'),
+      ]);
+
+      final poStats = await _fetchPoStats();
+
+      int movementCount = 0;
+      int manufacturingCount = 0;
+
+      if (updatedCompanyIds.isNotEmpty) {
+        final companyResults = await Future.wait(
+          updatedCompanyIds.map((companyId) => _getCompanyStats(companyId)),
+        );
+
+        for (final result in companyResults) {
+          movementCount += (result['movements'] as num).toInt();
+          manufacturingCount += (result['manufacturing'] as num).toInt();
+        }
+      }
+
+      final factoryIds =
+          (localUser['factoryIds'] as List?)?.cast<String>() ?? [];
+      final factoryCount = factoryIds.length;
+
+      final newStats = DashboardStats(
+        totalCompanies: updatedCompanyIds.length,
+        totalItems: itemsCount,
+        totalSuppliers: suppliersCount,
+        totalOrders: poStats['count'],
+        totalAmount: poStats['totalAmount'],
+        totalMovements: movementCount,
+        totalManufacturingOrders: manufacturingCount,
+        totalFinishedProducts: finishedProductCount,
+        totalFactories: factoryCount,
+      );
+
+      if (mounted) {
+        setState(() {
+          userCompanyIds = updatedCompanyIds;
+          _stats.updateFrom(newStats);
+        });
+        await _saveToLocalStorage();
+      }
+    } catch (e) {
+      safeDebugPrint('❌ Error in fetchStats: $e');
+    }
+  }
+
+  Future<bool> _checkCollectionPermission(String collection) async {
+    try {
+      final query = _firestore.collection(collection).limit(1);
+      await query.get();
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  Future<int> _fetchCollectionCount(String collection) async {
+    try {
+      if (userId == null) return 0;
+      final hasPermission = await _checkCollectionPermission(collection);
+      if (!hasPermission) return 0;
+
+      final snapshot = await _firestore
+          .collection(collection)
+          .where('userId', isEqualTo: userId)
+          .get();
+
+      return snapshot.size;
+    } catch (e) {
+      safeDebugPrint('❌ Error fetching $collection: $e');
+      return 0;
+    }
+  }
+
+  Future<Map<String, dynamic>> _getCompanyStats(String companyId) async {
+    try {
+      final results = await Future.wait([
+        _getSubCollectionCount('stock_movements', companyId),
+        _getSubCollectionCount('manufacturing_orders', companyId),
+      ]);
+
+      return {
+        'movements': results[0]['count'],
+        'manufacturing': results[1]['count'],
+      };
+    } catch (e) {
+      safeDebugPrint('❌ Error getting stats for company $companyId: $e');
+      return {'movements': 0, 'manufacturing': 0};
+    }
+  }
+
+  Future<Map<String, dynamic>> _getSubCollectionCount(
+      String collection, String companyId) async {
+    try {
+      if (userId == null) return {'count': 0, 'amount': 0.0};
+
+      final snapshot = await _firestore
+          .collection('companies/$companyId/$collection')
+          .where('userId', isEqualTo: userId)
+          .get();
+
+      double amount = 0.0;
+      if (collection == 'purchase_orders') {
+        amount = snapshot.docs.fold(0.0, (total, doc) {
+          final val = doc.data()['totalAmount'];
+          return total + ((val is num) ? val.toDouble() : 0.0);
+        });
+      }
+
+      return {'count': snapshot.size, 'amount': amount};
+    } catch (e) {
+      safeDebugPrint('❌ Error fetching $collection: $e');
+      return {'count': 0, 'amount': 0.0};
+    }
+  }
+
+  Future<Map<String, dynamic>> _fetchPoStats() async {
+    try {
+      if (userId == null) return {'count': 0, 'totalAmount': 0.0};
+
+      final querySnapshot = await _firestore
+          .collection('purchase_orders')
+          .where('userId', isEqualTo: userId)
+          .where('status', isEqualTo: 'pending')
+          .get();
+
+      double totalAmount = querySnapshot.docs.fold(0.0, (sTotal, doc) {
+        final amount = doc.data()['totalAmountAfterTax'] ?? 0.0;
+        return sTotal + (amount is num ? amount.toDouble() : 0.0);
+      });
+
+      return {
+        'count': querySnapshot.size,
+        'totalAmount': totalAmount,
+      };
+    } catch (e) {
+      safeDebugPrint('❌ Error fetching PURCHASE_ORDERS: $e');
+      return {'count': 0, 'totalAmount': 0.0};
+    }
+  }
+
+  Future<void> _saveToLocalStorage() async {
+    try {
+      await HiveService.cacheData('dashboard_stats', {
+        'totalCompanies': _stats.totalCompanies,
+        'totalSuppliers': _stats.totalSuppliers,
+        'totalOrders': _stats.totalOrders,
+        'totalAmount': _stats.totalAmount,
+      });
+
+      await HiveService.cacheData('extended_stats', {
+        'totalFactories': _stats.totalFactories,
+        'totalItems': _stats.totalItems,
+        'totalStockMovements': _stats.totalMovements,
+        'totalManufacturingOrders': _stats.totalManufacturingOrders,
+        'totalFinishedProducts': _stats.totalFinishedProducts,
+      });
+    } catch (e) {
+      safeDebugPrint('❌ Error saving to Hive: $e');
+    }
+  }
+
+  Future<void> _handleRefresh() async {
+    try {
+      await _syncUserDataWithFirestore();
+      await fetchStats();
+      await _checkSubscriptionStatus();
+
+      _refreshController.refreshCompleted();
+    } catch (e) {
+      safeDebugPrint('❌ Refresh failed: $e');
+      _refreshController.refreshFailed();
+    }
+  }
+
+  Future<void> _checkSubscriptionStatus() async {
+    safeDebugPrint('🔍 Checking subscription status');
+    try {
+      final subscriptionService = UserSubscriptionService();
+      final result = await subscriptionService.checkUserSubscription();
+
+      if (!mounted) return;
+
+      setState(() {
+        isSubscriptionExpiringSoon = result.isExpiringSoon;
+        isSubscriptionExpired = result.isExpired;
+        subscriptionTimeLeft = result.timeLeftFormatted;
+        isLoading = false;
+      });
+
+      _debugSubscriptionStatus();
+
+      _timer?.cancel();
+
+      if (result.isExpiringSoon) {
+        SubscriptionNotifier.showWarning(
+          context,
+          timeLeft: result.timeLeftFormatted ?? '',
+        );
+      }
+
+      if (result.isExpired && result.expiryDate != null) {
+        SubscriptionNotifier.showExpiredDialog(
+          context,
+          expiryDate: result.expiryDate!,
+        );
+      }
+    } catch (e) {
+      safeDebugPrint('❌ Error checking subscription status: $e');
+      if (mounted) {
+        setState(() => isLoading = false);
+      }
+    }
+  }
+
+  void _debugSubscriptionStatus() {
+    safeDebugPrint('🔍 Subscription Status Debug:');
+    safeDebugPrint(
+        '   isSubscriptionExpiringSoon: $isSubscriptionExpiringSoon');
+    safeDebugPrint('   isSubscriptionExpired: $isSubscriptionExpired');
+    safeDebugPrint('   subscriptionTimeLeft: $subscriptionTimeLeft');
+    safeDebugPrint('   userId: $userId');
+  }
+
+  Widget _buildStatsGrid() {
+    final statsMap = _stats.toMap();
+    List<DashboardMetric> filteredMetrics;
+
+    if (_selectedCards.isEmpty) {
+      final defaultViewType =
+          _dashboardView == DashboardView.long ? 'long' : 'short';
+      filteredMetrics = dashboardMetrics
+          .where((metric) => metric.defaultMenuType == defaultViewType)
+          .toList();
+    } else {
+      filteredMetrics = dashboardMetrics
+          .where((metric) => _selectedCards.contains(metric.titleKey))
+          .toList();
+    }
+
+    if (filteredMetrics.isEmpty) {
+      filteredMetrics = dashboardMetrics
+          .where((metric) => metric.defaultMenuType == 'short')
+          .toList();
+    }
+
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+        maxCrossAxisExtent: 300,
+        mainAxisExtent: 135,
+        mainAxisSpacing: 12,
+        crossAxisSpacing: 12,
+        childAspectRatio: 1.6,
+      ),
+      itemCount: filteredMetrics.length,
+      itemBuilder: (context, index) {
+        final metric = filteredMetrics[index];
+        return DashboardTileWidget(
+          metric: metric,
+          data: statsMap,
+          highlight: metric.titleKey == 'totalCompanies',
+        );
+      },
+    );
+  }
+
+  Widget _buildLicenseExpiredWarning() {
+    if (isAdmin) return const SizedBox.shrink();
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Colors.red.shade100,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.red.shade300),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.error_outline, color: Colors.red, size: 24),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(tr('license_expired'),
+                    style: const TextStyle(
+                        color: Colors.red,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16)),
+                const SizedBox(height: 4),
+                Text(tr('license_expired_message'),
+                    style: TextStyle(color: Colors.red.shade800)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _setupFCM() async {
+    try {
+      await _fcm.requestPermission();
+      _notificationSubscription = FirebaseMessaging.onMessage.listen((message) {
+        _showNotification(message);
+      });
+    } catch (e) {
+      safeDebugPrint('❌ Error setting up FCM: $e');
+    }
+  }
+
+  void _showNotification(RemoteMessage message) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(message.notification?.title ?? 'New Notification'),
+        content: Text(message.notification?.body ?? 'New license request'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('ok'.tr()),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (isLoading || userData == null) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+
+    return AppScaffold(
+      title: tr('dashboard'),
+      userName: userName,
+      isSubscriptionExpiringSoon: isSubscriptionExpiringSoon,
+      isSubscriptionExpired: isSubscriptionExpired,
+      isDashboard: true,
+      body: SmartRefresher(
+        controller: _refreshController,
+        onRefresh: _handleRefresh,
+        enablePullDown: true,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(tr('welcome_back', args: [userName ?? '']),
+                  style: Theme.of(context).textTheme.headlineSmall),
+              const SizedBox(height: 16),
+              if (isSubscriptionExpiringSoon) _buildTimeLeftBar(),
+              if (isSubscriptionExpired && !isAdmin)
+                _buildLicenseExpiredWarning(),
+              const SizedBox(height: 16),
+              _buildStatsGrid(),
+              if (subscriptionTimeLeft != null &&
+                  subscriptionTimeLeft!.contains('maximum number of devices'))
+                Padding(
+                  padding: const EdgeInsets.only(top: 16.0),
+                  child: FloatingActionButton(
+                    onPressed: () => context.push('/device-request'),
                     backgroundColor: Colors.orange,
                     child: const Icon(Icons.device_hub),
                   ),

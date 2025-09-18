@@ -835,7 +835,7 @@ Widget _buildDrawer(BuildContext context) {
             if (!context.mounted) return;
             if (result == true) {
               final dashboardState = context.findAncestorStateOfType<DashboardPageState>();
-              dashboardState?.loadSettings();
+              dashboardState?.loadSettingsFromHive();
             }
           },
         ),

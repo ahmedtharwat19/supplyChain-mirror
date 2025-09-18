@@ -27,7 +27,7 @@ class _SignupFormState extends State<SignupForm> {
   bool _obscurePassword = true;
   bool _obscureConfirm = true;
 
-  void _signup() async {
+/*   void _signup() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
 
     setState(() => _isLoading = true);
@@ -66,7 +66,7 @@ class _SignupFormState extends State<SignupForm> {
 
         final licenseKey = await licenseService.createLicense(
           userId: user.uid,
-          durationSeconds: 60 * 60 * 24 * 30, // مثال: 30 يوم بالثواني
+          durationMonths: 60 * 60 * 24 * 30, // مثال: 30 يوم بالثواني
           maxDevices: 1,
           requestId: 'demo_${DateTime.now().millisecondsSinceEpoch}',
         );
@@ -94,6 +94,101 @@ class _SignupFormState extends State<SignupForm> {
       if (mounted) {
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text(message)));
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+ */
+
+  void _signup() async {
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      final credential =
+          await FirebaseAuth.instance.createUserWithEmailAndPassword(
+        email: _emailController.text.trim(),
+        password: _passwordController.text.trim(),
+      );
+
+      final user = credential.user;
+      if (user != null) {
+        await user.sendEmailVerification();
+
+        final displayName = _displayNameController.text.trim().isEmpty
+            ? _emailController.text.trim().split('@')[0]
+            : _displayNameController.text.trim();
+
+        final phone = _phoneController.text.trim();
+
+        await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+          'userId': user.uid,
+          'email': user.email,
+          'displayName': displayName,
+          'phoneNumber': phone,
+          'companyIds': [],
+          'supplierIds': [],
+          'factoriesIds': [],
+          'isActive': true,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+
+        final licenseService = LicenseService();
+        await licenseService.initialize();
+
+        // إنشاء الترخيص - 1 شهر تجريبي
+        final licenseKey = await licenseService.createLicense(
+          userId: user.uid,
+          durationMonths: 1, // 1 شهر تجريبي
+          maxDevices: 1,
+          requestId: 'signup_${DateTime.now().millisecondsSinceEpoch}',
+        );
+
+        // تحديث مستخدم برقم الترخيص
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .update({
+          'licenseKey': licenseKey,
+        });
+
+        // التحقق من الترخيص لتسجيل الجهاز تلقائياً
+        final status = await licenseService.checkLicenseStatus(licenseKey);
+
+        if (mounted) {
+          if (status.isValid) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('account_created_successfully'.tr())),
+            );
+            context.go('/login');
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('license_activation_failed'.tr())),
+            );
+          }
+        }
+      }
+    } on FirebaseAuthException catch (e) {
+      String message = 'signup_error'.tr();
+      if (e.code == 'email-already-in-use') {
+        message = 'email_already_in_use'.tr();
+      } else if (e.code == 'weak-password') {
+        message = 'weak_password'.tr();
+      } else if (e.code == 'invalid-email') {
+        message = 'invalid_email'.tr();
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(message)));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('unexpected_error'.tr())),
+        );
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
