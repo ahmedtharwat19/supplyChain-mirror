@@ -1849,47 +1849,6 @@ Future<void> _loadDataAndNavigate() async {
 }
  */
 
-import 'dart:async';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:easy_localization/easy_localization.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
-import 'package:puresip_purchasing/debug_helper.dart';
-import 'package:puresip_purchasing/models/license_status.dart';
-import 'package:puresip_purchasing/services/device_fingerprint.dart';
-import 'package:puresip_purchasing/services/license_service.dart';
-import 'package:puresip_purchasing/services/user_subscription_service.dart';
-
-class DeviceManagementPage extends StatefulWidget {
-  final String? licenseId;
-
-  const DeviceManagementPage({super.key, this.licenseId});
-
-  @override
-  State<DeviceManagementPage> createState() => _DeviceManagementPageState();
-}
-
-class _DeviceManagementPageState extends State<DeviceManagementPage> {
-  final UserSubscriptionService _service = UserSubscriptionService();
-  final LicenseService _licenseService = LicenseService();
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-  List<Map<String, dynamic>> _devices = [];
-  bool _isLoading = true;
-  LicenseStatus? _licenseStatus;
-  String _currentDeviceId = '';
-  String? _resolvedLicenseId;
-  StreamSubscription<QuerySnapshot>? _deviceRequestsSubscription;
-  // int _checkAttempts = 0;
-  // final int _maxCheckAttempts = 10;
-
-  @override
-  void initState() {
-    super.initState();
-    _resolveLicenseId();
-    _listenForDeviceRequests();
-  }
-
 /*   Future<void> _listenForDeviceRequests() async {
     final user = _auth.currentUser;
     if (user == null) return;
@@ -2007,117 +1966,164 @@ class _DeviceManagementPageState extends State<DeviceManagementPage> {
   }
 } */
 
-Future<void> _listenForDeviceRequests() async {
-  final user = _auth.currentUser;
-  if (user == null) return;
+import 'dart:async';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:easy_localization/easy_localization.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:puresip_purchasing/debug_helper.dart';
+import 'package:puresip_purchasing/models/license_status.dart';
+import 'package:puresip_purchasing/services/device_fingerprint.dart';
+import 'package:puresip_purchasing/services/license_service.dart';
+import 'package:puresip_purchasing/services/user_subscription_service.dart';
 
-  try {
-    safeDebugPrint('🔄 Starting to listen for ALL device requests');
+class DeviceManagementPage extends StatefulWidget {
+  final String? licenseId;
 
-    _deviceRequestsSubscription = FirebaseFirestore.instance
-        .collection('device_requests')
-        .where('userId', isEqualTo: user.uid)
-        .orderBy('processedAt', descending: true) // نرتب حسب تاريخ المعالجة
-        .snapshots()
-        .listen((querySnapshot) {
-      if (!mounted) return;
+  const DeviceManagementPage({super.key, this.licenseId});
 
-      safeDebugPrint('📡 Received ${querySnapshot.docs.length} device requests');
-
-      for (final doc in querySnapshot.docChanges) {
-        final data = doc.doc.data();
-        final status = data?['status'];
-        final isApproved = data?['approved'] == true;
-        final isProcessed = data?['processed'] == true;
-        final requestId = doc.doc.id;
-        final processedAt = data?['processedAt'] as Timestamp?;
-
-        safeDebugPrint('📝 Request: $requestId, status=$status, approved=$isApproved, processed=$isProcessed, processedAt=$processedAt');
-
-        // إذا كان الطلب تمت الموافقة عليه ومعالجته
-        if (status == 'approved' && isApproved && isProcessed && processedAt != null) {
-          
-          safeDebugPrint('🎉 Approved request found: $requestId');
-          
-          // التحقق إذا كان هذا هو أحدث طلب معالج
-          _checkIfLatestApprovedRequest(querySnapshot.docs);
-          break;
-        }
-      }
-    }, onError: (error) {
-      safeDebugPrint('❌ Error in device request listener: $error');
-    });
-  } catch (e) {
-    safeDebugPrint('Error listening for device requests: $e');
-  }
+  @override
+  State<DeviceManagementPage> createState() => _DeviceManagementPageState();
 }
 
-void _checkIfLatestApprovedRequest(List<DocumentSnapshot> allRequests) {
-  if (allRequests.isEmpty) return;
+class _DeviceManagementPageState extends State<DeviceManagementPage> {
+  final UserSubscriptionService _service = UserSubscriptionService();
+  final LicenseService _licenseService = LicenseService();
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  List<Map<String, dynamic>> _devices = [];
+  bool _isLoading = true;
+  LicenseStatus? _licenseStatus;
+  String _currentDeviceId = '';
+  String? _resolvedLicenseId;
+  StreamSubscription<QuerySnapshot>? _deviceRequestsSubscription;
+  // int _checkAttempts = 0;
+  // final int _maxCheckAttempts = 10;
 
-  // البحث عن أحدث طلب معالج
-  DocumentSnapshot? latestProcessedRequest;
-  DateTime? latestProcessedTime;
-
-  for (final doc in allRequests) {
-    final data = doc.data() as Map<String, dynamic>?;
-    final processedAt = data?['processedAt'] as Timestamp?;
-    
-    if (processedAt != null) {
-      final processedTime = processedAt.toDate();
-      
-      if (latestProcessedTime == null || processedTime.isAfter(latestProcessedTime)) {
-        latestProcessedTime = processedTime;
-        latestProcessedRequest = doc;
-      }
-    }
+  @override
+  void initState() {
+    super.initState();
+    _resolveLicenseId();
+    _listenForDeviceRequests();
   }
 
-  if (latestProcessedRequest != null) {
-    final data = latestProcessedRequest.data() as Map<String, dynamic>;
-    final status = data['status'];
-    final isApproved = data['approved'] == true;
-    
-    if (status == 'approved' && isApproved) {
-      safeDebugPrint('🎯 Latest request is approved: ${latestProcessedRequest.id}');
-      
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('device_request_approved'.tr())),
-          );
-          
-          _navigateToDashboard();
-        }
-      });
-    }
-  }
-}
+  Future<void> _listenForDeviceRequests() async {
+    final user = _auth.currentUser;
+    if (user == null) return;
 
-Future<void> _navigateToDashboard() async {
-  safeDebugPrint('➡️ Navigating to dashboard based on latest approved request');
-  
-  // إلغاء الاشتراك أولاً
-  _deviceRequestsSubscription?.cancel();
-  
-  // تأخير بسيط لضمان استقرار الواجهة
-  await Future.delayed(const Duration(milliseconds: 300));
-  
-  if (mounted) {
     try {
-      context.go('/dashboard');
-      safeDebugPrint('✅ Successfully navigated to dashboard');
+      safeDebugPrint('🔄 Starting to listen for ALL device requests');
+
+      _deviceRequestsSubscription = FirebaseFirestore.instance
+          .collection('device_requests')
+          .where('userId', isEqualTo: user.uid)
+          .orderBy('processedAt', descending: true) // نرتب حسب تاريخ المعالجة
+          .snapshots()
+          .listen((querySnapshot) {
+        if (!mounted) return;
+
+        safeDebugPrint(
+            '📡 Received ${querySnapshot.docs.length} device requests');
+
+        for (final doc in querySnapshot.docChanges) {
+          final data = doc.doc.data();
+          final status = data?['status'];
+          final isApproved = data?['approved'] == true;
+          final isProcessed = data?['processed'] == true;
+          final requestId = doc.doc.id;
+          final processedAt = data?['processedAt'] as Timestamp?;
+
+          safeDebugPrint(
+              '📝 Request: $requestId, status=$status, approved=$isApproved, processed=$isProcessed, processedAt=$processedAt');
+
+          // إذا كان الطلب تمت الموافقة عليه ومعالجته
+          if (status == 'approved' &&
+              isApproved &&
+              isProcessed &&
+              processedAt != null) {
+            safeDebugPrint('🎉 Approved request found: $requestId');
+
+            // التحقق إذا كان هذا هو أحدث طلب معالج
+            _checkIfLatestApprovedRequest(querySnapshot.docs);
+            break;
+          }
+        }
+      }, onError: (error) {
+        safeDebugPrint('❌ Error in device request listener: $error');
+      });
     } catch (e) {
-      safeDebugPrint('❌ Navigation error: $e');
-      // Fallback: محاولة أخرى
-      await Future.delayed(const Duration(milliseconds: 500));
-      if (mounted) {
-        context.go('/dashboard');
+      safeDebugPrint('Error listening for device requests: $e');
+    }
+  }
+
+  void _checkIfLatestApprovedRequest(List<DocumentSnapshot> allRequests) {
+    if (allRequests.isEmpty) return;
+
+    // البحث عن أحدث طلب معالج
+    DocumentSnapshot? latestProcessedRequest;
+    DateTime? latestProcessedTime;
+
+    for (final doc in allRequests) {
+      final data = doc.data() as Map<String, dynamic>?;
+      final processedAt = data?['processedAt'] as Timestamp?;
+
+      if (processedAt != null) {
+        final processedTime = processedAt.toDate();
+
+        if (latestProcessedTime == null ||
+            processedTime.isAfter(latestProcessedTime)) {
+          latestProcessedTime = processedTime;
+          latestProcessedRequest = doc;
+        }
+      }
+    }
+
+    if (latestProcessedRequest != null) {
+      final data = latestProcessedRequest.data() as Map<String, dynamic>;
+      final status = data['status'];
+      final isApproved = data['approved'] == true;
+
+      if (status == 'approved' && isApproved) {
+        safeDebugPrint(
+            '🎯 Latest request is approved: ${latestProcessedRequest.id}');
+
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('device_request_approved'.tr())),
+            );
+
+            _navigateToDashboard();
+          }
+        });
       }
     }
   }
-}
 
+  Future<void> _navigateToDashboard() async {
+    safeDebugPrint(
+        '➡️ Navigating to dashboard based on latest approved request');
+
+    // إلغاء الاشتراك أولاً
+    _deviceRequestsSubscription?.cancel();
+
+    // تأخير بسيط لضمان استقرار الواجهة
+    await Future.delayed(const Duration(milliseconds: 300));
+
+    if (mounted) {
+      try {
+        context.go('/dashboard');
+        safeDebugPrint('✅ Successfully navigated to dashboard');
+      } catch (e) {
+        safeDebugPrint('❌ Navigation error: $e');
+        // Fallback: محاولة أخرى
+        await Future.delayed(const Duration(milliseconds: 500));
+        if (mounted) {
+          context.go('/dashboard');
+        }
+      }
+    }
+  }
 
 /* Future<void> _navigateToDashboard() async {
   safeDebugPrint('➡️ Navigating directly to dashboard based on approved request');
@@ -2154,8 +2160,7 @@ Future<void> _navigateToDashboard() async {
   }
  */
 
-
- /*  Future<void> _checkLicenseRepeatedly() async {
+  /*  Future<void> _checkLicenseRepeatedly() async {
     if (_checkAttempts >= _maxCheckAttempts) {
       safeDebugPrint('❌ Max check attempts reached');
       if (mounted) {
@@ -2248,6 +2253,7 @@ Future<void> _navigateToDashboard() async {
       final status = await _licenseService.getCurrentUserLicenseStatus();
       await _loadDevices();
       await _loadCurrentDeviceId();
+      await _diagnoseDeviceData();
 
       if (!mounted) return;
       setState(() {
@@ -2255,12 +2261,13 @@ Future<void> _navigateToDashboard() async {
         _isLoading = false;
       });
 
-      safeDebugPrint('License status: isValid=${status.isValid}, usedDevices=${status.usedDevices}, maxDevices=${status.maxDevices}');
+      safeDebugPrint(
+          'License status: isValid=${status.isValid}, usedDevices=${status.usedDevices}, maxDevices=${status.maxDevices}');
 
       if (navigateIfValid && status.isValid) {
         safeDebugPrint('✅ Navigating to dashboard');
         final wasMounted = mounted;
-        
+
         Future.delayed(const Duration(milliseconds: 500), () {
           if (wasMounted && mounted) {
             context.go('/dashboard');
@@ -2274,11 +2281,73 @@ Future<void> _navigateToDashboard() async {
     }
   }
 
-  Future<void> _loadDevices() async {
+/*   Future<void> _loadDevices() async {
     if (_resolvedLicenseId == null) return;
     final devices = await _service.getRegisteredDevices(_resolvedLicenseId!);
     if (!mounted) return;
     setState(() => _devices = devices);
+  }
+ */
+
+  Future<void> _loadDevices() async {
+    if (_resolvedLicenseId == null) return;
+
+    try {
+      safeDebugPrint('🔄 Loading devices for license: $_resolvedLicenseId');
+
+      final devices = await _service.getRegisteredDevices(_resolvedLicenseId!);
+
+      safeDebugPrint('📊 Loaded ${devices.length} devices');
+
+      if (!mounted) return;
+      setState(() => _devices = devices);
+    } catch (e) {
+      safeDebugPrint('❌ Error loading devices: $e');
+
+      if (!mounted) return;
+      setState(() => _devices = []);
+    }
+  }
+
+  Future<void> _diagnoseDeviceData() async {
+    try {
+      safeDebugPrint('🔍 Diagnosing device data...');
+
+      // فحص بيانات الترخيص
+      final licenseDoc = await FirebaseFirestore.instance
+          .collection('licenses')
+          .doc(_resolvedLicenseId!)
+          .get();
+
+      if (licenseDoc.exists) {
+        final licenseData = licenseDoc.data()!;
+        final devices = licenseData['devices'] as List<dynamic>? ?? [];
+
+        safeDebugPrint('📋 License devices count: ${devices.length}');
+        safeDebugPrint('📋 Local devices count: ${_devices.length}');
+
+        for (int i = 0; i < devices.length; i++) {
+          safeDebugPrint('Device $i: ${devices[i]}');
+        }
+      }
+
+      // فحص بيانات المستخدم
+      final user = _auth.currentUser;
+      if (user != null) {
+        final userDoc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .get();
+
+        if (userDoc.exists) {
+          final userData = userDoc.data()!;
+          final userDevices = userData['deviceIds'] as List<dynamic>? ?? [];
+          safeDebugPrint('👤 User devices count: ${userDevices.length}');
+        }
+      }
+    } catch (e) {
+      safeDebugPrint('❌ Diagnosis error: $e');
+    }
   }
 
   Future<void> _loadCurrentDeviceId() async {
@@ -2340,9 +2409,7 @@ Future<void> _navigateToDashboard() async {
               ),
             ),
           ),
-
           const SizedBox(height: 16),
-
           if (_licenseStatus!.deviceLimitExceeded)
             Card(
               color: Colors.red.withAlpha(75),
@@ -2362,13 +2429,10 @@ Future<void> _navigateToDashboard() async {
                 ),
               ),
             ),
-
           const SizedBox(height: 16),
-
           Text('registered_devices'.tr(),
               style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 8),
-
           Expanded(
             child: _devices.isEmpty
                 ? Center(child: Text('no_devices_registered'.tr()))
@@ -2381,12 +2445,15 @@ Future<void> _navigateToDashboard() async {
 
                       return Card(
                         child: ListTile(
-                          title: Text(device['deviceName'] ?? 'unknown_device'.tr()),
+                          title: Text(
+                              device['deviceName'] ?? 'unknown_device'.tr()),
                           subtitle: _buildDeviceInfoSubtitle(device, isCurrent),
                           trailing: !isCurrent
                               ? IconButton(
-                                  icon: const Icon(Icons.delete, color: Colors.red),
-                                  onPressed: () => _showDeviceDeleteDialog(device),
+                                  icon: const Icon(Icons.delete,
+                                      color: Colors.red),
+                                  onPressed: () =>
+                                      _showDeviceDeleteDialog(device),
                                 )
                               : null,
                         ),
@@ -2394,9 +2461,7 @@ Future<void> _navigateToDashboard() async {
                     },
                   ),
           ),
-
           const SizedBox(height: 16),
-
           Row(
             children: [
               Expanded(
@@ -2467,7 +2532,8 @@ Future<void> _navigateToDashboard() async {
       return;
     }
 
-    final success = await _service.registerDeviceFingerprint(_resolvedLicenseId!);
+    final success =
+        await _service.registerDeviceFingerprint(_resolvedLicenseId!);
     if (success) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -2483,7 +2549,7 @@ Future<void> _navigateToDashboard() async {
       }
     }
   }
-
+/* 
   Future<void> _unregisterDevice(String fingerprint) async {
     if (_resolvedLicenseId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -2548,6 +2614,89 @@ Future<void> _navigateToDashboard() async {
       }
     }
   }
+ */
+
+  Future<void> _unregisterDevice(String fingerprint) async {
+    if (_resolvedLicenseId == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('license_not_found'.tr())),
+        );
+      }
+      return;
+    }
+
+    final user = _auth.currentUser;
+    if (user == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('user_not_authenticated'.tr())),
+        );
+      }
+      return;
+    }
+
+    try {
+      if (!mounted) return;
+      setState(() => _isLoading = true);
+
+      safeDebugPrint('🔍 Searching for device with fingerprint: $fingerprint');
+
+      // ✅ البحث عن الجهاز المراد حذفه
+      final deviceToRemove = _devices.firstWhere(
+        (device) => device['fingerprint'] == fingerprint,
+        orElse: () => {},
+      );
+
+      if (deviceToRemove.isEmpty) {
+        throw Exception('Device not found in local list');
+      }
+
+      safeDebugPrint('✅ Found device to remove: $deviceToRemove');
+
+      // ✅ حذف الجهاز من الترخيص في Firestore
+      await FirebaseFirestore.instance
+          .collection('licenses')
+          .doc(_resolvedLicenseId!)
+          .update({
+        'devices': FieldValue.arrayRemove([deviceToRemove]),
+        'lastUpdated': FieldValue.serverTimestamp(),
+      });
+
+      safeDebugPrint('✅ Device removed from license successfully');
+
+      // ✅ حذف الجهاز من المستخدم في Firestore
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .update({
+        'deviceIds': FieldValue.arrayRemove([deviceToRemove]),
+        'lastUpdated': FieldValue.serverTimestamp(),
+      });
+
+      safeDebugPrint('✅ Device removed from user successfully');
+
+      // ✅ تحديث الواجهة
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('device_unregistered_successfully'.tr())),
+        );
+
+        // إعادة تحميل البيانات
+        await _loadData(navigateIfValid: false);
+      }
+    } catch (e) {
+      safeDebugPrint('❌ Error unregistering device: $e');
+
+      if (mounted) {
+        setState(() => _isLoading = false);
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('failed_to_unregister_device'.tr())),
+        );
+      }
+    }
+  }
 
   Future<void> _requestNewDeviceSlot() async {
     if (_resolvedLicenseId == null) {
@@ -2572,7 +2721,8 @@ Future<void> _navigateToDashboard() async {
     }
 
     final licenseId = _resolvedLicenseId!;
-    final requestId = 'request_${licenseId}_${DateTime.now().millisecondsSinceEpoch}';
+    final requestId =
+        'request_${licenseId}_${DateTime.now().millisecondsSinceEpoch}';
 
     final existingRequests = await FirebaseFirestore.instance
         .collection('device_requests')
@@ -2651,11 +2801,10 @@ Future<void> _navigateToDashboard() async {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('request_submitted'.tr())),
         );
-              // إعادة تحميل المستمع للطلبات
-      _deviceRequestsSubscription?.cancel();
-      _listenForDeviceRequests(); // استدعاء الدالة المحدثة
+        // إعادة تحميل المستمع للطلبات
+        _deviceRequestsSubscription?.cancel();
+        _listenForDeviceRequests(); // استدعاء الدالة المحدثة
       }
-
     } catch (e) {
       safeDebugPrint('Error creating device request: $e');
       if (mounted) {
@@ -2680,12 +2829,13 @@ Future<void> _navigateToDashboard() async {
         if (device['lastActive'] != null)
           Text('${'last_active'.tr()}: ${_formatDate(device['lastActive'])}'),
         if (isCurrent)
-          Text('current_device'.tr(), style: const TextStyle(color: Colors.green)),
+          Text('current_device'.tr(),
+              style: const TextStyle(color: Colors.green)),
       ],
     );
   }
 
-  Future<void> _showDeviceDeleteDialog(Map<String, dynamic> device) async {
+/*   Future<void> _showDeviceDeleteDialog(Map<String, dynamic> device) async {
     final fingerprint = device['fingerprint'];
 
     await showDialog(
@@ -2725,6 +2875,59 @@ Future<void> _navigateToDashboard() async {
       ),
     );
   }
+ */
+
+  Future<void> _showDeviceDeleteDialog(Map<String, dynamic> device) async {
+    final fingerprint = device['fingerprint'];
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('unregister_device'.tr()),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('confirm_unregister_device'.tr()),
+            const SizedBox(height: 16),
+            _buildDeviceInfoCard(device),
+            const SizedBox(height: 8),
+            Text(
+              'auto_register_warning'.tr(),
+              style: const TextStyle(
+                color: Colors.blue,
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text('cancel'.tr()),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text('unregister'.tr()),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      try {
+        await _unregisterDevice(fingerprint);
+      } catch (e) {
+        safeDebugPrint('❌ Error in device deletion dialog: $e');
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('error_occurred'.tr())),
+          );
+        }
+      }
+    }
+  }
 
   Widget _buildDeviceInfoCard(Map<String, dynamic> device) {
     return Card(
@@ -2740,12 +2943,14 @@ Future<void> _navigateToDashboard() async {
             ),
             if (device['platform'] != null)
               Text('${'platform'.tr()}: ${device['platform']}'),
-            if (device['model'] != null) Text('${'model'.tr()}: ${device['model']}'),
+            if (device['model'] != null)
+              Text('${'model'.tr()}: ${device['model']}'),
             if (device['os'] != null) Text('${'os'.tr()}: ${device['os']}'),
             if (device['browser'] != null && device['browser'] != 'N/A')
               Text('${'browser'.tr()}: ${device['browser']}'),
             if (device['registeredAt'] != null)
-              Text('${'registered'.tr()}: ${_formatDate(device['registeredAt'])}'),
+              Text(
+                  '${'registered'.tr()}: ${_formatDate(device['registeredAt'])}'),
           ],
         ),
       ),

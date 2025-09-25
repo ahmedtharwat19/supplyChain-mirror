@@ -1669,28 +1669,44 @@ class DashboardPageState extends State<DashboardPage> {
   String? userName;
   List<String> userCompanyIds = [];
 
-  @override
+/*   @override
   void initState() {
     super.initState();
     safeDebugPrint('🔄 DashboardPage initState called');
-    _initializeFromHiveFirst();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initializeFromHiveFirst().then((_) {
+        // إعادة تحميل البيانات بعد اكتمال البناء الأولي
+        if (mounted) {
+          fetchStats();
+          _checkSubscriptionStatus();
+        }
+      });
+    });
+  } */
+@override
+void initState() {
+  super.initState();
+  safeDebugPrint('🔄 DashboardPage initState called');
+  _initializeFromHiveFirst();
+}
+
+Future<void> _initializeFromHiveFirst() async {
+  safeDebugPrint('📦 Loading data from Hive first...');
+
+  await _loadUserDataFromHive();
+  await loadSettingsFromHive();
+  await loadCachedDataFromHive();
+
+  if (mounted) {
+    setState(() => isLoading = false);
   }
 
-  Future<void> _initializeFromHiveFirst() async {
-    safeDebugPrint('📦 Loading data from Hive first...');
-
-    await _loadUserDataFromHive();
-    await loadSettingsFromHive();
-    await loadCachedDataFromHive();
-
-    if (mounted) {
-      setState(() => isLoading = false);
-    }
-
+  if (mounted) { // ✅ التحقق قبل بدء التحديثات
     _startBackgroundUpdates();
     _setupListenersAndNotifications();
   }
-
+}
   Future<void> _loadUserDataFromHive() async {
     try {
       final data = await HiveService.getUserData();
@@ -1769,9 +1785,13 @@ class DashboardPageState extends State<DashboardPage> {
       _checkLicenseExpiryStatus(),
       _saveExpiryDateToLocalStorage(),
     ]).then((_) {
+     if (mounted) { // ✅ التحقق قبل التحديث
       safeDebugPrint('✅ All background updates completed');
+    }
     }).catchError((error) {
+      if (mounted) { // ✅ التحقق قبل التحديث
       safeDebugPrint('❌ Error in background updates: $error');
+    }
     });
   }
 
@@ -2315,26 +2335,58 @@ class DashboardPageState extends State<DashboardPage> {
       final updatedCompanyIds =
           (localUser['companyIds'] as List?)?.cast<String>() ?? [];
 
-      final [itemsCount, suppliersCount, finishedProductCount] =
-          await Future.wait([
-        _fetchCollectionCount('items'),
-        _fetchCollectionCount('vendors'),
-        _fetchCollectionCount('finished_products'),
-      ]);
+      // تحديث عدد الشركات أولاً
+      if (mounted) {
+        setState(() {
+          userCompanyIds = updatedCompanyIds;
+          _stats.totalCompanies = updatedCompanyIds.length;
+        });
+      }
 
-      final poStats = await _fetchPoStats();
+      // جلب البيانات الأخرى بشكل متوازي مع معالجة الأخطاء
+      final results = await Future.wait([
+        _fetchCollectionCount('items').catchError((e) {
+          safeDebugPrint('❌ Error fetching items: $e');
+          return 0;
+        }),
+        _fetchCollectionCount('vendors').catchError((e) {
+          safeDebugPrint('❌ Error fetching vendors: $e');
+          return 0;
+        }),
+        _fetchCollectionCount('finished_products').catchError((e) {
+          safeDebugPrint('❌ Error fetching finished_products: $e');
+          return 0;
+        }),
+        _fetchPoStats().catchError((e) {
+          safeDebugPrint('❌ Error fetching PO stats: $e');
+          return {'count': 0, 'totalAmount': 0.0};
+        }),
+        _fetchManufacturingOrdersCount().catchError((e) {
+          safeDebugPrint('❌ Error fetching manufacturing orders: $e');
+          return 0;
+        }),
+      ], eagerError: false);
 
       int movementCount = 0;
-      int manufacturingCount = 0;
+      //  int manufacturingCount = 0;
 
       if (updatedCompanyIds.isNotEmpty) {
-        final companyResults = await Future.wait(
-          updatedCompanyIds.map((companyId) => _getCompanyStats(companyId)),
-        );
+        try {
+          final companyResults = await Future.wait(
+            updatedCompanyIds
+                .map((companyId) => _getCompanyStats(companyId).catchError((e) {
+                      safeDebugPrint(
+                          '❌ Error getting stats for company $companyId: $e');
+                      return {'movements': 0, 'manufacturing': 0};
+                    })),
+          );
 
-        for (final result in companyResults) {
-          movementCount += (result['movements'] as num).toInt();
-          manufacturingCount += (result['manufacturing'] as num).toInt();
+          for (final result in companyResults) {
+            movementCount += (result['movements'] as num).toInt();
+            //  manufacturingCount += results[4] as int, //await _fetchManufacturingOrdersCount();
+          }
+        } catch (e) {
+          safeDebugPrint('❌ Error in company stats: $e');
         }
       }
 
@@ -2344,25 +2396,26 @@ class DashboardPageState extends State<DashboardPage> {
 
       final newStats = DashboardStats(
         totalCompanies: updatedCompanyIds.length,
-        totalItems: itemsCount,
-        totalSuppliers: suppliersCount,
-        totalOrders: poStats['count'],
-        totalAmount: poStats['totalAmount'],
+        totalItems: results[0] as int,
+        totalSuppliers: results[1] as int,
+        totalOrders: (results[3] as Map)['count'] as int,
+        totalAmount: (results[3] as Map)['totalAmount'] as double,
         totalMovements: movementCount,
-        totalManufacturingOrders: manufacturingCount,
-        totalFinishedProducts: finishedProductCount,
+        totalManufacturingOrders: results[4] as int, // manufacturingCount,
+        totalFinishedProducts: results[2] as int,
         totalFactories: factoryCount,
       );
 
       if (mounted) {
         setState(() {
-          userCompanyIds = updatedCompanyIds;
           _stats.updateFrom(newStats);
         });
         await _saveToLocalStorage();
       }
     } catch (e) {
+      if (mounted) {
       safeDebugPrint('❌ Error in fetchStats: $e');
+    }
     }
   }
 
@@ -2397,13 +2450,20 @@ class DashboardPageState extends State<DashboardPage> {
   Future<Map<String, dynamic>> _getCompanyStats(String companyId) async {
     try {
       final results = await Future.wait([
-        _getSubCollectionCount('stock_movements', companyId),
-        _getSubCollectionCount('manufacturing_orders', companyId),
+        _getSubCollectionCount('stock_movements', companyId).catchError((e) {
+          safeDebugPrint('❌ Error fetching stock_movements for $companyId: $e');
+          return {'count': 0, 'amount': 0.0};
+        }),
+        // _getSubCollectionCount('manufacturing_orders', companyId)
+        //   .catchError((e) {
+        //     safeDebugPrint('❌ Error fetching manufacturing_orders for $companyId: $e');
+        //     return {'count': 0, 'amount': 0.0};
+        //   }),
       ]);
 
       return {
-        'movements': results[0]['count'],
-        'manufacturing': results[1]['count'],
+        'movements': (results[0] as Map)['count'] as int,
+        // 'manufacturing': (results[1] as Map)['count'] as int,
       };
     } catch (e) {
       safeDebugPrint('❌ Error getting stats for company $companyId: $e');
@@ -2458,6 +2518,27 @@ class DashboardPageState extends State<DashboardPage> {
     } catch (e) {
       safeDebugPrint('❌ Error fetching PURCHASE_ORDERS: $e');
       return {'count': 0, 'totalAmount': 0.0};
+    }
+  }
+
+  int fetchCount = 0;
+  Future<int> _fetchManufacturingOrdersCount() async {
+    fetchCount++;
+    safeDebugPrint('Fetching manufacturing orders count call #$fetchCount');
+    try {
+      if (userId == null) return 0;
+
+      final querySnapshot = await _firestore
+          .collection('manufacturing_orders')
+          .where('userId', isEqualTo: userId)
+          .where('status', isEqualTo: 'pending')
+          .get();
+      safeDebugPrint(
+          '✅ Fetched MANUFACTURING_ORDERS count: ${querySnapshot.size}');
+      return querySnapshot.size;
+    } catch (e) {
+      safeDebugPrint('❌ Error fetching MANUFACTURING_ORDERS count: $e');
+      return 0;
     }
   }
 

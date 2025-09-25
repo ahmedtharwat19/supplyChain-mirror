@@ -1,0 +1,327 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ======= 🔧 الدوال المساعدة =======
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function userExists() {
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function isUserActive() {
+      return isSignedIn() && 
+        userExists() && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('isActive', false) == true;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && 
+        userExists() && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('isAdmin', false) == true;
+    }
+
+    function userOwnsDocument() {
+      return isSignedIn() && 
+        resource != null && 
+        resource.data.userId == request.auth.uid;
+    }
+
+    function userHasCompany(companyId) {
+      return isSignedIn() && 
+        userExists() && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid))
+          .data.get('companyIds', []).hasAny([companyId]);
+    }
+
+    function userHasSupplier(supplierId) {
+      return isSignedIn() && 
+        userExists() && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid))
+          .data.get('supplierIds', []).hasAny([supplierId]);
+    }
+    
+    function userHasFactory(factoryId) {
+      return isSignedIn() && 
+        userExists() && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid))
+          .data.get('factoryIds', []).hasAny([factoryId]);
+    }
+    
+    function userHasAnyCompanyInFactory(factoryId) {
+      return isSignedIn() && 
+        userExists() && 
+        get(/databases/$(database)/documents/factories/$(factoryId))
+          .data.get('companyIds', []).hasAny(
+            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('companyIds', [])
+          );
+    }
+
+    // ======= 🔐 التراخيص (LICENSES) =======
+    match /licenses/{licenseId} {
+      // ✅ القراءة: المالك أو الأدمن
+      allow read: if isSignedIn() && (userOwnsDocument() || isAdmin());
+      
+      // ✅ التحديث: المالك (لحقل devices فقط) أو الأدمن
+      allow update: if isSignedIn() && 
+        ((userOwnsDocument() && 
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['devices', 'lastUpdated'])) || 
+         isAdmin());
+      
+      // ✅ الإنشاء والحذف: الأدمن فقط
+      allow create, delete: if isAdmin();
+      
+      // ✅ السماح بالاستعلامات
+      allow list: if isSignedIn() && (isAdmin() || userOwnsDocument());
+    }
+
+    // ======= 👥 المستخدمين (USERS) =======
+    match /users/{userId} {
+      // ✅ القراءة: المستخدم نفسه أو الأدمن
+      allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+
+      // ✅ الإنشاء: السماح للمستخدم بإنشاء مستنده لأول مرة فقط
+      allow create: if isSignedIn()
+        && request.auth.uid == userId
+        && request.resource.data.userId == userId
+        && !exists(/databases/$(database)/documents/users/$(userId));
+
+      // ✅ التحديث: المستخدم نفسه أو الأدمن
+      allow update: if isSignedIn()
+        && (request.auth.uid == userId || isAdmin())
+        && (
+          // ✅ المستخدم العادي: يسمح له بتعديل deviceIds و lastUpdated فقط
+          (request.auth.uid == userId
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['deviceIds', 'lastUpdated']))
+          ||
+          // ✅ الأدمن: يمكنه تعديل أي حقل
+          (isAdmin())
+        );
+
+      // ✅ الحذف: الأدمن فقط
+      allow delete: if isAdmin();
+    }
+
+    // ======= 📋 طلبات الأجهزة (DEVICE_REQUESTS) =======
+    match /device_requests/{requestId} {
+      // ✅ القراءة: المالك أو الأدمن
+      allow read: if isSignedIn() && 
+        (request.auth.uid == resource.data.userId || isAdmin());
+      
+      // ✅ الإنشاء: المستخدم يمكنه إنشاء طلب لنفسه فقط
+      allow create: if isSignedIn() && 
+        request.auth.uid == request.resource.data.userId;
+      
+      // ✅ التحديث: الأدمن فقط
+      allow update: if isSignedIn() && isAdmin();
+      
+      // ✅ الحذف: المالك أو الأدمن
+      allow delete: if isSignedIn() && 
+        (request.auth.uid == resource.data.userId || isAdmin());
+      
+      // ✅ عرض القائمة: الأدمن فقط
+      allow list: if isSignedIn() && isAdmin();
+    }
+
+    // ======= 📝 طلبات الترخيص (LICENSE_REQUESTS) =======
+    match /license_requests/{requestId} {
+      // ✅ القراءة: المالك أو الأدمن
+      allow read: if isSignedIn() && 
+        (isAdmin() || resource.data.userId == request.auth.uid);
+      
+      // ✅ الإنشاء: المستخدم يمكنه إنشاء طلب لنفسه فقط
+      allow create: if isSignedIn() && 
+        request.auth.uid == request.resource.data.userId;
+      
+      // ✅ التحديث والحذف: الأدمن فقط
+      allow update, delete: if isSignedIn() && isAdmin();
+      
+      // ✅ عرض القائمة: الأدمن فقط
+      allow list: if isSignedIn() && isAdmin();
+    }
+
+    // ======= 🔔 الإشعارات (NOTIFICATIONS) =======
+    match /notifications/{notificationId} {
+      // ✅ القراءة: المستخدم نفسه فقط
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      
+      // ✅ الإنشاء: الأدمن أو المستخدم لنفسه
+      allow create: if isSignedIn() && 
+        (isAdmin() || request.resource.data.userId == request.auth.uid);
+      
+      // ✅ التحديث والحذف: الأدمن فقط
+      allow update, delete: if isSignedIn() && isAdmin();
+    }
+
+    // ======= 🏢 الشركات (COMPANIES) =======
+    match /companies/{companyId} {
+      // ✅ الإنشاء: المستخدم النشط
+      allow create: if isSignedIn() && isUserActive();
+      
+      // ✅ القراءة والتحديث والحذف: المستخدم النشط الذي يملك الشركة
+      allow read, update, delete: if isSignedIn() && 
+        isUserActive() && 
+        userHasCompany(companyId);
+        
+      // ✅ عرض القائمة: المستخدم النشط
+      allow list: if isSignedIn() && isUserActive();
+    }
+
+    // ======= 🏭 المصانع (FACTORIES) =======
+    match /factories/{factoryId} {
+      // ✅ الإنشاء: المستخدم النشط والمالك
+      allow create: if isSignedIn() && 
+        isUserActive() && 
+        request.resource.data.userId == request.auth.uid;
+
+      // ✅ القراءة: المالك أو المستخدم الذي يملك شركات في المصنع
+      allow read: if isSignedIn() && 
+        (
+          resource.data.userId == request.auth.uid ||
+          resource.data.companyIds.hasAny(
+            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyIds
+          )
+        );
+
+      // ✅ التحديث والحذف: المالك فقط
+      allow update, delete: if isSignedIn() && 
+        isUserActive() && 
+        resource.data.userId == request.auth.uid;
+        
+      // ✅ عرض القائمة: المستخدم النشط
+      allow list: if isSignedIn() && isUserActive();
+    }
+
+    // ======= 🛒 الموردين (VENDORS) =======
+    match /vendors/{supplierId} {
+      // ✅ الإنشاء: المستخدم النشط
+      allow create: if isSignedIn() && isUserActive();
+
+      // ✅ القراءة: المالك أو المستخدم المرتبط بالمورد
+      allow read: if isSignedIn() && 
+        isUserActive() && 
+        (resource.data.userId == request.auth.uid || userHasSupplier(supplierId));
+
+      // ✅ عرض القائمة: المستخدم النشط فقط
+      allow list: if isSignedIn() && isUserActive();
+
+      // ✅ التحديث والحذف: المالك أو المستخدم المرتبط بالمورد
+      allow update, delete: if isSignedIn() && 
+        isUserActive() && 
+        (resource.data.userId == request.auth.uid || userHasSupplier(supplierId));
+    }
+
+    // ======= 📦 الأصناف (ITEMS) =======
+    match /items/{itemId} {
+      // ✅ الإنشاء: المستخدم النشط والمالك
+      allow create: if isSignedIn() && 
+        isUserActive() && 
+        request.resource.data.userId == request.auth.uid;
+      
+      // ✅ القراءة: المستخدم النشط
+      allow read: if isSignedIn() && isUserActive();
+      
+      // ✅ التحديث والحذف: المالك فقط
+      allow update, delete: if isSignedIn() && 
+        isUserActive() && 
+        resource.data.userId == request.auth.uid;
+        
+      // ✅ عرض القائمة: المستخدم النشط
+      allow list: if isSignedIn() && isUserActive();
+    }
+
+    // ======= 🛍️ أوامر الشراء (PURCHASE_ORDERS) =======
+    match /purchase_orders/{orderId} {
+      // ✅ الإنشاء والتحديث: المستخدم النشط الذي يملك الشركة
+      allow create, update: if isSignedIn() && 
+        isUserActive() && 
+        userHasCompany(request.resource.data.companyId);
+
+      // ✅ القراءة وعرض القائمة: المستخدم النشط
+      allow read, list: if isSignedIn() && isUserActive();
+
+      // ✅ الحذف: المستخدم النشط الذي يملك الشركة ولم يتم التسليم، أو الأدمن
+      allow delete: if isSignedIn() && 
+        isUserActive() && 
+        (
+          (userHasCompany(resource.data.companyId) && (resource.data.isDelivered != true)) ||
+          isAdmin()
+        );
+    }
+
+    // ======= 🏭 المنتجات التامة (FINISHED_PRODUCTS) =======
+    match /finished_products/{prodId} {
+      // ✅ الإنشاء: المستخدم النشط الذي يملك الشركة
+      allow create: if isSignedIn() && 
+        isUserActive() && 
+        userHasCompany(request.resource.data.companyId);
+      
+      // ✅ القراءة: المستخدم النشط
+      allow read: if isSignedIn() && isUserActive();
+      
+      // ✅ التحديث والحذف: المستخدم النشط الذي يملك الشركة
+      allow update, delete: if isSignedIn() && 
+        isUserActive() && 
+        userHasCompany(resource.data.companyId);
+        
+      // ✅ عرض القائمة: المستخدم النشط
+      allow list: if isSignedIn() && isUserActive();
+    }
+
+    // ======= ⚙️ أوامر التصنيع (MANUFACTURING_ORDERS) =======
+    match /manufacturing_orders/{orderId} {
+      // ✅ الكتابة: المستخدم الذي يملك الشركة
+      allow write: if isSignedIn() && 
+        resource.data.companyId in request.auth.token.companyIds;
+      
+      // ✅ القراءة: المستخدم النشط
+      allow read: if isSignedIn() && isUserActive();
+      
+      // ✅ الإنشاء: المستخدم المصادق
+      allow create: if isSignedIn();
+      
+      // ✅ عرض القائمة: المستخدم النشط
+      allow list: if isSignedIn() && isUserActive();
+    }
+
+    // ======= 📊 المخزون في المصانع (FACTORY INVENTORY) =======
+    match /factories/{factoryId}/inventory/{productId} {
+      // ✅ الإنشاء والقراءة والتحديث: المستخدم النشط الذي يملك شركات في المصنع
+      allow create, read, update: if isSignedIn() && 
+        isUserActive() && 
+        userHasAnyCompanyInFactory(factoryId);
+      
+      // ✅ القراءة: المستخدم النشط الذي يملك المصنع
+      allow read: if isSignedIn() && 
+        isUserActive() && 
+        userHasFactory(factoryId);
+    }
+
+    // ======= 📈 الحركات المخزنية (STOCK MOVEMENTS) =======
+    match /companies/{companyId}/stock_movements/{movementId} {
+      // ✅ الإنشاء والقراءة: المستخدم النشط الذي يملك الشركة
+      allow create, read: if isSignedIn() && 
+        isUserActive() && 
+        userHasCompany(companyId);
+    }
+
+    // ======= 🧩 مكونات المنتجات (PRODUCT COMPOSITION) =======
+    match /finished_products/{productId}/composition/{document} {
+      // ✅ جميع العمليات: المستخدم النشط الذي يملك الشركة
+      allow create, read, update, delete: if isSignedIn() && 
+        isUserActive() && 
+        userHasCompany(
+          get(/databases/$(database)/documents/finished_products/$(productId))
+            .data.companyId
+        );
+    }
+  }
+}
+
+
+
+
+// 1. run : #  firebase emulators:exec "npm run test:rules"
+// 2. run : #  firebase deploy --only firestore:rules

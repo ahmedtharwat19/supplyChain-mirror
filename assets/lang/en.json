@@ -31,7 +31,6 @@
   "confirmed": "Confirmed",
   "not_confirmed": "Not Confirmed",
   "export_pdf": "Export PDF",
-
   "delete_order": "Delete Order",
   "delete_confirmation": "Delete Confirmation",
   "confirm_delete_message": "Are you sure you want to delete this order?",
@@ -63,6 +62,8 @@
   "totalAmount": "Amounts",
   "created_at": "Created At",
   "confirm": "Confirm",
+  "request_number": "Request Number",
+  "request_successful": "Request sent successfully",
   "are_you_sure_delete": "Are you sure you want to delete this order?",
   "no_orders": "No purchase orders registered.",
   "filter_by_supplier": "Filter by Supplier",
@@ -195,10 +196,9 @@
   "note": "Note",
   "totalItems": "Items",
   "stock": "Stock",
-  "stock_alert": "Stock Alert", 
+  "stock_alert": "Stock Alert",
   "stock_movements": "Stock Movement",
   "manufacturing_orders": "Manufacturing Orders",
-  
   "raw_materials": "Raw Materials",
   "add_factory": "Add Factory",
   "factory_name": "Factory Name",
@@ -212,21 +212,21 @@
   "requierd_fields": "Please fill in all required fields",
   "login_first": "Please log in first",
   "error_while_adding_company": "Error while adding company",
-  "error_while_updating_company": "Error while updating company",   
+  "error_while_updating_company": "Error while updating company",
   "error_while_deleting_company": "Error while deleting company",
   "error_while_adding_supplier": "Error while adding supplier. Please try again.",
   "error_while_updating_supplier": "Error while updating supplier. Please try again.",
-  "error_while_deleting_supplier":  "Error while deleting supplier. Please try again.",
-  "error_while_adding_item":  "Error while adding item. Please try again.",
+  "error_while_deleting_supplier": "Error while deleting supplier. Please try again.",
+  "error_while_adding_item": "Error while adding item. Please try again.",
   "error_while_updating_item": "Error while updating item. Please try again.",
   "error_while_deleting_item": "Error while deleting item. Please try again.",
-  "error_while_fetching_data":  "Error while fetching data. Please try again.",
+  "error_while_fetching_data": "Error while fetching data. Please try again.",
   "no_items_found": "No items found.",
   "no_suppliers_found": "No suppliers found.",
   "company_nameArabic": "Company Name (Arabic)",
   "company_nameEnglish": "Company Name (English)",
   "company_address": "Company Address",
-  "company_managerPhone": "Company Phone", 
+  "company_managerPhone": "Company Phone",
   "company_managerName": "Company Manager",
   "company_email": "Company Email",
   "please_select_logo": "Please select a logo",
@@ -235,15 +235,15 @@
   "company_already_exists": "Company already exists.",
   "supplier_nameArabic": "Supplier Name (Arabic)",
   "supplier_nameEnglish": "Supplier Name (English)",
-  "supplier_address": "Supplier Address", 
+  "supplier_address": "Supplier Address",
   "supplier_managerName": "Supplier Manager",
-  "supplier_managerPhone": "Supplier Phone", 
+  "supplier_managerPhone": "Supplier Phone",
   "supplier_email": "Supplier Email",
-  "supplier_added_successfully": "Supplier added successfully", 
+  "supplier_added_successfully": "Supplier added successfully",
   "supplier_already_exists": "Supplier already exists.",
-  "supplier_updated_successfully": "Supplier updated successfully",   
+  "supplier_updated_successfully": "Supplier updated successfully",
   "supplier_deleted_successfully": "Supplier deleted successfully",
-  "item_nameArabic": "Item Name (Arabic)", 
+  "item_nameArabic": "Item Name (Arabic)",
   "item_nameEnglish": "Item Name (English)",
   "companyId": "🆔 Company ID",
   "back_to_home": "Back to Home",
@@ -303,10 +303,8 @@
   "membership_expired_title": "Membership Expired",
   "membership_expired_message": "Access denied. Please renew your membership.",
   "ok": "OK",
-
   "qty": "Quantity",
-
-  "purchase_order":"Purchase Order",
+  "purchase_order": "Purchase Order",
   "save": "Save",
   "order_saved": "Order saved successfully",
   "missing_fields": "Please enter supplier and order contents",
@@ -317,12 +315,11 @@
   "account_created_successfully": "Account created successfully",
   "passwords_do_not_match": "Passwords do not match",
   "no_internet": "No internet connection. Please check your network and try again.",
-  
   "retry": "Retry",
   "account_inactive": "Your account is inactive. Please contact the administration.",
   "user_not_logged_in": "You are not logged in. Please log in to continue.",
   "settings_title": "Settings",
-  "please_verify_email":" Please verify your email address to activate your account.",
+  "please_verify_email": " Please verify your email address to activate your account.",
   "email_verification_sent": "A verification email has been sent to your email address.",
   "permission_denied_hint": "You do not have permission to perform this action.",
   "network_error": "Network error occurred. Please check your connection.",
@@ -358,27 +355,21 @@
   "only_numbers_allowed": "Only numbers are allowed",
   "select_companies": "Select Companies",
   "select_factories": "Select Factories",
-  
   "factory_nameAr": "Factory Name (Arabic)",
   "factory_nameEn": "Factory Name (English)",
-
   "field_required": "This field is required",
   "only_arabic_allowed": "Only Arabic letters are allowed",
   "only_english_allowed": "Only English letters are allowed",
   "only_digits_allowed": "Only digits are allowed",
-
   "please_select_at_least_one_company": "Please select at least one company",
-
   "unnamed_company": "Unnamed Company",
-
-
   "settings": {
     "title": "Settings",
     "choose_view": "Choose Dashboard View:",
     "short_view": "Short",
     "long_view": "Long",
     "choose_cards": "Choose Cards to Display:",
-    "reset_done":" Settings reset successfully",
+    "reset_done": " Settings reset successfully",
     "reset_error": "Error resetting settings",
     "reset_confirmation": "Are you sure you want to reset settings?",
     "reset": "Reset",
@@ -392,11 +383,9 @@
     "permission_denied_hint": "You don't have permission to perform this action.",
     "network_error": "Network error occurred. Please check your connection.",
     "custom_selection_note": "Custom selection active"
-
   },
-    "create_purchase_order": "Create Purchase Order",
+  "create_purchase_order": "Create Purchase Order",
   "tax_rate": "Tax Rate",
-
   "quantity": "Quantity",
   "missing_required_fields": "Please fill in all required fields",
   "tax": "Tax",
@@ -427,8 +416,8 @@
   "invoice_subject": "Purchase Invoice",
   "search_hint": "Search by supplier, date, or status",
   "error_loading_data": "Error loading data. Please try again.",
-  "sort_options":"sort optopns",
-  "multiple_companies":"multiple companies",
+  "sort_options": "sort optopns",
+  "multiple_companies": "multiple companies",
   "show_all": "Show All",
   "filter": "Filter",
   "search_any_field": "Search any field",
@@ -437,7 +426,6 @@
   "sort_by_date_asc": "Sort by date (asc)",
   "sort_by_amount_desc": "Sort by amount (desc)",
   "sort_by_amount_asc": "Sort by amount (asc)",
-
   "email_verification": "Email Verification",
   "verification_email_sent": "A verification email has been sent. Please check your inbox and confirm your email.",
   "i_verified": "I Verified My Email",
@@ -446,23 +434,20 @@
   "display_name": "Display Name",
   "phone_number": "Phone Number",
   "subscription_expires_soon": "Your subscription expires soon. Please renew to continue using the app.",
- 
   "renew_subscription": "Renew Subscription",
-
-"subscription_expired": "Your subscription has expired. Access will be restricted soon.",
+  "subscription_expired": "Your subscription has expired. Access will be restricted soon.",
   "subscription_days_left": "You have {days} day(s) left before your subscription ends.",
   "no_access_rights": "You do not have access rights to this feature. Please contact support for assistance.",
   "no_items_added_to_order": "No items have been added to the order. Please add items before saving.",
   "is_taxable": "Is this taxable?",
-   "no_internet_warning": "No internet connection. Data will be saved locally and synced when connected.",
+  "no_internet_warning": "No internet connection. Data will be saved locally and synced when connected.",
   "subscription_expired_message_date": "Your subscription expired on {date}. Please renew to continue using the service.",
   "subscription_warning_message": "Your subscription will expire in {time_left}. Renew now to avoid service interruption.",
   "dismiss": "Dismiss",
   "renew": "Renew",
   "max_devices_reached": "You have reached the maximum number of devices ({max}). Please contact admin to add a new device or use one of your registered devices.",
-  
   "request_sent_to_admin": "Your request has been sent to the admin.",
-   "device_management": "Device Management",
+  "device_management": "Device Management",
   "registered_devices": "Registered Devices",
   "no_devices_registered": "No devices registered",
   "register_current_device": "Register Current Device",
@@ -477,21 +462,19 @@
   "reason_for_request": "Reason for request",
   "request_submitted": "Request submitted",
   "submit": "Submit",
-  
   "missing_device_data": "Incomplete device data",
   "missing_device_data_warning": "⚠️ Device data is missing",
   "device_already_exists": "This device is already registered",
- "license_already_valid_no_need_for_request":"License is currently valid, no need for a new request",
+  "license_already_valid_no_need_for_request": "License is currently valid, no need for a new request",
   "device_request_sent": "Device request sent successfully",
   "device_request_approved_success": "Device request approved successfully",
   "redirecting_to_dashboard": "Redirecting to dashboard...",
-
   "hive_settings": "Hive Settings",
   "storage_usage": "Storage Usage",
   "cache_data": "Cache Data",
   "auth_data": "Authentication Data",
   "user_data": "User Data",
-   "compact_database": "Compact Database",
+  "compact_database": "Compact Database",
   "database_compacted": "Database compacted successfully",
   "clear_cache": "Clear Cache",
   "clear_all_data": "Clear All Data",
@@ -499,34 +482,22 @@
   "clear_data_warning": "This will delete all locally stored data. Are you sure?",
   "data_cleared": "Data cleared successfully",
   "cache_cleared": "Cache cleared successfully",
-
   "unknown_model": "Unknown Model",
   "unknown_os": "Unknown Operating System",
-
   "current_device": "Current Device",
-
   "license_already_valid": "License is already valid",
   "pending_request_exists": "A pending request already exists",
-
   "failed_to_create_request": "Failed to Create Request",
-
   "license_check_timeout": "License Check Timeout",
-
-
   "refresh_data": "Refresh Data",
   "data_not_found": "Data not found",
   "unknown_device": "Unknown device",
   "unknown_platform": "Unknown platform",
   "unknown_browser": "Unknown browser",
   "no_reason_provided": "No reason provided",
-
   "device_request_info": "Device Request Info",
-
   "device_name": "Device Name",
-
   "fingerprint": "Fingerprint",
-
-
   "license_not_found": "License not found",
   "device_registration": "Device Registration",
   "device_not_registered": "Your device is not registered",
@@ -534,7 +505,6 @@
   "register_device": "Register Device",
   "manage_devices": "Manage Devices",
   "error_loading_subscription": "Error loading subscription information",
- 
   "confirm_unregister_specific_device": "Are you sure you want to unregister this device?",
   "unregister": "Unregister",
   "platform": "Platform",
@@ -543,46 +513,41 @@
   "browser": "Browser",
   "registered": "Registered since",
   "last_active": "Last active",
-"device_requests_management": "Device Requests Management",
-
+  "device_requests_management": "Device Requests Management",
   "user_id": "User: {0}",
   "license_id": "License: {0}",
   "reason": "Reason: {0}",
   "request_date_args": "Request Date: {0}",
-
   "device_requests": "Device Requests",
   "no_pending_device_requests": "No pending device requests",
-
   "device_request_approved_title": "Device Request Approved",
   "device_request_approved_message": "Your request to add a new device has been approved",
   "device_request_rejected_title": "Device Request Rejected",
   "device_request_rejected_message": "Your request to add a new device has been rejected",
   "processing_failed": "Failed to process the request",
- 
-    "unknown_user": "Unknown user",
-
-    "deactivate_license": "Deactivate License",
-    "user": "User",
-    "created": "Created",
-"request_device_from": "Request new device from ",
-"licence_id": "License ID: ",
+  "unknown_user": "Unknown user",
+  "deactivate_license": "Deactivate License",
+  "user": "User",
+  "created": "Created",
+  "request_device_from": "Request new device from ",
+  "licence_id": "License ID: ",
   "approval_failed": "Failed to approve the request",
   "device_request_approved": "Device request approved",
   "your_device_request_approved": "Your request to add a new device has been approved",
   "device_request_rejected": "Device request rejected",
   "your_device_request_rejected": "Your request to add a new device has been rejected",
   "rejected_by_admin": "Rejected by administrator",
- "license_info": "License Information",
+  "license_info": "License Information",
   "days_remaining": "Days remaining",
   "time_remaining": "Time remaining",
   "device_limit_exceeded_warning": "You have reached the maximum number of devices allowed. Please unregister a device or request a new device slot.",
- "auto_register_warning": "Your current device will be automatically registered after deletion",
+  "auto_register_warning": "Your current device will be automatically registered after deletion",
   "device_unregistered_and_registered": "Device unregistered and current device registered successfully",
   "loading_failed": "Failed to load data",
   "device_limit_title": "Device Limit Reached",
   "request_device_button": "Request New Device",
   "device_check_error": "Error checking device. Please try again.",
-   "device_added_successfully": "Device added successfully",
+  "device_added_successfully": "Device added successfully",
   "offline_mode_warning": "Working in offline mode with local data",
   "edit_order": "Edit Purchase Order",
   "order_updated": "Order updated successfully",
@@ -592,9 +557,6 @@
   "mark_as_cancelled": "Mark as Cancelled",
   "order_details": "Order Details",
   "po_number": "PO Number",
-
-
-
   "loading_device_id": "Loading device ID...",
   "device_id_error": "Error getting device ID",
   "login_required": "Login required",
@@ -613,7 +575,6 @@
   "request_approved": "Request approved",
   "request_rejected": "Request rejected",
   "processing_error": "Processing error",
-
   "refresh": "Refresh",
   "error_loading_requests": "Error loading requests",
   "no_pending_requests": "No pending requests",
@@ -628,31 +589,24 @@
   "devices_allowed": "Devices allowed",
   "devices_used": "Devices used",
   "expiration_date": "Expiration date",
-
   "active": "Active",
   "inactive": "Inactive",
   "unknown_date": "Unknown date",
-    "confirm_request": "Confirm Request",
+  "confirm_request": "Confirm Request",
   "confirm_request_message": "Are you sure you want to submit this license request?",
-
-    "not_logged_in": "Not logged in",
+  "not_logged_in": "Not logged in",
   "no_license": "No active license found",
   "license_expired": "License has expired",
   "device_limit_reached": "Device limit reached",
-   "no_internet_connection": "No internet connection",
+  "no_internet_connection": "No internet connection",
   "no_valid_license": "No Valid License...",
   "account_deactivated": "Account Deactivated...",
-  "no_requests" : "No Licenses Requests available...",
-  "manage_licenses" : "Manage Licenses",
-    "admin_access_required": "Admin access required",
+  "no_requests": "No Licenses Requests available...",
+  "manage_licenses": "Manage Licenses",
+  "admin_access_required": "Admin access required",
   "only_admins_can_access": "Only admins can access this section",
-  "licenses":"Licenses",
-  "no_licenses" : "No Licenses found ...",
-
-
-  
-
-
+  "licenses": "Licenses",
+  "no_licenses": "No Licenses found ...",
   "license_key": "License Key",
   "expires": "Expires",
   "expired": "Expired",
@@ -662,28 +616,19 @@
   "create_index_message": "You need to create a Firebase index to view data",
   "create_index": "Create Index",
   "license_expiry": "License Expiry",
-  "duration" : "Duration ",
- "existing_request_pending": "You already have a pending license request. Please wait for it to be processed before submitting a new one.",
-   "request_already_approved": "Your license request has already been approved.",
-     "account_inactive_title": "Account Inactive",
+  "duration": "Duration ",
+  "existing_request_pending": "You already have a pending license request. Please wait for it to be processed before submitting a new one.",
+  "request_already_approved": "Your license request has already been approved.",
+  "account_inactive_title": "Account Inactive",
   "account_inactive_message": "Your account is currently inactive. Would you like to go to the license page to request activation?",
-  
   "go_to_license": "Go to License",
-
   "active_licenses": "Active Licenses",
-
   "USER_NOT_ACTIVE": "Your account is not active",
-"firebase_error": "Firebase error: {errorCode}",
-
-
+  "firebase_error": "Firebase error: {errorCode}",
   "no_active_licenses": "No active licenses",
-  
   "number_of_devices": "Number of Devices",
-  "request_summary": "Request Summary", 
+  "request_summary": "Request Summary",
   "current_devices": "Current Devices",
-
-
-
   "submit_request": "Submit Request",
   "request_submitted_successfully": "Request submitted successfully",
   "submit_error": "Error submitting request: {0}",
@@ -691,42 +636,32 @@
   "ADMIN_PERMISSION_REQUIRED": "Admin permission required",
   "LICENSE_NOT_FOUND": "License not found",
   "MAX_DEVICES_REACHED": "Maximum devices reached for this license",
-
-    "app_title": "PureSip",
-  
+  "app_title": "PureSip",
   "request_license": "Request License",
-    "@@locale": "en",
-
-"current_device_id": "Current Device ID",
-
-"new_request_from": "New request from {0}",
-
+  "@@locale": "en",
+  "current_device_id": "Current Device ID",
+  "new_request_from": "New request from {0}",
   "active_license_exists": "Active license already exists",
-
   "load_device_count_error": "Failed to load device count",
-
-"error_loading_device_id": "Error loading device ID",
+  "error_loading_device_id": "Error loading device ID",
   "new_notification": "New Notification",
   "new_license_request": "You have a new license request",
   "request_details": "Request Details",
   "new_license_from": "New license request from {email}",
-
   "done": "Done",
-
-    "license_approved_title": "License Approved",
+  "license_approved_title": "License Approved",
   "license_approved_body": "Your license has been approved: {0}",
   "license_notifications_channel_desc": "License status notifications",
-
   "new_license_notification": "New License Notification",
   "confirm_delivery": "Confirm Delivery",
   "confirm_mark_delivered": "Do you want to confirm delivery of this order? Inventory will be updated automatically.",
   "license_expired_title": "License Expired",
-"license_expired_body": "you license expired in {{0}}",
-"order_status_updated":"Order Status Updated",
- "invalid_order_data":"Invalid Order Data",
+  "license_expired_body": "you license expired in {{0}}",
+  "order_status_updated": "Order Status Updated",
+  "invalid_order_data": "Invalid Order Data",
   "request_id": "Request ID: {0}",
   "view_details": "View Details",
-    "permission_error": "Permission denied - check Firebase rules",
+  "permission_error": "Permission denied - check Firebase rules",
   "not_found_error": "Document not found",
   "unknown_error": "Unknown error occurred",
   "license_request": {
@@ -765,48 +700,41 @@
     "error_fetching_mac": "Error fetching MAC address"
   },
   "permission_denied_error": "Permission denied - check access rights",
-  "document_not_found_error": "Document not found", 
+  "document_not_found_error": "Document not found",
   "invalid_data_error": "Invalid data provided",
   "unknown_error_occurred": "Unknown error occurred",
-    "inventory_query": "Inventory Query",
+  "inventory_query": "Inventory Query",
   "search_products": "Search products...",
   "no_results": "No results found",
-  "stock_history": "Stock History", 
+  "stock_history": "Stock History",
   "no_stock_history": "No stock history",
-
   "delete_order_confirm": "Are you sure you want to delete the purchase order?",
   "last_updated": "Last Updated",
   "product_name": "Product Name",
-    "search_products_hint": "Type to search for products...",
-
+  "search_products_hint": "Type to search for products...",
   "no_stock_movements": "No stock movements available",
-  
   "movement_type": "Movement Type",
   "loading_error": "Error loading data",
-
-
- 
   "current_stock": "Current Stock",
-    "subscription_expired_message": "Your subscription has expired. Please renew to continue using the app.",
+  "subscription_expired_message": "Your subscription has expired. Please renew to continue using the app.",
   "no_finished_products": "No finished products available.",
-
- "select_factory": "Select Factory",
+  "select_factory": "Select Factory",
   "select_product": "Select Product",
   "select_filters_first": "Please select the company, factory, and product first",
-"daily": "Daily",
+  "daily": "Daily",
   "weekly": "Weekly",
   "monthly": "Monthly",
   "yearly": "Yearly",
   "custom": "Custom",
-    "purchase": "Purchase",
+  "purchase": "Purchase",
   "purchase_orders_analysis": "Purchase Orders Analysis",
   "total_purchases": "Total Purchases",
   "total_orders": "Total Orders",
   "completed_orders": "Completed Orders",
   "open_orders": "Open Orders",
   "cancelled_orders": "Cancelled Orders",
-    "average_order_value": "Average Order Value",
-    "days": "day",
+  "average_order_value": "Average Order Value",
+  "days": "day",
   "hours": "hour",
   "minutes": "minute",
   "seconds": "second",
@@ -816,7 +744,7 @@
   "renew_license_warning": "Your license is expiring soon. Please renew to avoid interruption.",
   "not_available": "N/A",
   "renew_now": "Renew Now",
-    "initializing": "Initializing...",
+  "initializing": "Initializing...",
   "preparing_storage": "Preparing storage...",
   "checking_auth": "Checking authentication...",
   "checking_connection": "Checking connection...",
@@ -824,14 +752,14 @@
   "login_to_start": "Please log in to start",
   "welcome_message": "Welcome!",
   "bulk_add": "Bulk Upload",
-"items_uploaded_successfully": "Items uploaded successfully",
-"upload_error": "Upload error",
-"empty_excel": "Excel file is empty",
+  "items_uploaded_successfully": "Items uploaded successfully",
+  "upload_error": "Upload error",
+  "empty_excel": "Excel file is empty",
   "duration_days_hours": "{} day(s) {} hour(s)",
   "duration_hours_minutes": "{} hour(s) {} minute(s)",
   "duration_minutes_seconds": "{} minute(s) {} second(s)",
   "duration_seconds": "{} second(s)",
-    "requested_devices": "Requested Devices",
+  "requested_devices": "Requested Devices",
   "current_license": "Current License",
   "no_active_license": "No active license found",
   "deactivate": "Deactivate",
@@ -846,13 +774,12 @@
   "positive_balance": "Positive Balance",
   "negative_balance": "Negative Balance",
   "total_value": "Total Value",
-"unique_suppliers": "Unique Suppliers",
-
-"supplier_purchases_breakdown": "Purchases by Supplier",
+  "unique_suppliers": "Unique Suppliers",
+  "supplier_purchases_breakdown": "Purchases by Supplier",
   "completed": "Completed",
   "open": "Open",
   "cancelled": "Cancelled",
-"quarterly": "Quarterly",
+  "quarterly": "Quarterly",
   "avg_order_value": "Average Order",
   "orders_by_status": "Orders by Status",
   "suppliers_distribution": "Suppliers Distribution",
@@ -860,13 +787,12 @@
   "transfer_out": "Transfer Out",
   "adjustment": "Adjustment",
   "unknown": "Unknown",
-
-    "product": "Item (raw\\packaging)",
+  "product": "Item (raw\\packaging)",
   "current_balance": "Current Balance",
   "balance": "Balance",
   "in": "In",
   "out": "Out",
-    "newest_first": "Newest First",
+  "newest_first": "Newest First",
   "oldest_first": "Oldest First",
   "from": "From",
   "to": "To",
@@ -878,9 +804,9 @@
   "insufficient_stock": "Insufficient Stock",
   "insufficient_stock_error": "Error: Insufficient stock to start manufacturing",
   "manufacturing_deduction": "Manufacturing Deduction",
-    "batch_size": "Batch Size",
+  "batch_size": "Batch Size",
   "shelf_life": "Shelf Life",
-    "inventory_analysis": "Inventory Analysis",
+  "inventory_analysis": "Inventory Analysis",
   "total_stock": "Total Stock",
   "total_items": "Total Items",
   "total_movements": "Total Movements",
@@ -889,27 +815,25 @@
   "movement_types": "Movement Types",
   "no_category_data_available": "No category data available",
   "no_movement_data_available": "No movement data available",
-"exit_app": "Exit the app",
-"exit_app_confirmation": "Do you really want to exit the app?",
-"yes": "Yes",
+  "exit_app": "Exit the app",
+  "exit_app_confirmation": "Do you really want to exit the app?",
+  "yes": "Yes",
   "no": "No",
   "sale": "Sale",
   "transfer": "Transfer",
-
   "finished_goods": "Finished Goods",
   "filters": "Filters",
   "period": "Period",
   "order_status_distribution": "Order Status Distribution",
   "supplier_breakdown": "Supplier Breakdown",
-
   "packaging_materials": "Packaging Materials",
- "all": "All",
+  "all": "All",
   "all_companies": "All Companies",
   "select_date": "Select Date",
   "all_factories": "All Factories",
   "close": "Close",
   "no_factories_available": "No factories available",
-  "no_items_added_to_composition":  "No items have been added to the composition. Please add items before saving.",
+  "no_items_added_to_composition": "No items have been added to the composition. Please add items before saving.",
   "select_item": "Select Item",
   "select_item_type": "Select Item Type",
   "initial_balance": "Initial Balance",
@@ -922,13 +846,12 @@
   "quantity_in": "Quantity In",
   "quantity_out": "Quantity Out",
   "running_balance": "Running Balance",
-    "balance_summary": "Balance Summary",
-
+  "balance_summary": "Balance Summary",
   "total_in": "Total In",
   "total_out": "Total Out",
   "closing_balance": "Closing Balance",
   "manufacturing": {
-        "number_of_runs": "Number of Runs",
+    "number_of_runs": "Number of Runs",
     "show_inventory": "Show Inventory",
     "save_order": "Save Order",
     "run_quantity": "Run Quantity",
@@ -951,7 +874,7 @@
     "error_loading_factories": "Error loading factories",
     "no_factories_available": "No factories available",
     "shelf_life_months": "Shelf Life (Months)",
-    "enter_unit": "Please enter unit",  
+    "enter_unit": "Please enter unit",
     "add_finished_product": "Add Finished Product",
     "product_name": "Product Name",
     "enter_product_name": "Please enter the product name",
@@ -979,7 +902,6 @@
     "status": "Status",
     "required_materials": "Required Raw Materials",
     "per_unit": "Per {quantity} Unit(s)",
-
     "orders": "Manufacturing Orders",
     "start_manufacturing": "Start Manufacturing",
     "complete_manufacturing": "Complete Manufacturing",
@@ -991,20 +913,17 @@
     "status_inProgress": "In Progress",
     "status_completed": "Completed",
     "status_cancelled": "Cancelled",
-
     "alerts": {
       "expiry_alert": "Expiry Alert",
       "expiry_message": "The product {product} (Batch No: {batch}) will expire on {date}",
       "low_stock": "Low Stock Alert",
       "low_stock_message": "Raw material {material} has reached the minimum stock level"
     },
-
     "reports": {
       "production": "Production Reports",
       "materials_consumed": "Materials Consumed",
       "products_produced": "Products Produced"
     },
-
     "quality": {
       "quality_check": "Quality Check",
       "test_results": "Test Results",
@@ -1012,9 +931,6 @@
       "fail": "Fail"
     }
   },
-
-
-
   "finished_products": {
     "title": "Finished Products",
     "add": "Add Product",
@@ -1034,8 +950,3 @@
   "no_data": "No data available",
   "user_not_authenticated": "User not authenticated"
 }
-
-
-
-
-

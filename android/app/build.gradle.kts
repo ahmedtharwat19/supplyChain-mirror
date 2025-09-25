@@ -11,13 +11,13 @@ android {
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
     applicationVariants.all {
-        outputs.all {
-            if (this is ApkVariantOutputImpl) {
-                val appName = "puresip_purchasing"
-                val versionName = versionName
-                val versionCode = versionCode
-                outputFileName = "${appName}_${versionName}_${versionCode}.apk"
-            }
+    val variant = this
+        variant.outputs.all {
+            val outputImpl = this as ApkVariantOutputImpl
+            val appName = "puresip_purchasing"
+            val versionName = variant.versionName
+            val versionCode = variant.versionCode
+            outputImpl.outputFileName = "${appName}_v${versionName}_${versionCode}.apk"
         }
     }
     compileOptions {

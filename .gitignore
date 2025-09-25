@@ -129,3 +129,39 @@ Desktop.ini      # Windows
 
 app.*.symbols
 app.*.map.json
+node_modules
+
+# Jest cache
+.jest/
+.cache/
+
+# Test coverage output
+coverage/
+
+# ==================================================
+#                    OTHERS
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+# ==================================================
+# Archives
+*.zip
+*.tar.gz
+*.tgz
+*.7z
+*.rar
+*.gz        
+*.bz2
+*.xz
+*.lz
+*.lzma
+*.cab               
+*.iso
+*.dmg
+*.jar
+*.war
+
+# ==================================================
+
+
+.vscode/workspaceStorage/

@@ -117,25 +117,35 @@ class _SplashScreenState extends State<SplashScreen> {
 
     return Scaffold(
       backgroundColor: Colors.white,
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            _buildAppLogo(),
-            const SizedBox(height: 32),
-            _buildLoadingIndicator(),
-            const SizedBox(height: 24),
-            _buildLoadingMessage(),
-            if (_showError) _buildErrorWidget(),
-            const SizedBox(height: 48),
-            _buildFooterInfo(currentYear),
-          ],
-        ),
+      body: Stack(
+        children: [
+          Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _buildAppLogo(),
+                const SizedBox(height: 32),
+                _buildLoadingIndicator(),
+                const SizedBox(height: 24),
+                _buildLoadingMessage(),
+                if (_showError) _buildErrorWidget(),
+                // const SizedBox(height: 48),
+                // _buildFooterInfo(currentYear),
+              ],
+            ),
+          ),
+          Positioned(
+            bottom: 12,
+            left: 0,
+            right: 0,
+            child: _buildFooterInfo(currentYear),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildAppLogo() {
+/*   Widget _buildAppLogo() {
     return Container(
       width: 220,
       height: 220,
@@ -154,6 +164,21 @@ class _SplashScreenState extends State<SplashScreen> {
         child: Image.asset(
           'assets/logo.png',
           fit: BoxFit.cover,
+        ),
+      ),
+    );
+  }
+ */
+
+  Widget _buildAppLogo() {
+    return CircleAvatar(
+      radius: 60,
+      backgroundColor: Colors.green[50],
+      child: Padding(
+        padding: const EdgeInsets.all(12.0),
+        child: Image.asset(
+          'assets/logo.png',
+          fit: BoxFit.contain,
         ),
       ),
     );

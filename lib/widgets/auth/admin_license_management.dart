@@ -3576,7 +3576,7 @@ class _AdminLicenseManagementPageState extends State<AdminLicenseManagementPage>
     }
   }
  */
-  /*  Widget _buildActiveLicensesList() {
+/*  Widget _buildActiveLicensesList() {
     return StreamBuilder<QuerySnapshot>(
       stream: _firestore
           .collection('licenses')
@@ -4992,7 +4992,9 @@ class _AdminLicenseManagementPageState
 
         // جمع الحقول الناقصة لتوضيحها للمسؤول
         final List<String> missingFields = [];
-        if (deviceName == 'unknown_device'.tr()) missingFields.add('device_name');
+        if (deviceName == 'unknown_device'.tr()) {
+          missingFields.add('device_name');
+        }
         if (platform == 'unknown_platform'.tr()) missingFields.add('platform');
         if (browser == 'unknown_browser'.tr()) missingFields.add('browser');
         if (fingerprint.isEmpty) missingFields.add('fingerprint');
@@ -5107,7 +5109,14 @@ class _AdminLicenseManagementPageState
                           foregroundColor: Colors.white,
                         ),
                         onPressed: hasRequiredData
-                            ? () => _confirmProcessDeviceRequest(request.id, true, deviceName, platform, browser, fingerprint, userData['displayName'])
+                            ? () => _confirmProcessDeviceRequest(
+                                request.id,
+                                true,
+                                deviceName,
+                                platform,
+                                browser,
+                                fingerprint,
+                                userData['displayName'])
                             : null,
                       ),
                     ),
@@ -5118,7 +5127,14 @@ class _AdminLicenseManagementPageState
                         backgroundColor: Colors.red,
                         foregroundColor: Colors.white,
                       ),
-                      onPressed: () => _confirmProcessDeviceRequest(request.id, false, null, null, null, null, userData['displayName']),
+                      onPressed: () => _confirmProcessDeviceRequest(
+                          request.id,
+                          false,
+                          null,
+                          null,
+                          null,
+                          null,
+                          userData['displayName']),
                     ),
                   ],
                 ),
@@ -5130,13 +5146,21 @@ class _AdminLicenseManagementPageState
     );
   }
 
-  Future<void> _confirmProcessDeviceRequest(String requestId, bool approve, String? deviceName, String? platform, String? browser, String? fingerprint, String? userDisplayName) async {
+  Future<void> _confirmProcessDeviceRequest(
+      String requestId,
+      bool approve,
+      String? deviceName,
+      String? platform,
+      String? browser,
+      String? fingerprint,
+      String? userDisplayName) async {
     final action = approve ? 'approve'.tr() : 'reject'.tr();
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: Text('$action ${'device_request'.tr()}'),
-        content: Text('confirm_action_on_request'.tr(args: [userDisplayName ?? requestId])),
+        content: Text('confirm_action_on_request'
+            .tr(args: [userDisplayName ?? requestId])),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
@@ -5151,13 +5175,22 @@ class _AdminLicenseManagementPageState
     );
 
     if (confirmed == true) {
-      await _processDeviceRequest(requestId, approve, deviceName: deviceName, platform: platform, browser: browser, fingerprint: fingerprint);
+      await _processDeviceRequest(requestId, approve,
+          deviceName: deviceName,
+          platform: platform,
+          browser: browser,
+          fingerprint: fingerprint);
     }
   }
 
-  Future<void> _processDeviceRequest(String requestId, bool approve, {String? deviceName, String? platform, String? browser, String? fingerprint}) async {
+  Future<void> _processDeviceRequest(String requestId, bool approve,
+      {String? deviceName,
+      String? platform,
+      String? browser,
+      String? fingerprint}) async {
     try {
-      final requestRef = _firestore.collection('device_requests').doc(requestId);
+      final requestRef =
+          _firestore.collection('device_requests').doc(requestId);
       final requestDoc = await requestRef.get();
 
       if (!requestDoc.exists) {
@@ -5175,12 +5208,22 @@ class _AdminLicenseManagementPageState
 
       if (approve) {
         // Validate required fields (double-check if not passed)
-        final deviceName0 = deviceName ?? requestData['deviceName'] ?? requestData['device_name'];
-        final platform0 = platform ?? requestData['platform'] ?? requestData['device_platform'];
-        final browser0 = browser ?? requestData['browser'] ?? requestData['device_browser'];
-        final fingerprint0 = fingerprint ?? requestData['fingerprint'] ?? requestData['device_fingerprint'];
+        final deviceName0 = deviceName ??
+            requestData['deviceName'] ??
+            requestData['device_name'];
+        final platform0 = platform ??
+            requestData['platform'] ??
+            requestData['device_platform'];
+        final browser0 =
+            browser ?? requestData['browser'] ?? requestData['device_browser'];
+        final fingerprint0 = fingerprint ??
+            requestData['fingerprint'] ??
+            requestData['device_fingerprint'];
 
-        if (deviceName0 == null || platform0 == null || browser0 == null || fingerprint0 == null) {
+        if (deviceName0 == null ||
+            platform0 == null ||
+            browser0 == null ||
+            fingerprint0 == null) {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(content: Text('missing_device_data'.tr())),
@@ -5202,10 +5245,12 @@ class _AdminLicenseManagementPageState
         }
 
         final licenseData = licenseDoc.data() as Map<String, dynamic>;
-        final List<dynamic> currentDevices = (licenseData['devices'] as List?) ?? [];
+        final List<dynamic> currentDevices =
+            (licenseData['devices'] as List?) ?? [];
 
         // check existing
-        final bool deviceExists = currentDevices.any((device) => device is Map && device['fingerprint'] == fingerprint0);
+        final bool deviceExists = currentDevices.any(
+            (device) => device is Map && device['fingerprint'] == fingerprint0);
         if (deviceExists) {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
@@ -5213,7 +5258,11 @@ class _AdminLicenseManagementPageState
             );
           }
           // also mark request as rejected/processed to avoid infinite pending? we'll just update status
-          await requestRef.update({'status': 'duplicate', 'processedAt': FieldValue.serverTimestamp(), 'processedBy': _auth.currentUser?.uid ?? 'admin'});
+          await requestRef.update({
+            'status': 'duplicate',
+            'processedAt': FieldValue.serverTimestamp(),
+            'processedBy': _auth.currentUser?.uid ?? 'admin'
+          });
           return;
         }
 
@@ -5233,7 +5282,8 @@ class _AdminLicenseManagementPageState
         final batch = _firestore.batch();
 
         // update license
-        final updatedDevices = List<dynamic>.from(currentDevices)..add(newDevice);
+        final updatedDevices = List<dynamic>.from(currentDevices)
+          ..add(newDevice);
         batch.update(licenseRef, {
           'devices': updatedDevices,
           // note: maxDevices usually represents limit, don't overwrite it with length unless intended
@@ -5258,7 +5308,6 @@ class _AdminLicenseManagementPageState
           'device_request_approved_title'.tr(),
           'device_request_approved_message'.tr(),
         );
-
       } else {
         // Reject path
         await requestRef.update({
@@ -5309,7 +5358,8 @@ class _AdminLicenseManagementPageState
           final currentUserDoc =
               await _firestore.collection('users').doc(currentUser.uid).get();
           if (currentUserDoc.exists) {
-            final currentUserData = currentUserDoc.data() as Map<String, dynamic>;
+            final currentUserData =
+                currentUserDoc.data() as Map<String, dynamic>;
 
             if (currentUserData['isAdmin'] == true) {
               await _firestore.collection('notifications').add({
@@ -5322,7 +5372,8 @@ class _AdminLicenseManagementPageState
               });
             } else {
               // If current user is not admin we still add a log (optional)
-              safeDebugPrint('Current user is not admin; skipping notification write.');
+              safeDebugPrint(
+                  'Current user is not admin; skipping notification write.');
             }
           }
         }
@@ -5411,7 +5462,8 @@ class _AdminLicenseManagementPageState
                 licenseSnapshot.data!.docs.isNotEmpty) {
               final licenseDoc = licenseSnapshot.data!.docs.first;
               final licenseData = licenseDoc.data() as Map<String, dynamic>;
-              licenseInfo = LicenseInfo.fromFirestore(licenseData, licenseDoc.id);
+              licenseInfo =
+                  LicenseInfo.fromFirestore(licenseData, licenseDoc.id);
             }
 
             return _buildUserCard(userData, data, licenseInfo, requestId);
@@ -5477,8 +5529,10 @@ class _AdminLicenseManagementPageState
                 'requested_devices'.tr(), '${requestData['maxDevices']}'),
             _buildInfoRow('duration'.tr(),
                 '${requestData['durationMonths']} ${'months'.tr()}'),
-            _buildInfoRow('request_date'.tr(),
-                _formatDate((requestData['createdAt'] as Timestamp?)?.toDate())),
+            _buildInfoRow(
+                'request_date'.tr(),
+                _formatDate(
+                    (requestData['createdAt'] as Timestamp?)?.toDate())),
             if (requestData['reason'] != null)
               _buildInfoRow('reason'.tr(), requestData['reason']),
 
@@ -5635,6 +5689,8 @@ class _AdminLicenseManagementPageState
 
   Future<void> _processRequest(String requestId, bool approve) async {
     try {
+      final requestRef =
+          _firestore.collection('license_requests').doc(requestId);
       if (approve) {
         final requestDoc = await _firestore
             .collection('license_requests')
@@ -5648,6 +5704,12 @@ class _AdminLicenseManagementPageState
           maxDevices: requestData['maxDevices'],
           requestId: requestId,
         );
+
+        // ثم حدث حالة الطلب إلى approved
+        await requestRef.update({
+          'status': 'approved',
+          'processedAt': FieldValue.serverTimestamp(),
+        });
       } else {
         await _firestore.collection('license_requests').doc(requestId).update({
           'status': 'rejected',
@@ -5665,6 +5727,15 @@ class _AdminLicenseManagementPageState
             'deactivatedAt': FieldValue.serverTimestamp(),
           });
         }
+      }
+
+      // أضف رسالة تأكيد
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content: Text(
+                  approve ? 'request_approved'.tr() : 'request_rejected'.tr())),
+        );
       }
     } catch (e) {
       if (!mounted) return;
