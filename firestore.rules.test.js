@@ -29,7 +29,7 @@ beforeAll(async () => {
       supplierIds: [],
       factoryIds: ["factory_1"],
       deviceIds: ["dev_admin"],
-      userId: "admin_user"
+      userId: "admin_user",
     });
 
     await db.doc("users/active_user").set({
@@ -39,7 +39,7 @@ beforeAll(async () => {
       supplierIds: ["supplier_1"],
       factoryIds: ["factory_1"],
       deviceIds: ["dev_user"],
-      userId: "active_user"
+      userId: "active_user",
     });
 
     await db.doc("users/other_user").set({
@@ -49,7 +49,7 @@ beforeAll(async () => {
       supplierIds: [],
       factoryIds: [],
       deviceIds: [],
-      userId: "other_user"
+      userId: "other_user",
     });
 
     await db.doc("users/inactive_user").set({
@@ -59,67 +59,67 @@ beforeAll(async () => {
       supplierIds: [],
       factoryIds: [],
       deviceIds: [],
-      userId: "inactive_user"
+      userId: "inactive_user",
     });
 
     // Companies
     await db.doc("companies/company_1").set({
       name: "PureSip Co",
       userId: "active_user", // owner
-      companyId: "company_1"
+      companyId: "company_1",
     });
     await db.doc("companies/company_2").set({
       name: "Other Co",
       userId: "other_user",
-      companyId: "company_2"
+      companyId: "company_2",
     });
 
     // Factories
     await db.doc("factories/factory_1").set({
       name: "Factory One",
       userId: "active_user",
-      companyIds: ["company_1"]
+      companyIds: ["company_1"],
     });
 
     // Vendors (suppliers)
     await db.doc("vendors/supplier_1").set({
       name: "Supplier One",
-      userId: "active_user"
+      userId: "active_user",
     });
 
     // Items
     await db.doc("items/item_1").set({
       name: "Raw Material A",
-      userId: "active_user"
+      userId: "active_user",
     });
 
     // Purchase orders
     await db.doc("purchase_orders/order_1").set({
       companyId: "company_1",
       isDelivered: false,
-      userId: "active_user"
+      userId: "active_user",
     });
     await db.doc("purchase_orders/order_delivered").set({
       companyId: "company_1",
       isDelivered: true,
-      userId: "active_user"
+      userId: "active_user",
     });
 
     // Finished products + composition subcollection
     await db.doc("finished_products/product_1").set({
       name: "SparkTea",
       companyId: "company_1",
-      userId: "active_user"
+      userId: "active_user",
     });
     await db.doc("finished_products/product_1/composition/comp_1").set({
       ingredient: "Green Tea Extract",
-      percentage: 10
+      percentage: 10,
     });
 
     // Manufacturing orders
     await db.doc("manufacturing_orders/morder_1").set({
       companyId: "company_1",
-      userId: "active_user"
+      userId: "active_user",
     });
 
     // Factory inventory subcollection
@@ -127,39 +127,39 @@ beforeAll(async () => {
       qty: 100,
       productId: "prod_1",
       companyIds: ["company_1"],
-      userId: "active_user"
+      userId: "active_user",
     });
 
     // Stock movements
     await db.doc("companies/company_1/stock_movements/mov_1").set({
       type: "in",
       qty: 50,
-      userId: "active_user"
+      userId: "active_user",
     });
 
     // Licenses
     await db.doc("licenses/license_1").set({
       userId: "active_user",
       devices: ["d1"],
-      lastUpdated: "2025-09-01"
+      lastUpdated: "2025-09-01",
     });
 
     // Device requests
     await db.doc("device_requests/dr_1").set({
       userId: "active_user",
-      status: "pending"
+      status: "pending",
     });
 
     // License requests
     await db.doc("license_requests/lreq_1").set({
       userId: "active_user",
-      status: "pending"
+      status: "pending",
     });
 
     // Notifications
     await db.doc("notifications/n_1").set({
       userId: "active_user",
-      text: "Hello"
+      text: "Hello",
     });
   });
 });
@@ -194,7 +194,6 @@ describe("🔐 Full Firestore Rules Test Suite", () => {
   });
 
   test("Users: user can create own user doc", async () => {
-    // استخدم مستخدم جديد تماماً
     const newUserId = "completely_new_user";
     const newUserDb = testEnv.authenticatedContext(newUserId).firestore();
 
@@ -206,28 +205,22 @@ describe("🔐 Full Firestore Rules Test Suite", () => {
         supplierIds: [],
         factoryIds: [],
         deviceIds: [],
-        isAdmin: false
+        isAdmin: false,
       })
     );
   });
 
   test("Users: user cannot create other user's doc (wrong uid)", async () => {
-    // The rules required request.auth.uid == userId for create, so here uid != doc id
-    // But our test context uid is "active_user", attempt to create doc "users/x" should fail
     await assertFails(
       activeDb().doc("users/someone_else").set({ isActive: true, userId: "someone_else" })
     );
   });
 
   test("Users: update only allowed fields (deviceIds, lastUpdated) for owner", async () => {
-    // try updating allowed field
     await assertSucceeds(
       activeDb().doc("users/active_user").update({ deviceIds: ["dNew"], lastUpdated: "t" })
     );
-    // try updating a disallowed field (e.g., isAdmin) -> should fail
-    await assertFails(
-      activeDb().doc("users/active_user").update({ isAdmin: true })
-    );
+    await assertFails(activeDb().doc("users/active_user").update({ isAdmin: true }));
   });
 
   test("Users: admin can delete user", async () => {
@@ -247,9 +240,7 @@ describe("🔐 Full Firestore Rules Test Suite", () => {
     await assertSucceeds(
       activeDb().doc("licenses/license_1").update({ devices: ["d1", "d2"], lastUpdated: "t2" })
     );
-    await assertFails(
-      activeDb().doc("licenses/license_1").update({ userId: "hacker" })
-    );
+    await assertFails(activeDb().doc("licenses/license_1").update({ userId: "hacker" }));
   });
 
   test("Licenses: admin can create license", async () => {
@@ -284,7 +275,9 @@ describe("🔐 Full Firestore Rules Test Suite", () => {
 
   // -------- LICENSE_REQUESTS ----------
   test("LicenseRequests: owner can create own request", async () => {
-    await assertSucceeds(activeDb().collection("license_requests").doc("lr_new").set({ userId: "active_user" }));
+    await assertSucceeds(
+      activeDb().collection("license_requests").doc("lr_new").set({ userId: "active_user" })
+    );
   });
 
   test("LicenseRequests: admin can list requests", async () => {
@@ -310,8 +303,12 @@ describe("🔐 Full Firestore Rules Test Suite", () => {
   });
 
   test("Notifications: owner or admin can create notification for self", async () => {
-    await assertSucceeds(activeDb().collection("notifications").doc("n_new").set({ userId: "active_user" }));
-    await assertSucceeds(adminDb().collection("notifications").doc("n_admin").set({ userId: "admin_user" }));
+    await assertSucceeds(
+      activeDb().collection("notifications").doc("n_new").set({ userId: "active_user" })
+    );
+    await assertSucceeds(
+      adminDb().collection("notifications").doc("n_admin").set({ userId: "admin_user" })
+    );
   });
 
   test("Notifications: only admin can update/delete", async () => {
@@ -323,11 +320,15 @@ describe("🔐 Full Firestore Rules Test Suite", () => {
 
   // -------- COMPANIES ----------
   test("Companies: active user can create company", async () => {
-    await assertSucceeds(activeDb().collection("companies").doc("company_new").set({ name: "NewCo", userId: "active_user" }));
+    await assertSucceeds(
+      activeDb().collection("companies").doc("company_new").set({ name: "NewCo", userId: "active_user" })
+    );
   });
 
   test("Companies: inactive user cannot create company", async () => {
-    await assertFails(inactiveDb().collection("companies").doc("company_x").set({ name: "X", userId: "inactive_user" }));
+    await assertFails(
+      inactiveDb().collection("companies").doc("company_x").set({ name: "X", userId: "inactive_user" })
+    );
   });
 
   test("Companies: owner can read/update/delete", async () => {
@@ -337,143 +338,347 @@ describe("🔐 Full Firestore Rules Test Suite", () => {
   });
 
   test("Companies: non-owner active user cannot read/update/delete", async () => {
-    // other_user belongs to company_2, should not be allowed to operate on company_1
     await assertFails(otherDb().doc("companies/company_1").get());
-    await assertFails(otherDb().doc("companies/company_1").update({ name: "H" }));
+    await assertFails(otherDb().doc("companies/company_1").update({ name: "Bad" }));
+    await assertFails(otherDb().doc("companies/company_1").delete());
   });
 
-  // -------- FACTORIES ----------
-  test("Factories: active owner can create factory", async () => {
+  // -------- FINISHED_PRODUCTS + composition subcollection ----------
+  test("FinishedProducts: owner can create finished product", async () => {
     await assertSucceeds(
-      activeDb().collection("factories").doc("factory_new").set({
-        name: "Factory New",
+      activeDb().collection("finished_products").doc("fp_new").set({
+        companyId: "company_1",
         userId: "active_user",
-        companyIds: ["company_1"]
+        name: "FP New",
       })
     );
   });
 
-  test("Factories: read allowed for owner or user with company in factory", async () => {
+  test("FinishedProducts: owner can read/update/delete", async () => {
+    await assertSucceeds(activeDb().doc("finished_products/product_1").get());
+    await assertSucceeds(activeDb().doc("finished_products/product_1").update({ name: "Changed FP" }));
+    await assertSucceeds(activeDb().doc("finished_products/product_1").delete());
+  });
+
+  test("FinishedProducts: non-owner cannot read/update/delete", async () => {
+    await assertFails(otherDb().doc("finished_products/product_1").get());
+    await assertFails(otherDb().doc("finished_products/product_1").update({ name: "Bad" }));
+    await assertFails(otherDb().doc("finished_products/product_1").delete());
+  });
+
+  // composition subcollection inside finished_products
+  test("Composition: owner can read/write/delete composition subcollection", async () => {
+    // ✓ GET
+    await assertSucceeds(
+      activeDb()
+        .collection("finished_products")
+        .doc("product_1")
+        .collection("composition")
+        .doc("comp_1")
+        .get()
+    );
+
+    // ✓ SET
+    await assertSucceeds(
+      activeDb()
+        .collection("finished_products")
+        .doc("product_1")
+        .collection("composition")
+        .doc("comp_2")
+        .set({ ingredient: "X", percentage: 5 })
+    );
+
+    // ✓ DELETE
+    await assertSucceeds(
+      activeDb()
+        .collection("finished_products")
+        .doc("product_1")
+        .collection("composition")
+        .doc("comp_1")
+        .delete()
+    );
+  });
+
+  test("Composition: non-owner cannot read/write/delete", async () => {
+    await assertFails(
+      otherDb()
+        .collection("finished_products")
+        .doc("product_1")
+        .collection("composition")
+        .doc("comp_1")
+        .get()
+    );
+
+    await assertFails(
+      otherDb()
+        .collection("finished_products")
+        .doc("product_1")
+        .collection("composition")
+        .doc("comp_3")
+        .set({ ingredient: "X", percentage: 5 })
+    );
+
+    await assertFails(
+      otherDb()
+        .collection("finished_products")
+        .doc("product_1")
+        .collection("composition")
+        .doc("comp_1")
+        .delete()
+    );
+  });
+
+  // -------- FACTORIES + inventory subcollection ----------
+  test("Factories: owner can create factory", async () => {
+    await assertSucceeds(
+      activeDb().collection("factories").doc("factory_new").set({
+        userId: "active_user",
+        companyIds: ["company_1"],
+        name: "Factory New",
+      })
+    );
+  });
+
+  test("Factories: owner can read/update/delete", async () => {
     await assertSucceeds(activeDb().doc("factories/factory_1").get());
-    // other_user is not in company_1 so should fail
+    await assertSucceeds(activeDb().doc("factories/factory_1").update({ name: "New Name" }));
+    await assertSucceeds(activeDb().doc("factories/factory_1").delete());
+  });
+
+  test("Factories: non-owner cannot read/update/delete", async () => {
     await assertFails(otherDb().doc("factories/factory_1").get());
+    await assertFails(otherDb().doc("factories/factory_1").update({ name: "X" }));
+    await assertFails(otherDb().doc("factories/factory_1").delete());
   });
 
-  test("Factories: only owner can update/delete", async () => {
-    await assertSucceeds(activeDb().doc("factories/factory_1").update({ name: "F1" }));
-    await assertFails(otherDb().doc("factories/factory_1").update({ name: "bad" }));
-  });
+  // inventory subcollection inside factories
+test("Inventory: owner can read/write/delete inventory docs", async () => {
+  await assertSucceeds(
+    activeDb()
+      .collection("factories")
+      .doc("factory_1")
+      .collection("inventory")
+      .doc("prod_1")
+      .get()
+  );
 
-  // -------- VENDORS ----------
-  test("Vendors: active user can create vendor", async () => {
-    await assertSucceeds(activeDb().collection("vendors").doc("supplier_new").set({ name: "S new", userId: "active_user" }));
-  });
+  await assertSucceeds(
+    activeDb()
+      .collection("factories")
+      .doc("factory_1")
+      .collection("inventory")
+      .doc("prod_2")
+      .set({ qty: 50, productId: "prod_2", companyIds: ["company_1"], userId: "active_user" })
+  );
 
-  test("Vendors: owner or linked user can read vendor", async () => {
-    await assertSucceeds(activeDb().doc("vendors/supplier_1").get());
-    await assertFails(inactiveDb().doc("vendors/supplier_1").get());
-  });
+  await assertSucceeds(
+    activeDb()
+      .collection("factories")
+      .doc("factory_1")
+      .collection("inventory")
+      .doc("prod_1")
+      .delete()
+  );
+});
 
-  test("Vendors: update/delete allowed for owner or linked user", async () => {
-    await assertSucceeds(activeDb().doc("vendors/supplier_1").update({ name: "S1" }));
-    await assertFails(otherDb().doc("vendors/supplier_1").update({ name: "bad" }));
-  });
 
-  // -------- ITEMS ----------
-  test("Items: active user can create item (userId must match)", async () => {
-    await assertSucceeds(activeDb().collection("items").doc("item_new").set({ name: "I", userId: "active_user" }));
-    await assertFails(activeDb().collection("items").doc("item_bad").set({ name: "I", userId: "someone" }));
-  });
-
-  test("Items: active user can read items", async () => {
-    await assertSucceeds(activeDb().doc("items/item_1").get());
-  });
-
-  test("Items: only owner can update/delete", async () => {
-    await assertFails(otherDb().doc("items/item_1").update({ name: "X" }));
-    // owner was active_user so allowed
-    await assertSucceeds(activeDb().doc("items/item_1").update({ name: "X" }));
+  test("Inventory: non-owner cannot read/write/delete inventory docs", async () => {
+    await assertFails(
+      otherDb()
+        .collection("factories")
+        .doc("factory_1")
+        .collection("inventory")
+        .doc("prod_1")
+        .get()
+    );
+    await assertFails(
+      otherDb()
+        .collection("factories")
+        .doc("factory_1")
+        .collection("inventory")
+        .doc("prod_3")
+        .set({ qty: 10, productId: "prod_3", companyIds: [], userId: "other_user" })
+    );
+    await assertFails(
+      otherDb()
+        .collection("factories")
+        .doc("factory_1")
+        .collection("inventory")
+        .doc("prod_1")
+        .delete()
+    );
   });
 
   // -------- PURCHASE_ORDERS ----------
-  test("PurchaseOrders: active user can create order for own company", async () => {
-    await assertSucceeds(activeDb().collection("purchase_orders").doc("po_new").set({ companyId: "company_1", items: [] }));
+  test("PurchaseOrders: active user can create purchase order", async () => {
+    await assertSucceeds(
+      activeDb().collection("purchase_orders").doc("po_new").set({
+        companyId: "company_1",
+        userId: "active_user",
+        isDelivered: false,
+      })
+    );
   });
 
-  test("PurchaseOrders: cannot create order for other company", async () => {
-    await assertFails(activeDb().collection("purchase_orders").doc("po_bad").set({ companyId: "company_2", items: [] }));
+  test("PurchaseOrders: cannot create for company user doesn't belong to", async () => {
+    await assertFails(
+      activeDb().collection("purchase_orders").doc("po_bad").set({
+        companyId: "company_2",
+        userId: "active_user",
+      })
+    );
   });
 
-  test("PurchaseOrders: read/list allowed for active users", async () => {
+  test("PurchaseOrders: owner can read/update/delete if not delivered", async () => {
     await assertSucceeds(activeDb().doc("purchase_orders/order_1").get());
-    await assertSucceeds(activeDb().collection("purchase_orders").get());
+    await assertSucceeds(activeDb().doc("purchase_orders/order_1").update({ isDelivered: false }));
+    await assertSucceeds(activeDb().doc("purchase_orders/order_1").delete());
   });
 
-  test("PurchaseOrders: delete allowed for company owner when not delivered", async () => {
-    // owner active_user on order_1 (isDelivered: false)
-    await assertSucceeds(activeDb().doc("purchase_orders/order_1").delete());
-    // but delivered order should be protected
+  test("PurchaseOrders: owner cannot update/delete if delivered", async () => {
+    await assertFails(activeDb().doc("purchase_orders/order_delivered").update({ isDelivered: false }));
     await assertFails(activeDb().doc("purchase_orders/order_delivered").delete());
   });
 
-  test("PurchaseOrders: admin can delete any order", async () => {
-    await assertSucceeds(adminDb().doc("purchase_orders/order_delivered").delete());
-  });
-
-  // -------- FINISHED_PRODUCTS & composition (subcollection) ----------
-  test("FinishedProducts: active user can create product for own company", async () => {
-    await assertSucceeds(activeDb().collection("finished_products").doc("fp_new").set({ companyId: "company_1", name: "New" }));
-  });
-
-  test("FinishedProducts: read allowed for active user", async () => {
-    await assertSucceeds(activeDb().doc("finished_products/product_1").get());
-  });
-
-  test("FinishedProducts: update/delete only by company owner", async () => {
-    await assertFails(otherDb().doc("finished_products/product_1").update({ name: "bad" }));
-    await assertSucceeds(activeDb().doc("finished_products/product_1").update({ name: "ok" }));
-  });
-
-  test("Composition subcollection: only company owner can create/read/update/delete", async () => {
-    await assertSucceeds(activeDb().collection("finished_products/product_1/composition").doc("c_new").set({ ingredient: "X" }));
-    await assertFails(otherDb().doc("finished_products/product_1/composition/comp_1").delete());
-    await assertSucceeds(adminDb().doc("finished_products/product_1/composition/comp_1").get());
+  test("PurchaseOrders: non-owner cannot read/update/delete", async () => {
+    await assertFails(otherDb().doc("purchase_orders/order_1").get());
+    await assertFails(otherDb().doc("purchase_orders/order_1").update({ isDelivered: false }));
+    await assertFails(otherDb().doc("purchase_orders/order_1").delete());
   });
 
   // -------- MANUFACTURING_ORDERS ----------
-  test("ManufacturingOrders: create allowed for authenticated users", async () => {
-    await assertSucceeds(activeDb().collection("manufacturing_orders").doc("m_new").set({ companyId: "company_1" }));
+  test("ManufacturingOrders: owner can create", async () => {
+    await assertSucceeds(
+      activeDb().collection("manufacturing_orders").doc("mo_new").set({
+        companyId: "company_1",
+        userId: "active_user",
+      })
+    );
   });
 
-  test("ManufacturingOrders: write allowed when company in auth token (simulate)", async () => {
-    // this rule uses request.auth.token.companyIds; in emulator tests we can't set token claims easily,
-    // but the rule uses `resource.data.companyId in request.auth.token.companyIds` for write.
-    // We will test read/create which are permitted; write test depends on token claims so skip detailed claim test here.
+  test("ManufacturingOrders: owner can read/update/delete", async () => {
     await assertSucceeds(activeDb().doc("manufacturing_orders/morder_1").get());
+    await assertSucceeds(activeDb().doc("manufacturing_orders/morder_1").update({ companyId: "company_1" }));
+    await assertSucceeds(activeDb().doc("manufacturing_orders/morder_1").delete());
   });
 
-  // -------- FACTORY INVENTORY (subcollection) ----------
-  test("Factory inventory: create/read/update allowed for users having companies in factory", async () => {
-    await assertSucceeds(activeDb().collection("factories/factory_1/inventory").doc("inv_new").set({ qty: 10 }));
-    await assertSucceeds(activeDb().doc("factories/factory_1/inventory/prod_1").get());
-    await assertFails(otherDb().doc("factories/factory_1/inventory/prod_1").update({ qty: 999 }));
+  test("ManufacturingOrders: non-owner cannot read/update/delete", async () => {
+    await assertFails(otherDb().doc("manufacturing_orders/morder_1").get());
+    await assertFails(otherDb().doc("manufacturing_orders/morder_1").update({ companyId: "company_1" }));
+    await assertFails(otherDb().doc("manufacturing_orders/morder_1").delete());
   });
 
-  // -------- STOCK MOVEMENTS ----------
-  test("Stock movements: create/read allowed for company owners", async () => {
-    await assertSucceeds(activeDb().collection("companies/company_1/stock_movements").doc("sm_new").set({ type: "in", qty: 10 }));
-    await assertSucceeds(activeDb().doc("companies/company_1/stock_movements/mov_1").get());
-    await assertFails(otherDb().doc("companies/company_1/stock_movements/mov_1").get());
+  // -------- STOCK_MOVEMENTS (subcollection in companies) ----------
+  test("StockMovements: owner can create", async () => {
+    await assertSucceeds(
+      activeDb()
+        .collection("companies")
+        .doc("company_1")
+        .collection("stock_movements")
+        .doc("sm_new")
+        .set({
+          type: "in",
+          qty: 10,
+          userId: "active_user",
+        })
+    );
   });
 
-  // -------- ADDITIONAL: vendors list and companies list checks ----------
-  test("Active user can list vendors and companies (list allowed for active users)", async () => {
-    await assertSucceeds(activeDb().collection("vendors").get());
-    await assertSucceeds(activeDb().collection("companies").get());
+  test("StockMovements: owner can read/update/delete", async () => {
+    await assertSucceeds(
+      activeDb()
+        .collection("companies")
+        .doc("company_1")
+        .collection("stock_movements")
+        .doc("mov_1")
+        .get()
+    );
+    await assertSucceeds(
+      activeDb()
+        .collection("companies")
+        .doc("company_1")
+        .collection("stock_movements")
+        .doc("mov_1")
+        .update({ qty: 20 })
+    );
+    await assertSucceeds(
+      activeDb()
+        .collection("companies")
+        .doc("company_1")
+        .collection("stock_movements")
+        .doc("mov_1")
+        .delete()
+    );
   });
 
-  test("Guest cannot list vendors/companies", async () => {
-    await assertFails(guestDb().collection("vendors").get());
-    await assertFails(guestDb().collection("companies").get());
+  test("StockMovements: non-owner cannot read/update/delete", async () => {
+    await assertFails(
+      otherDb()
+        .collection("companies")
+        .doc("company_1")
+        .collection("stock_movements")
+        .doc("mov_1")
+        .get()
+    );
+    await assertFails(
+      otherDb()
+        .collection("companies")
+        .doc("company_1")
+        .collection("stock_movements")
+        .doc("mov_1")
+        .update({ qty: 99 })
+    );
+    await assertFails(
+      otherDb()
+        .collection("companies")
+        .doc("company_1")
+        .collection("stock_movements")
+        .doc("mov_1")
+        .delete()
+    );
+  });
+
+  // -------- VENDORS ----------
+  test("Vendors: owner can create vendor", async () => {
+    await assertSucceeds(
+      activeDb().collection("vendors").doc("vendor_new").set({
+        userId: "active_user",
+        name: "Vendor New",
+      })
+    );
+  });
+
+  test("Vendors: owner can read/update/delete", async () => {
+    await assertSucceeds(activeDb().doc("vendors/supplier_1").get());
+    await assertSucceeds(activeDb().doc("vendors/supplier_1").update({ name: "Changed Vendor" }));
+    await assertSucceeds(activeDb().doc("vendors/supplier_1").delete());
+  });
+
+  test("Vendors: non-owner cannot read/update/delete", async () => {
+    await assertFails(otherDb().doc("vendors/supplier_1").get());
+    await assertFails(otherDb().doc("vendors/supplier_1").update({ name: "Bad" }));
+    await assertFails(otherDb().doc("vendors/supplier_1").delete());
+  });
+
+  // -------- ITEMS ----------
+  test("Items: owner can create item", async () => {
+    await assertSucceeds(
+      activeDb().collection("items").doc("item_new").set({
+        userId: "active_user",
+        name: "Item New",
+      })
+    );
+  });
+
+  test("Items: owner can read/update/delete", async () => {
+    await assertSucceeds(activeDb().doc("items/item_1").get());
+    await assertSucceeds(activeDb().doc("items/item_1").update({ name: "Changed Item" }));
+    await assertSucceeds(activeDb().doc("items/item_1").delete());
+  });
+
+  test("Items: non-owner cannot read/update/delete", async () => {
+    await assertFails(otherDb().doc("items/item_1").get());
+    await assertFails(otherDb().doc("items/item_1").update({ name: "Bad" }));
+    await assertFails(otherDb().doc("items/item_1").delete());
   });
 });

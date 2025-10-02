@@ -1903,6 +1903,7 @@ class LicenseException implements Exception {
   String toString() => message;
 }
  */
+
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -1955,74 +1956,74 @@ class _UserLicenseRequestPageState extends State<UserLicenseRequestPage> {
     _setupMainLicenseListener();
   }
 
-  
+  void _setupMainLicenseListener() {
+    final user = _auth.currentUser;
+    if (user == null) return;
 
-void _setupMainLicenseListener() {
-  final user = _auth.currentUser;
-  if (user == null) return;
+    // ألغِ جميع الاشتراكات السابقة
+    _licenseStatusSubscription?.cancel();
+    _requestStatusSubscription?.cancel();
+    _licenseListenerSubscription?.cancel();
 
-  // ألغِ جميع الاشتراكات السابقة
-  _licenseStatusSubscription?.cancel();
-  _requestStatusSubscription?.cancel();
-  _licenseListenerSubscription?.cancel();
-
-  // اشترك في التغييرات على كل من التراخيص والطلبات
-  _licenseStatusSubscription = _firestore
-      .collectionGroup('licenses')
-      .where('userId', isEqualTo: user.uid)
-      .snapshots()
-      .listen((snapshot) {
-    _checkAndRedirect();
-  });
-
-  _requestStatusSubscription = _firestore
-      .collection('license_requests')
-      .where('userId', isEqualTo: user.uid)
-      .snapshots()
-      .listen((snapshot) {
-    _checkAndRedirect();
-  });
-}
-Future<void> _checkAndRedirect() async {
-  if (!mounted) return;
-  await Future.delayed(const Duration(seconds: 2));
-  final user = _auth.currentUser;
-  if (user == null) return;
-
-  // تحقق من وجود ترخيص فعال
-  final licenseSnapshot = await _firestore
-      .collection('licenses')
-      .where('userId', isEqualTo: user.uid)
-      .where('isActive', isEqualTo: true)
-      .get();
-
-  final hasActiveLicense = licenseSnapshot.docs.any((doc) {
-    final expiry = (doc.get('expiryDate') as Timestamp?)?.toDate();
-    return expiry != null && expiry.isAfter(DateTime.now());
-  });
-
-  if (hasActiveLicense) {
-    safeDebugPrint('Redirecting to dashboard - active license found');
-    Future.microtask(() {
-      if (mounted) context.go('/dashboard');
+    // اشترك في التغييرات على كل من التراخيص والطلبات
+    _licenseStatusSubscription = _firestore
+        .collectionGroup('licenses')
+        .where('userId', isEqualTo: user.uid)
+        .snapshots()
+        .listen((snapshot) {
+      _checkAndRedirect();
     });
-    return;
-  }
 
-  // تحقق من وجود طلب معتمد
-  final requestSnapshot = await _firestore
-      .collection('license_requests')
-      .where('userId', isEqualTo: user.uid)
-      .where('status', isEqualTo: 'approved')
-      .get();
-
-  if (requestSnapshot.docs.isNotEmpty) {
-    safeDebugPrint('Redirecting to dashboard - approved request found');
-    Future.microtask(() {
-      if (mounted) context.go('/dashboard');
+    _requestStatusSubscription = _firestore
+        .collection('license_requests')
+        .where('userId', isEqualTo: user.uid)
+        .snapshots()
+        .listen((snapshot) {
+      _checkAndRedirect();
     });
   }
-}
+
+  Future<void> _checkAndRedirect() async {
+    if (!mounted) return;
+    await Future.delayed(const Duration(seconds: 2));
+    final user = _auth.currentUser;
+    if (user == null) return;
+
+    // تحقق من وجود ترخيص فعال
+    final licenseSnapshot = await _firestore
+        .collection('licenses')
+        .where('userId', isEqualTo: user.uid)
+        .where('isActive', isEqualTo: true)
+        .get();
+
+    final hasActiveLicense = licenseSnapshot.docs.any((doc) {
+      final expiry = (doc.get('expiryDate') as Timestamp?)?.toDate();
+      return expiry != null && expiry.isAfter(DateTime.now());
+    });
+
+    if (hasActiveLicense) {
+      safeDebugPrint('Redirecting to dashboard - active license found');
+      Future.microtask(() {
+        if (mounted) context.go('/dashboard');
+      });
+      return;
+    }
+
+    // تحقق من وجود طلب معتمد
+    final requestSnapshot = await _firestore
+        .collection('license_requests')
+        .where('userId', isEqualTo: user.uid)
+        .where('status', isEqualTo: 'approved')
+        .get();
+
+    if (requestSnapshot.docs.isNotEmpty) {
+      safeDebugPrint('Redirecting to dashboard - approved request found');
+      Future.microtask(() {
+        if (mounted) context.go('/dashboard');
+      });
+    }
+  }
+
   @override
   void dispose() {
     _licenseStatusSubscription?.cancel();
@@ -2384,8 +2385,8 @@ Future<void> _checkAndRedirect() async {
             _buildInfoRow('devices_allowed'.tr(), '$_selectedDevices'),
             _buildInfoRow('current_devices'.tr(), '$_currentDevicesCount'),
             _buildInfoRow('device_id'.tr(), _currentDeviceId),
-             if (_isPending)
-            _buildInfoRow('request_status'.tr(), 'pending'.tr()),
+            if (_isPending)
+              _buildInfoRow('request_status'.tr(), 'pending'.tr()),
           ],
         ),
       ),
@@ -2587,140 +2588,141 @@ Future<void> _checkAndRedirect() async {
   }
  */
 
-Future<void> _submitRequest() async {
-  if (_currentDeviceId.isEmpty) {
-    _showErrorSnackBar('device_id_not_loaded'.tr());
-    return;
-  }
-
-  setState(() => _isSubmitting = true);
-
-  try {
-    final user = _auth.currentUser;
-    if (user == null) {
-      _showErrorSnackBar('user_not_authenticated'.tr());
-      setState(() => _isSubmitting = false);
+  Future<void> _submitRequest() async {
+    if (_currentDeviceId.isEmpty) {
+      _showErrorSnackBar('device_id_not_loaded'.tr());
       return;
     }
 
-    // 1. تحقق من وجود طلب سابق بحالة pending أو approved
-    final existingRequestSnapshot = await _firestore
-        .collection('license_requests')
-        .where('userId', isEqualTo: user.uid)
-        .where('status', whereIn: ['pending', 'approved'])
-        .get();
+    setState(() => _isSubmitting = true);
 
-    bool hasActiveRequest = false;
-
-    for (var doc in existingRequestSnapshot.docs) {
-      final status = doc.get('status');
-      
-      if (status == 'pending') {
-        hasActiveRequest = true;
-        break;
+    try {
+      final user = _auth.currentUser;
+      if (user == null) {
+        _showErrorSnackBar('user_not_authenticated'.tr());
+        setState(() => _isSubmitting = false);
+        return;
       }
 
-      if (status == 'approved') {
-        final licenseSnapshot = await _firestore
-            .collection('licenses')
-            .where('userId', isEqualTo: user.uid)
-            .where('isActive', isEqualTo: true)
-            .get();
+      // 1. تحقق من وجود طلب سابق بحالة pending أو approved
+      final existingRequestSnapshot = await _firestore
+          .collection('license_requests')
+          .where('userId', isEqualTo: user.uid)
+          .where('status', whereIn: ['pending', 'approved']).get();
 
-        final now = DateTime.now().toUtc();
-        bool hasValidLicense = licenseSnapshot.docs.any((licenseDoc) {
-          final expiryTimestamp = licenseDoc.get('expiryDate') as Timestamp?;
-          if (expiryTimestamp == null) return false;
-          final expiryDate = expiryTimestamp.toDate();
-          return expiryDate.isAfter(now);
-        });
+      bool hasActiveRequest = false;
 
-        if (hasValidLicense) {
+      for (var doc in existingRequestSnapshot.docs) {
+        final status = doc.get('status');
+
+        if (status == 'pending') {
           hasActiveRequest = true;
           break;
         }
-      }
-    }
 
-    if (hasActiveRequest) {
-      _showErrorSnackBar('existing_request_found'.tr());
+        if (status == 'approved') {
+          final licenseSnapshot = await _firestore
+              .collection('licenses')
+              .where('userId', isEqualTo: user.uid)
+              .where('isActive', isEqualTo: true)
+              .get();
+
+          final now = DateTime.now().toUtc();
+          bool hasValidLicense = licenseSnapshot.docs.any((licenseDoc) {
+            final expiryTimestamp = licenseDoc.get('expiryDate') as Timestamp?;
+            if (expiryTimestamp == null) return false;
+            final expiryDate = expiryTimestamp.toDate();
+            return expiryDate.isAfter(now);
+          });
+
+          if (hasValidLicense) {
+            hasActiveRequest = true;
+            break;
+          }
+        }
+      }
+
+      if (hasActiveRequest) {
+        _showErrorSnackBar('existing_request_found'.tr());
+        setState(() => _isSubmitting = false);
+        return;
+      }
+
+      // إنشاء رقم طلب مفهوم
+      final String requestNumber = await _generateRequestNumber();
+
+      // إنشاء الطلب الجديد
+      final batch = _firestore.batch();
+      final newRequestRef =
+          _firestore.collection('license_requests').doc(requestNumber);
+
+      batch.set(newRequestRef, {
+        'requestId': requestNumber, // إضافة حقل requestId للتوثيق
+        'userId': user.uid,
+        'durationMonths': _selectedDuration,
+        'maxDevices': _selectedDevices,
+        'deviceIds': [_currentDeviceId],
+        'status': 'pending',
+        'createdAt': DateTime.now().toIso8601String(),
+        'displayName':
+            user.displayName ?? user.email?.split('@').first ?? 'User',
+        'email': user.email,
+      });
+
+      await batch.commit();
+
+      if (!mounted) return;
+
+      setState(() {
+        _hasSubmittedRequest = true;
+        _isSubmitting = false;
+        _isPending = true;
+      });
+
+      _showSuccessMessage(requestNumber);
+      await _loadCurrentDeviceCount();
+    } catch (e) {
+      _showErrorSnackBar('request_failed'.tr(args: [e.toString()]));
       setState(() => _isSubmitting = false);
-      return;
     }
-
-    // إنشاء رقم طلب مفهوم
-    final String requestNumber = await _generateRequestNumber();
-
-    // إنشاء الطلب الجديد
-    final batch = _firestore.batch();
-    final newRequestRef = _firestore.collection('license_requests').doc(requestNumber);
-
-    batch.set(newRequestRef, {
-      'requestId': requestNumber, // إضافة حقل requestId للتوثيق
-      'userId': user.uid,
-      'durationMonths': _selectedDuration,
-      'maxDevices': _selectedDevices,
-      'deviceIds': [_currentDeviceId],
-      'status': 'pending',
-      'createdAt': DateTime.now().toIso8601String(),
-      'displayName': user.displayName ?? user.email?.split('@').first ?? 'User',
-      'email': user.email,
-    });
-
-    await batch.commit();
-
-    if (!mounted) return;
-
-    setState(() {
-      _hasSubmittedRequest = true;
-      _isSubmitting = false;
-      _isPending = true;
-    });
-
-    _showSuccessMessage(requestNumber);
-    await _loadCurrentDeviceCount();
-  } catch (e) {
-    _showErrorSnackBar('request_failed'.tr(args: [e.toString()]));
-    setState(() => _isSubmitting = false);
   }
-}
 
-Future<String> _generateRequestNumber() async {
-  try {
-    final now = DateTime.now();
-    final datePart = '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}';
-    
-    // الحصول على آخر رقم تسلسلي لهذا اليوم
-    final todayRequests = await _firestore
-        .collection('license_requests')
-        .where('requestId', isGreaterThanOrEqualTo: 'REQ-$datePart-')
-        .where('requestId', isLessThan: 'REQ-$datePart-9999')
-        .orderBy('requestId', descending: true)
-        .limit(1)
-        .get();
+  Future<String> _generateRequestNumber() async {
+    try {
+      final now = DateTime.now();
+      final datePart =
+          '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}';
 
-    int sequenceNumber = 1;
-    
-    if (todayRequests.docs.isNotEmpty) {
-      final lastRequestId = todayRequests.docs.first.id;
-      final parts = lastRequestId.split('-');
-      if (parts.length == 3) {
-        final lastSequence = int.tryParse(parts[2]) ?? 0;
-        sequenceNumber = lastSequence + 1;
+      // الحصول على آخر رقم تسلسلي لهذا اليوم
+      final todayRequests = await _firestore
+          .collection('license_requests')
+          .where('requestId', isGreaterThanOrEqualTo: 'REQ-$datePart-')
+          .where('requestId', isLessThan: 'REQ-$datePart-9999')
+          .orderBy('requestId', descending: true)
+          .limit(1)
+          .get();
+
+      int sequenceNumber = 1;
+
+      if (todayRequests.docs.isNotEmpty) {
+        final lastRequestId = todayRequests.docs.first.id;
+        final parts = lastRequestId.split('-');
+        if (parts.length == 3) {
+          final lastSequence = int.tryParse(parts[2]) ?? 0;
+          sequenceNumber = lastSequence + 1;
+        }
       }
+
+      // التأكد من أن الرقم التسلسلي لا يتجاوز 4 أرقام
+      sequenceNumber = sequenceNumber.clamp(1, 9999);
+
+      return 'REQ-$datePart-${sequenceNumber.toString().padLeft(4, '0')}';
+    } catch (e) {
+      safeDebugPrint('Error generating request number: $e');
+      // Fallback: استخدام UUID إذا فشل التوليد
+      return 'REQ-${DateTime.now().year}${DateTime.now().month.toString().padLeft(2, '0')}${DateTime.now().day.toString().padLeft(2, '0')}-${_uuid.v4().substring(0, 4)}';
     }
-
-    // التأكد من أن الرقم التسلسلي لا يتجاوز 4 أرقام
-    sequenceNumber = sequenceNumber.clamp(1, 9999);
-
-    return 'REQ-$datePart-${sequenceNumber.toString().padLeft(4, '0')}';
-  } catch (e) {
-    safeDebugPrint('Error generating request number: $e');
-    // Fallback: استخدام UUID إذا فشل التوليد
-    return 'REQ-${DateTime.now().year}${DateTime.now().month.toString().padLeft(2, '0')}${DateTime.now().day.toString().padLeft(2, '0')}-${_uuid.v4().substring(0, 4)}';
   }
-}
-
 
   void _showErrorSnackBar(String message) {
     ScaffoldMessenger.of(context)
@@ -2746,29 +2748,30 @@ Future<String> _generateRequestNumber() async {
       ));
   }
  */
-void _showSuccessMessage(String requestNumber) {
-  ScaffoldMessenger.of(context)
-    ..hideCurrentSnackBar()
-    ..showSnackBar(SnackBar(
-      content: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text('request_successful'.tr()),
-          const SizedBox(height: 4),
-          Text(
-            '${'request_number'.tr()}: $requestNumber',
-            style: const TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 14,
+
+  void _showSuccessMessage(String requestNumber) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(
+        content: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('request_successful'.tr()),
+            const SizedBox(height: 4),
+            Text(
+              '${'request_number'.tr()}: $requestNumber',
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 14,
+              ),
             ),
-          ),
-        ],
-      ),
-      backgroundColor: Colors.green,
-      behavior: SnackBarBehavior.floating,
-      duration: const Duration(seconds: 8),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-    ));
-}
+          ],
+        ),
+        backgroundColor: Colors.green,
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 8),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      ));
+  }
 }

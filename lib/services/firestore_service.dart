@@ -311,7 +311,6 @@ Future<List<QueryDocumentSnapshot>> getDocumentsWithWhereInChunked({
 }
  */
 
-
 import 'package:puresip_purchasing/debug_helper.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 //import 'package:flutter/material.dart';
@@ -357,6 +356,7 @@ class FirestoreService {
         .map((doc) => Supplier.fromMap(doc.data(), doc.id))
         .toList();
   } */
+
   Future<List<Supplier>> getUserVendors(
       String userId, List<String> supplierIds) async {
     final List<Supplier> allSuppliers = [];
@@ -406,6 +406,7 @@ class FirestoreService {
   Future<void> addItem(Item item) async {
     await _firestore.collection('items').add(item.toMap());
   }
+
 /* 
   Future<List<Item>> getUserItems(String userId) async {
     final querySnapshot = await _firestore

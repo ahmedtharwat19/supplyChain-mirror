@@ -666,7 +666,7 @@ Future<LicenseStatus> checkLicenseStatus(String licenseKey) async {
 
 
 
-/*   Future<LicenseStatus> _checkOfflineLicenseStatus() async {
+ /*   Future<LicenseStatus> _checkOfflineLicenseStatus() async {
 
   
     try {
@@ -731,6 +731,7 @@ Future<LicenseStatus> checkLicenseStatus(String licenseKey) async {
     }
   }
  */} */
+
 // services/license_service.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:easy_localization/easy_localization.dart';
@@ -738,7 +739,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:hive/hive.dart';
 import 'package:puresip_purchasing/models/license_status.dart';
 import 'package:puresip_purchasing/services/user_subscription_service.dart';
-import 'device_fingerprint.dart';
+import 'device_fingerprint.dart' hide safeDebugPrint;
 import 'package:puresip_purchasing/debug_helper.dart';
 
 class LicenseException implements Exception {
@@ -992,156 +993,162 @@ class LicenseService {
     }
   }
  */
-Future<LicenseStatus> checkLicenseStatus(String licenseKey) async {
-  try {
-    final user = _auth.currentUser;
-    if (user == null) {
-      return LicenseStatus.invalid(
-        reason: "User not logged in",
-        isOffline: false,
-      );
-    }
 
-    final box = await Hive.openBox(_deviceBoxName);
-    String currentFingerprint = box.get('fingerprint') ?? await DeviceFingerprint.getFingerprint();
-    await box.put('fingerprint', currentFingerprint);
-
+  Future<LicenseStatus> checkLicenseStatus(String licenseKey) async {
     try {
-      // ✅ التغيير الرئيسي: الحصول من collection 'users' بدلاً من 'licenses'
-      final userDoc = await _firestore.collection('users').doc(user.uid).get();
-
-      if (!userDoc.exists) {
+      final user = _auth.currentUser;
+      if (user == null) {
         return LicenseStatus.invalid(
-          reason: "User document not found",
+          reason: "User not logged in",
           isOffline: false,
         );
       }
 
-      final userData = userDoc.data();
-      if (userData == null) {
-        return LicenseStatus.invalid(
-          reason: "User data is null",
-          isOffline: false,
-        );
-      }
+      final box = await Hive.openBox(_deviceBoxName);
+      String currentFingerprint =
+          box.get('fingerprint') ?? await DeviceFingerprint.getFingerprint();
+      await box.put('fingerprint', currentFingerprint);
 
-      // ✅ التحقق من أن الترخيص matches مع licenseKey المطلوب
-      final userLicenseKey = userData['licenseKey'];
-      if (userLicenseKey != licenseKey) {
-        return LicenseStatus.invalid(
-          reason: "License key does not match user's license",
-          isOffline: false,
-        );
-      }
+      try {
+        // ✅ التغيير الرئيسي: الحصول من collection 'users' بدلاً من 'licenses'
+        final userDoc =
+            await _firestore.collection('users').doc(user.uid).get();
 
-      // ✅ معالجة تاريخ الانتهاء من userData
-      final expiryDate = (userData['license_expiry'] as Timestamp?)?.toDate();
-      if (expiryDate == null) {
-        return LicenseStatus.invalid(
-          reason: "Invalid expiry date format",
-          isOffline: false,
-        );
-      }
-
-      final maxDevices = userData['maxDevices'] ?? 1;
-      final isActive = userData['isActive'] ?? false;
-
-      // ✅ الحصول على قائمة الأجهزة (قد تكون في حقل deviceIds أو devices)
-      final devices = List<Map<String, dynamic>>.from(userData['deviceIds'] ?? userData['devices'] ?? []);
-
-      // التحقق من الحالة
-      if (!isActive) {
-        return LicenseStatus.invalid(
-          reason: "License inactive",
-          isOffline: false,
-        );
-      }
-
-      // التحقق من الانتهاء
-      final now = DateTime.now().toUtc();
-      final expiryUtc = expiryDate.toUtc();
-
-      if (now.isAfter(expiryUtc)) {
-        return LicenseStatus.invalid(
-          reason: "License expired",
-          isOffline: false,
-        );
-      }
-
-      // التحقق من تسجيل الجهاز
-      final isRegistered = devices.any((d) => d['fingerprint'] == currentFingerprint);
-
-      if (!isRegistered) {
-        if (devices.length >= maxDevices) {
-          return LicenseStatus(
-            isValid: false,
+        if (!userDoc.exists) {
+          return LicenseStatus.invalid(
+            reason: "User document not found",
             isOffline: false,
-            licenseKey: licenseKey,
-            expiryDate: expiryDate,
-            maxDevices: maxDevices,
-            usedDevices: devices.length,
-            daysLeft: expiryUtc.difference(now).inDays,
-            formattedRemaining: _formatDuration(expiryUtc.difference(now)),
-            reason: "Device limit exceeded",
-            deviceLimitExceeded: true,
           );
         }
 
-        // ✅ تسجيل الجهاز الجديد في user document
-        await _registerDeviceInUser(user.uid, currentFingerprint, devices);
+        final userData = userDoc.data();
+        if (userData == null) {
+          return LicenseStatus.invalid(
+            reason: "User data is null",
+            isOffline: false,
+          );
+        }
+
+        // ✅ التحقق من أن الترخيص matches مع licenseKey المطلوب
+        final userLicenseKey = userData['licenseKey'];
+        if (userLicenseKey != licenseKey) {
+          return LicenseStatus.invalid(
+            reason: "License key does not match user's license",
+            isOffline: false,
+          );
+        }
+
+        // ✅ معالجة تاريخ الانتهاء من userData
+        final expiryDate = (userData['license_expiry'] as Timestamp?)?.toDate();
+        if (expiryDate == null) {
+          return LicenseStatus.invalid(
+            reason: "Invalid expiry date format",
+            isOffline: false,
+          );
+        }
+
+        final maxDevices = userData['maxDevices'] ?? 1;
+        final isActive = userData['isActive'] ?? false;
+
+        // ✅ الحصول على قائمة الأجهزة (قد تكون في حقل deviceIds أو devices)
+        final devices = List<Map<String, dynamic>>.from(
+            userData['deviceIds'] ?? userData['devices'] ?? []);
+
+        // التحقق من الحالة
+        if (!isActive) {
+          return LicenseStatus.invalid(
+            reason: "License inactive",
+            isOffline: false,
+          );
+        }
+
+        // التحقق من الانتهاء
+        final now = DateTime.now().toUtc();
+        final expiryUtc = expiryDate.toUtc();
+
+        if (now.isAfter(expiryUtc)) {
+          return LicenseStatus.invalid(
+            reason: "License expired",
+            isOffline: false,
+          );
+        }
+
+        // التحقق من تسجيل الجهاز
+        final isRegistered =
+            devices.any((d) => d['fingerprint'] == currentFingerprint);
+
+        if (!isRegistered) {
+          if (devices.length >= maxDevices) {
+            return LicenseStatus(
+              isValid: false,
+              isOffline: false,
+              licenseKey: licenseKey,
+              expiryDate: expiryDate,
+              maxDevices: maxDevices,
+              usedDevices: devices.length,
+              daysLeft: expiryUtc.difference(now).inDays,
+              formattedRemaining: _formatDuration(expiryUtc.difference(now)),
+              reason: "Device limit exceeded",
+              deviceLimitExceeded: true,
+            );
+          }
+
+          // ✅ تسجيل الجهاز الجديد في user document
+          await _registerDeviceInUser(user.uid, currentFingerprint, devices);
+        }
+
+        // حساب الوقت المتبقي
+        final timeRemaining = expiryUtc.difference(now);
+        final formattedTime = _formatDuration(timeRemaining);
+
+        // حفظ البيانات للتخزين المؤقت
+        await _cacheLicenseData(box, licenseKey, expiryDate, maxDevices,
+            devices.length + (isRegistered ? 0 : 1));
+
+        return LicenseStatus.valid(
+          licenseKey: licenseKey,
+          expiryDate: expiryDate,
+          maxDevices: maxDevices,
+          usedDevices: devices.length + (isRegistered ? 0 : 1),
+          daysLeft: timeRemaining.inDays,
+          formattedRemaining: formattedTime,
+          isOffline: false,
+        );
+      } catch (e) {
+        // حالة عدم الاتصال - استخدام البيانات المخزنة
+        return await _getOfflineLicenseStatus(box, licenseKey);
       }
-
-      // حساب الوقت المتبقي
-      final timeRemaining = expiryUtc.difference(now);
-      final formattedTime = _formatDuration(timeRemaining);
-
-      // حفظ البيانات للتخزين المؤقت
-      await _cacheLicenseData(box, licenseKey, expiryDate, maxDevices, devices.length + (isRegistered ? 0 : 1));
-
-      return LicenseStatus.valid(
-        licenseKey: licenseKey,
-        expiryDate: expiryDate,
-        maxDevices: maxDevices,
-        usedDevices: devices.length + (isRegistered ? 0 : 1),
-        daysLeft: timeRemaining.inDays,
-        formattedRemaining: formattedTime,
-        isOffline: false,
-      );
-
     } catch (e) {
-      // حالة عدم الاتصال - استخدام البيانات المخزنة
-      return await _getOfflineLicenseStatus(box, licenseKey);
+      safeDebugPrint('❌ License check error: $e');
+      return LicenseStatus.invalid(
+        reason: "System error: $e",
+        isOffline: true,
+      );
     }
-  } catch (e) {
-    safeDebugPrint('❌ License check error: $e');
-    return LicenseStatus.invalid(
-      reason: "System error: $e",
-      isOffline: true,
-    );
   }
-}
 
-Future<void> _registerDeviceInUser(String userId, String fingerprint, List<Map<String, dynamic>> currentDevices) async {
-  try {
-    final newDevice = {
-      'fingerprint': fingerprint,
-      'registeredAt': DateTime.now().toIso8601String(),
-      'deviceId': 'device_${DateTime.now().millisecondsSinceEpoch}',
-    };
+  Future<void> _registerDeviceInUser(String userId, String fingerprint,
+      List<Map<String, dynamic>> currentDevices) async {
+    try {
+      final newDevice = {
+        'fingerprint': fingerprint,
+        'registeredAt': DateTime.now().toIso8601String(),
+        'deviceId': 'device_${DateTime.now().millisecondsSinceEpoch}',
+      };
 
-    final updatedDevices = [...currentDevices, newDevice];
+      final updatedDevices = [...currentDevices, newDevice];
 
-    await _firestore.collection('users').doc(userId).update({
-      'deviceIds': updatedDevices,
-      'lastDeviceRegistration': DateTime.now().toIso8601String(),
-    });
+      await _firestore.collection('users').doc(userId).update({
+        'deviceIds': updatedDevices,
+        'lastDeviceRegistration': DateTime.now().toIso8601String(),
+      });
 
-    safeDebugPrint('✅ Device registered in user document');
-  } catch (e) {
-    safeDebugPrint('❌ Error registering device in user: $e');
-    rethrow;
+      safeDebugPrint('✅ Device registered in user document');
+    } catch (e) {
+      safeDebugPrint('❌ Error registering device in user: $e');
+      rethrow;
+    }
   }
-}
 
 /*   /// تسجيل الجهاز في الترخيص
   Future<void> _registerDevice(String licenseKey, String fingerprint,
@@ -1307,6 +1314,7 @@ Future<void> _registerDeviceInUser(String userId, String fingerprint, List<Map<S
       );
     }
   }
+
 /* Future<LicenseStatus> getCurrentUserLicenseStatus() async {
   final user = FirebaseAuth.instance.currentUser;
   if (user == null) {
@@ -1368,7 +1376,7 @@ Future<void> _registerDeviceInUser(String userId, String fingerprint, List<Map<S
   }
 }
  */
- /// إصلاح التراخيص الموجودة (للمسؤولين)
+  /// إصلاح التراخيص الموجودة (للمسؤولين)
   Future<void> fixExistingLicenses() async {
     try {
       final user = _auth.currentUser;

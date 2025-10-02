@@ -1221,7 +1221,7 @@ import 'package:hive/hive.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:puresip_purchasing/debug_helper.dart';
 //import 'package:go_router/go_router.dart';
-import 'device_fingerprint.dart';
+import 'device_fingerprint.dart' hide safeDebugPrint;
 
 /// كائن النتيجة الخاص بالاشتراك
 class SubscriptionResult {
@@ -1453,7 +1453,6 @@ class UserSubscriptionService {
   }
 }
  
-
 Future<void> _fixDeviceLimit(String licenseId, int maxDevices) async {
   try {
     final licenseDoc = await _fs.collection('licenses').doc(licenseId).get();
@@ -1490,6 +1489,7 @@ Future<void> _fixDeviceLimit(String licenseId, int maxDevices) async {
     safeDebugPrint('❌ Error fixing device limit: $e');
   }
 }
+
 /* Future<Map<String, dynamic>> _checkDeviceFingerprint(String licenseId) async {
   try {
     final currentFingerprint = await DeviceFingerprint.generate();
@@ -1551,6 +1551,7 @@ Future<void> _fixDeviceLimit(String licenseId, int maxDevices) async {
   }
 }
  */
+
 Future<bool> registerDeviceFingerprint(String licenseId) async {
   try {
     final currentFingerprint = await DeviceFingerprint.generate();

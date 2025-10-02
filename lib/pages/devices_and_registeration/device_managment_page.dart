@@ -1966,6 +1966,628 @@ Future<void> _loadDataAndNavigate() async {
   }
 } */
 
+/* Future<void> _navigateToDashboard() async {
+  safeDebugPrint('➡️ Navigating directly to dashboard based on approved request');
+  
+  // إظهار رسالة للمستخدم
+  if (mounted) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('navigating_to_dashboard'.tr()),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+  
+  // إلغاء الاشتراك أولاً
+  _deviceRequestsSubscription?.cancel();
+  
+  // تأخير لرؤية الرسالة
+  await Future.delayed(const Duration(seconds: 2));
+  
+  if (mounted) {
+    // الانتقال مباشرة دون أي تحقق
+    context.go('/dashboard');
+    
+    // تأكيد الانتقال
+    safeDebugPrint('✅ Successfully navigated to dashboard');
+  }
+}
+ */
+/*   Future<void> _handleApprovedRequest() async {
+    safeDebugPrint('🔄 Handling approved request');
+    _checkAttempts = 0;
+    await _checkLicenseRepeatedly();
+  }
+ */
+
+/*  Future<void> _checkLicenseRepeatedly() async {
+    if (_checkAttempts >= _maxCheckAttempts) {
+      safeDebugPrint('❌ Max check attempts reached');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('license_check_timeout'.tr())),
+        );
+      }
+      return;
+    }
+
+    _checkAttempts++;
+    safeDebugPrint('🔄 Checking license status attempt $_checkAttempts');
+
+    try {
+      final status = await _licenseService.getCurrentUserLicenseStatus();
+      
+      if (status.isValid) {
+        safeDebugPrint('✅ License is valid after $_checkAttempts attempts');
+        if (mounted) {
+          await _loadData(navigateIfValid: true);
+        }
+        return;
+      }
+
+      safeDebugPrint('⏳ License not yet valid, waiting...');
+      await Future.delayed(const Duration(seconds: 2));
+      await _checkLicenseRepeatedly();
+    } catch (e) {
+      safeDebugPrint('❌ Error checking license status: $e');
+      await Future.delayed(const Duration(seconds: 2));
+      await _checkLicenseRepeatedly();
+    }
+  }
+ */
+/*   Future<void> _loadDevices() async {
+    if (_resolvedLicenseId == null) return;
+    final devices = await _service.getRegisteredDevices(_resolvedLicenseId!);
+    if (!mounted) return;
+    setState(() => _devices = devices);
+  }
+ */
+/* 
+  Future<void> _unregisterDevice(String fingerprint) async {
+    if (_resolvedLicenseId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('license_not_found'.tr())),
+      );
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('unregister_device'.tr()),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('confirm_unregister_device'.tr()),
+            const SizedBox(height: 8),
+            Text(
+              'auto_register_warning'.tr(),
+              style: const TextStyle(
+                color: Colors.blue,
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text('cancel'.tr()),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text('confirm'.tr()),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      if (!mounted) return;
+      setState(() => _isLoading = true);
+
+      final success = await _service.unregisterDevice(_resolvedLicenseId!, fingerprint);
+
+      if (success) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('device_unregistered_successfully'.tr())),
+          );
+          await _loadData(navigateIfValid: false);
+        }
+      } else {
+        if (!mounted) return;
+        setState(() => _isLoading = false);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('failed_to_unregister_device'.tr())),
+          );
+        }
+      }
+    }
+  }
+ */
+/*   Future<void> _showDeviceDeleteDialog(Map<String, dynamic> device) async {
+    final fingerprint = device['fingerprint'];
+
+    await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('unregister_device'.tr()),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('confirm_unregister_device'.tr()),
+            const SizedBox(height: 16),
+            _buildDeviceInfoCard(device),
+            const SizedBox(height: 8),
+            Text(
+              'auto_register_warning'.tr(),
+              style: const TextStyle(
+                color: Colors.blue,
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('cancel'.tr()),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _unregisterDevice(fingerprint);
+            },
+            child: Text('unregister'.tr()),
+          ),
+        ],
+      ),
+    );
+  }
+ */
+
+/*   Future<void> _loadCurrentDeviceId() async {
+    try {
+      final currentFingerprint = await DeviceFingerprint.generate();
+      safeDebugPrint('🔍 Current device fingerprint: $currentFingerprint');
+
+      if (!mounted) return;
+      setState(() => _currentDeviceId = currentFingerprint);
+
+      // ✅ التحقق فوراً إذا كان الجهاز مسجلاً
+      _checkIfDeviceRegistered(currentFingerprint);
+    } catch (e) {
+      safeDebugPrint('❌ Error loading current device ID: $e');
+    }
+  }
+ */
+
+/*   Widget _buildContent() {
+    if (_licenseStatus == null) {
+      return Center(child: Text('loading_failed'.tr()));
+    }
+
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Card(
+            color: Colors.grey[400],
+            child: Padding(
+              padding: const EdgeInsets.all(12.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'license_info'.tr(),
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: 8),
+                  _buildInfoRow(
+                    'devices_used'.tr(),
+                    '${_licenseStatus!.usedDevices}/${_licenseStatus!.maxDevices}',
+                  ),
+                  _buildInfoRow(
+                    'days_remaining'.tr(),
+                    '${_licenseStatus!.daysLeft}',
+                  ),
+                  if (_licenseStatus!.formattedRemaining != null)
+                    _buildInfoRow(
+                      'time_remaining'.tr(),
+                      _licenseStatus!.formattedRemaining!,
+                    ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          if (_licenseStatus!.deviceLimitExceeded)
+            Card(
+              color: Colors.red.withAlpha(75),
+              child: Padding(
+                padding: const EdgeInsets.all(12.0),
+                child: Row(
+                  children: [
+                    const Icon(Icons.warning_amber, color: Colors.orange),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'device_limit_exceeded_warning'.tr(),
+                        style: const TextStyle(color: Colors.white),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          const SizedBox(height: 16),
+          Text('registered_devices'.tr(),
+              style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 8),
+          Expanded(
+            child: _devices.isEmpty
+                ? Center(child: Text('no_devices_registered'.tr()))
+                : ListView.builder(
+                    itemCount: _devices.length,
+                    itemBuilder: (context, index) {
+                      final device = _devices[index];
+                      final isCurrent =
+                          device['fingerprint'] == _currentDeviceId;
+
+                      return Card(
+                        child: ListTile(
+                          title: Text(
+                              device['deviceName'] ?? 'unknown_device'.tr()),
+                          subtitle: _buildDeviceInfoSubtitle(device, isCurrent),
+                          trailing: !isCurrent
+                              ? IconButton(
+                                  icon: const Icon(Icons.delete,
+                                      color: Colors.red),
+                                  onPressed: () =>
+                                      _showDeviceDeleteDialog(device),
+                                )
+                              : null,
+                        ),
+                      );
+                    },
+                  ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton(
+                  onPressed:
+                      _licenseStatus!.usedDevices < _licenseStatus!.maxDevices
+                          ? _registerCurrentDevice
+                          : null,
+                  child: Text('register_current_device'.tr()),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: _requestNewDeviceSlot,
+                  child: Text('request_new_slot'.tr()),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  } */
+
+/*  Future<void> _registerCurrentDevice() async {
+    if (_resolvedLicenseId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('license_not_found'.tr())),
+      );
+      return;
+    }
+
+    final success =
+        await _service.registerDeviceFingerprint(_resolvedLicenseId!);
+    if (success) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('device_registered_successfully'.tr())),
+        );
+        _loadDevices();
+      }
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('failed_to_register_device'.tr())),
+        );
+      }
+    }
+  }
+  */ /*  Future<void> _unregisterDevice(String fingerprint) async {
+    if (_resolvedLicenseId == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('license_not_found'.tr())),
+        );
+      }
+      return;
+    }
+
+    final user = _auth.currentUser;
+    if (user == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('user_not_authenticated'.tr())),
+        );
+      }
+      return;
+    }
+
+    try {
+      if (!mounted) return;
+      setState(() => _isLoading = true);
+
+      safeDebugPrint('🔍 Searching for device with fingerprint: $fingerprint');
+
+      // ✅ البحث عن الجهاز المراد حذفه
+      final deviceToRemove = _devices.firstWhere(
+        (device) => device['fingerprint'] == fingerprint,
+        orElse: () => {},
+      );
+
+      if (deviceToRemove.isEmpty) {
+        throw Exception('Device not found in local list');
+      }
+
+      safeDebugPrint('✅ Found device to remove: $deviceToRemove');
+
+      // ✅ حذف الجهاز من الترخيص في Firestore
+      await FirebaseFirestore.instance
+          .collection('licenses')
+          .doc(_resolvedLicenseId!)
+          .update({
+        'devices': FieldValue.arrayRemove([deviceToRemove]),
+        'lastUpdated': FieldValue.serverTimestamp(),
+      });
+
+      safeDebugPrint('✅ Device removed from license successfully');
+
+      // ✅ حذف الجهاز من المستخدم في Firestore
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .update({
+        'deviceIds': FieldValue.arrayRemove([deviceToRemove]),
+        'lastUpdated': FieldValue.serverTimestamp(),
+      });
+
+      safeDebugPrint('✅ Device removed from user successfully');
+
+      // ✅ تحديث الواجهة
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('device_unregistered_successfully'.tr())),
+        );
+
+        // إعادة تحميل البيانات
+        await _loadData(navigateIfValid: false);
+      }
+    } catch (e) {
+      safeDebugPrint('❌ Error unregistering device: $e');
+
+      if (mounted) {
+        setState(() => _isLoading = false);
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('failed_to_unregister_device'.tr())),
+        );
+      }
+    }
+  }
+ */
+
+/*   Future<void> _registerCurrentDevice() async {
+    if (_resolvedLicenseId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('license_not_found'.tr())),
+      );
+      return;
+    }
+
+    try {
+      safeDebugPrint('🔄 Starting device registration...');
+
+      if (!mounted) return;
+      setState(() => _isLoading = true);
+
+      // ✅ تسجيل الجهاز
+      final success =
+          await _service.registerDeviceFingerprint(_resolvedLicenseId!);
+
+      if (success) {
+        safeDebugPrint('✅ Device registered successfully in service');
+
+        // ✅ انتظار تحديث البيانات في Firestore
+        await Future.delayed(const Duration(seconds: 2));
+
+        // ✅ إعادة تحميل كافة البيانات
+        await _loadData(navigateIfValid: true);
+
+        safeDebugPrint('✅ Data reloaded after registration');
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('device_registered_successfully'.tr())),
+          );
+        }
+
+        // ✅ التحقق النهائي والتنقل
+        await _finalCheckAndNavigate();
+      } else {
+        safeDebugPrint('❌ Device registration failed in service');
+        if (mounted) {
+          setState(() => _isLoading = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('failed_to_register_device'.tr())),
+          );
+        }
+      }
+    } catch (e) {
+      safeDebugPrint('❌ Error in device registration: $e');
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('error_occurred'.tr())),
+        );
+      }
+    }
+  } */
+/* Future<void> _registerCurrentDevice() async {
+  if (_resolvedLicenseId == null) return;
+
+  try {
+    safeDebugPrint('🔄 Starting device registration with stable fingerprint...');
+    
+    // ✅ التأكد من وجود بصمة ثابتة
+    if (_currentDeviceId.isEmpty) {
+      await _loadCurrentDeviceId();
+    }
+    
+    safeDebugPrint('🔍 Using fingerprint: $_currentDeviceId');
+    
+    final success = await _service.registerDeviceFingerprint(_resolvedLicenseId!);
+    
+    if (success) {
+      safeDebugPrint('✅ Device registered successfully!');
+      
+      // ✅ الانتظار لتحديث البيانات
+      await Future.delayed(const Duration(seconds: 2));
+      
+      // ✅ إعادة تحميل البيانات
+      await _loadData(navigateIfValid: true);
+      
+    } else {
+      safeDebugPrint('❌ Device registration failed');
+    }
+  } catch (e) {
+    safeDebugPrint('❌ Error in device registration: $e');
+  }
+}
+ */
+/* // ✅ دالة جديدة للتحقق النهائي والتنقل
+  Future<void> _finalCheckAndNavigate() async {
+    try {
+      safeDebugPrint('🔍 Performing final check before navigation...');
+
+      // ✅ انتظار إضافي لضمان التحديث
+      await Future.delayed(const Duration(seconds: 1));
+
+      // ✅ إعادة توليد البصمة الحالية
+      final currentFingerprint = await DeviceFingerprint.generate();
+      safeDebugPrint('🔍 Current fingerprint: $currentFingerprint');
+
+      // ✅ إعادة تحميل الأجهزة للتأكد من أحدث البيانات
+      await _loadDevices();
+
+      safeDebugPrint('📋 Devices after final reload: ${_devices.length}');
+
+      // ✅ التحقق إذا كان الجهاز الحالي مسجلاً
+      final isRegistered =
+          _devices.any((device) => device['fingerprint'] == currentFingerprint);
+
+      safeDebugPrint('🔍 Final registration check: $isRegistered');
+
+      if (isRegistered && mounted) {
+        safeDebugPrint('✅ ✅ Final check passed! Navigating to dashboard...');
+
+        // ✅ تأخير نهائي لضمان استقرار الواجهة
+        await Future.delayed(const Duration(milliseconds: 500));
+
+        if (mounted) {
+          context.go('/dashboard');
+          safeDebugPrint('🎉 Successfully navigated to dashboard!');
+        }
+      } else {
+        safeDebugPrint('❌ Final check failed - device not registered');
+        // ✅ إعادة المحاولة بعد قليل
+        Future.delayed(const Duration(seconds: 3), () {
+          if (mounted) _finalCheckAndNavigate();
+        });
+      }
+    } catch (e) {
+      safeDebugPrint('❌ Error in final check: $e');
+    }
+  }
+ */
+/*   Future<void> _loadData({bool navigateIfValid = true}) async {
+    if (_resolvedLicenseId == null) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      return;
+    }
+
+    if (!mounted) return;
+    setState(() => _isLoading = true);
+
+    try {
+      final status = await _licenseService.getCurrentUserLicenseStatus();
+      await _loadDevices();
+      await _loadCurrentDeviceId();
+      await _diagnoseDeviceData();
+
+      if (!mounted) return;
+      setState(() {
+        _licenseStatus = status;
+        _isLoading = false;
+      });
+
+      safeDebugPrint(
+          'License status: isValid=${status.isValid}, usedDevices=${status.usedDevices}, maxDevices=${status.maxDevices}');
+
+      if (navigateIfValid && status.isValid) {
+        safeDebugPrint('✅ Navigating to dashboard');
+        final wasMounted = mounted;
+
+        Future.delayed(const Duration(milliseconds: 500), () {
+          if (wasMounted && mounted) {
+            context.go('/dashboard');
+          }
+        });
+      }
+    } catch (e) {
+      safeDebugPrint('Error loading data: $e');
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+    }
+  }
+ */
+/*   Future<void> _loadDevices() async {
+    if (_resolvedLicenseId == null) return;
+
+    try {
+      safeDebugPrint('🔄 Loading devices for license: $_resolvedLicenseId');
+
+      final devices = await _service.getRegisteredDevices(_resolvedLicenseId!);
+
+      safeDebugPrint('📊 Loaded ${devices.length} devices');
+
+      if (!mounted) return;
+      setState(() => _devices = devices);
+    } catch (e) {
+      safeDebugPrint('❌ Error loading devices: $e');
+
+      if (!mounted) return;
+      setState(() => _devices = []);
+    }
+  }
+ */
+
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:easy_localization/easy_localization.dart';
@@ -1974,7 +2596,8 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:puresip_purchasing/debug_helper.dart';
 import 'package:puresip_purchasing/models/license_status.dart';
-import 'package:puresip_purchasing/services/device_fingerprint.dart';
+import 'package:puresip_purchasing/services/device_fingerprint.dart'
+    hide safeDebugPrint;
 import 'package:puresip_purchasing/services/license_service.dart';
 import 'package:puresip_purchasing/services/user_subscription_service.dart';
 
@@ -2005,6 +2628,7 @@ class _DeviceManagementPageState extends State<DeviceManagementPage> {
     super.initState();
     _resolveLicenseId();
     _listenForDeviceRequests();
+    _verifyFingerprintStability();
   }
 
   Future<void> _listenForDeviceRequests() async {
@@ -2125,76 +2749,6 @@ class _DeviceManagementPageState extends State<DeviceManagementPage> {
     }
   }
 
-/* Future<void> _navigateToDashboard() async {
-  safeDebugPrint('➡️ Navigating directly to dashboard based on approved request');
-  
-  // إظهار رسالة للمستخدم
-  if (mounted) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('navigating_to_dashboard'.tr()),
-        duration: const Duration(seconds: 2),
-      ),
-    );
-  }
-  
-  // إلغاء الاشتراك أولاً
-  _deviceRequestsSubscription?.cancel();
-  
-  // تأخير لرؤية الرسالة
-  await Future.delayed(const Duration(seconds: 2));
-  
-  if (mounted) {
-    // الانتقال مباشرة دون أي تحقق
-    context.go('/dashboard');
-    
-    // تأكيد الانتقال
-    safeDebugPrint('✅ Successfully navigated to dashboard');
-  }
-}
- */
-/*   Future<void> _handleApprovedRequest() async {
-    safeDebugPrint('🔄 Handling approved request');
-    _checkAttempts = 0;
-    await _checkLicenseRepeatedly();
-  }
- */
-
-  /*  Future<void> _checkLicenseRepeatedly() async {
-    if (_checkAttempts >= _maxCheckAttempts) {
-      safeDebugPrint('❌ Max check attempts reached');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('license_check_timeout'.tr())),
-        );
-      }
-      return;
-    }
-
-    _checkAttempts++;
-    safeDebugPrint('🔄 Checking license status attempt $_checkAttempts');
-
-    try {
-      final status = await _licenseService.getCurrentUserLicenseStatus();
-      
-      if (status.isValid) {
-        safeDebugPrint('✅ License is valid after $_checkAttempts attempts');
-        if (mounted) {
-          await _loadData(navigateIfValid: true);
-        }
-        return;
-      }
-
-      safeDebugPrint('⏳ License not yet valid, waiting...');
-      await Future.delayed(const Duration(seconds: 2));
-      await _checkLicenseRepeatedly();
-    } catch (e) {
-      safeDebugPrint('❌ Error checking license status: $e');
-      await Future.delayed(const Duration(seconds: 2));
-      await _checkLicenseRepeatedly();
-    }
-  }
- */
   @override
   void dispose() {
     _deviceRequestsSubscription?.cancel();
@@ -2239,6 +2793,43 @@ class _DeviceManagementPageState extends State<DeviceManagementPage> {
     }
   }
 
+  Future<void> _loadDevices() async {
+    if (_resolvedLicenseId == null) return;
+
+    try {
+      safeDebugPrint('🔄 Loading devices for license: $_resolvedLicenseId');
+
+      final devices = await _service.getRegisteredDevices(_resolvedLicenseId!);
+
+      safeDebugPrint('📊 Loaded ${devices.length} devices');
+
+      // ✅ تحديث البصمة الحالية أولاً
+      final currentFingerprint = await DeviceFingerprint.generate();
+      if (!mounted) return;
+      setState(() {
+        _currentDeviceId = currentFingerprint;
+        _devices = devices;
+      });
+
+      // ✅ التحقق إذا كان الجهاز الحالي مسجلاً
+      final isRegistered =
+          devices.any((device) => device['fingerprint'] == currentFingerprint);
+
+      safeDebugPrint('🔍 Device registration status after loading:');
+      safeDebugPrint('   - Current fingerprint: $currentFingerprint');
+      safeDebugPrint('   - Is registered: $isRegistered');
+
+      if (isRegistered && mounted) {
+        safeDebugPrint('✅ Device is registered! Ready for dashboard...');
+        // يمكن إضافة تنقل تلقائي هنا إذا لزم الأمر
+      }
+    } catch (e) {
+      safeDebugPrint('❌ Error loading devices: $e');
+      if (!mounted) return;
+      setState(() => _devices = []);
+    }
+  }
+
   Future<void> _loadData({bool navigateIfValid = true}) async {
     if (_resolvedLicenseId == null) {
       if (!mounted) return;
@@ -2251,7 +2842,7 @@ class _DeviceManagementPageState extends State<DeviceManagementPage> {
 
     try {
       final status = await _licenseService.getCurrentUserLicenseStatus();
-      await _loadDevices();
+      await _loadDevices(); // ✅ سيحدث البصمة الحالية الآن
       await _loadCurrentDeviceId();
       await _diagnoseDeviceData();
 
@@ -2261,51 +2852,40 @@ class _DeviceManagementPageState extends State<DeviceManagementPage> {
         _isLoading = false;
       });
 
+      safeDebugPrint('🔍 Final license check before navigation:');
+      safeDebugPrint('   - License valid: ${status.isValid}');
+      safeDebugPrint('   - Current fingerprint: $_currentDeviceId');
+      safeDebugPrint('   - Registered devices: ${_devices.length}');
+
+      // ✅ التحقق من تسجيل الجهاز الحالي
+      final isCurrentDeviceRegistered =
+          _devices.any((device) => device['fingerprint'] == _currentDeviceId);
+
+      safeDebugPrint('🔍 Navigation conditions:');
+      safeDebugPrint('   - License valid: ${status.isValid}');
+      safeDebugPrint('   - Device registered: $isCurrentDeviceRegistered');
+      safeDebugPrint('   - Current fingerprint: $_currentDeviceId');
       safeDebugPrint(
-          'License status: isValid=${status.isValid}, usedDevices=${status.usedDevices}, maxDevices=${status.maxDevices}');
+          '   - Is current device registered: $isCurrentDeviceRegistered');
 
-      if (navigateIfValid && status.isValid) {
-        safeDebugPrint('✅ Navigating to dashboard');
-        final wasMounted = mounted;
-
-        Future.delayed(const Duration(milliseconds: 500), () {
-          if (wasMounted && mounted) {
+      if (navigateIfValid && status.isValid && isCurrentDeviceRegistered) {
+        safeDebugPrint('✅ ✅ All conditions met! Navigating to dashboard...');
+        // ✅ تأخير إضافي لضمان استقرار التطبيق
+        Future.delayed(const Duration(seconds: 1), () {
+          if (mounted) {
             context.go('/dashboard');
+            safeDebugPrint('🎉 Dashboard navigation completed!');
           }
         });
+      } else {
+        safeDebugPrint('❌ Conditions not met for dashboard navigation:');
+        safeDebugPrint('   - License valid: ${status.isValid}');
+        safeDebugPrint('   - Device registered: $isCurrentDeviceRegistered');
       }
     } catch (e) {
-      safeDebugPrint('Error loading data: $e');
+      safeDebugPrint('❌ Error loading data: $e');
       if (!mounted) return;
       setState(() => _isLoading = false);
-    }
-  }
-
-/*   Future<void> _loadDevices() async {
-    if (_resolvedLicenseId == null) return;
-    final devices = await _service.getRegisteredDevices(_resolvedLicenseId!);
-    if (!mounted) return;
-    setState(() => _devices = devices);
-  }
- */
-
-  Future<void> _loadDevices() async {
-    if (_resolvedLicenseId == null) return;
-
-    try {
-      safeDebugPrint('🔄 Loading devices for license: $_resolvedLicenseId');
-
-      final devices = await _service.getRegisteredDevices(_resolvedLicenseId!);
-
-      safeDebugPrint('📊 Loaded ${devices.length} devices');
-
-      if (!mounted) return;
-      setState(() => _devices = devices);
-    } catch (e) {
-      safeDebugPrint('❌ Error loading devices: $e');
-
-      if (!mounted) return;
-      setState(() => _devices = []);
     }
   }
 
@@ -2350,13 +2930,67 @@ class _DeviceManagementPageState extends State<DeviceManagementPage> {
     }
   }
 
+  // في _DeviceManagementPageState
   Future<void> _loadCurrentDeviceId() async {
     try {
-      final currentFingerprint = await DeviceFingerprint.generate();
+      // ✅ استخدام الدالة المحسنة
+      final currentFingerprint = await DeviceFingerprint.getStableFingerprint();
+      safeDebugPrint('🔍 Stable device fingerprint: $currentFingerprint');
+
       if (!mounted) return;
       setState(() => _currentDeviceId = currentFingerprint);
+
+      // ✅ التحقق فوراً إذا كان الجهاز مسجلاً
+      _checkIfDeviceRegistered(currentFingerprint);
     } catch (e) {
-      safeDebugPrint('Error loading current device ID: $e');
+      safeDebugPrint('❌ Error loading current device ID: $e');
+
+      // ✅ fallback آمن
+      final fallbackFingerprint =
+          "fallback-${DateTime.now().millisecondsSinceEpoch}";
+      if (!mounted) return;
+      setState(() => _currentDeviceId = fallbackFingerprint);
+    }
+  }
+
+// ✅ إضافة دالة للتحقق من ثبات البصمة
+  Future<void> _verifyFingerprintStability() async {
+    safeDebugPrint('🔍 Verifying fingerprint stability...');
+
+    final fingerprint1 = await DeviceFingerprint.generate();
+    await Future.delayed(const Duration(seconds: 1));
+    final fingerprint2 = await DeviceFingerprint.generate();
+
+    if (fingerprint1 == fingerprint2) {
+      safeDebugPrint('✅ Fingerprint is stable: $fingerprint1');
+    } else {
+      safeDebugPrint('❌ Fingerprint is unstable:');
+      safeDebugPrint('   - First: $fingerprint1');
+      safeDebugPrint('   - Second: $fingerprint2');
+    }
+  }
+
+  void _checkIfDeviceRegistered(String currentFingerprint) {
+    final isRegistered =
+        _devices.any((device) => device['fingerprint'] == currentFingerprint);
+
+    safeDebugPrint('🔍 Device registration check:');
+    safeDebugPrint('   - Current fingerprint: $currentFingerprint');
+    safeDebugPrint('   - Registered devices count: ${_devices.length}');
+    safeDebugPrint('   - Is registered: $isRegistered');
+
+    for (int i = 0; i < _devices.length; i++) {
+      safeDebugPrint(
+          '   - Device $i fingerprint: ${_devices[i]['fingerprint']}');
+    }
+
+    if (isRegistered && mounted) {
+      safeDebugPrint('✅ Device is registered! Navigating to dashboard...');
+      Future.delayed(const Duration(milliseconds: 500), () {
+        if (mounted) {
+          context.go('/dashboard');
+        }
+      });
     }
   }
 
@@ -2375,11 +3009,59 @@ class _DeviceManagementPageState extends State<DeviceManagementPage> {
       return Center(child: Text('loading_failed'.tr()));
     }
 
+    // ✅ التحقق من حالة الجهاز الحالي
+    final isCurrentDeviceRegistered =
+        _devices.any((device) => device['fingerprint'] == _currentDeviceId);
+
     return Padding(
       padding: const EdgeInsets.all(16.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // ✅ بطاقة حالة الجهاز الحالي
+          Card(
+            color: isCurrentDeviceRegistered
+                ? Colors.green[50]
+                : Colors.orange[50],
+            child: Padding(
+              padding: const EdgeInsets.all(12.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'current_device_status'.tr(),
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          color: isCurrentDeviceRegistered
+                              ? Colors.green
+                              : Colors.orange,
+                        ),
+                  ),
+                  const SizedBox(height: 8),
+                  _buildInfoRow(
+                    'device_fingerprint'.tr(),
+                    '${_currentDeviceId.substring(0, 16)}...',
+                  ),
+                  _buildInfoRow(
+                    'registration_status'.tr(),
+                    isCurrentDeviceRegistered
+                        ? 'registered'.tr()
+                        : 'not_registered'.tr(),
+                  ),
+                  if (!isCurrentDeviceRegistered) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      'register_device_to_access'.tr(),
+                      style: const TextStyle(color: Colors.orange),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 16),
+
+          // ✅ بطاقة معلومات الترخيص (كما هي)
           Card(
             color: Colors.grey[400],
             child: Padding(
@@ -2409,7 +3091,9 @@ class _DeviceManagementPageState extends State<DeviceManagementPage> {
               ),
             ),
           ),
+
           const SizedBox(height: 16),
+
           if (_licenseStatus!.deviceLimitExceeded)
             Card(
               color: Colors.red.withAlpha(75),
@@ -2429,10 +3113,57 @@ class _DeviceManagementPageState extends State<DeviceManagementPage> {
                 ),
               ),
             ),
+
           const SizedBox(height: 16),
+
+          // ✅ زر التسجيل الكبير والواضح
+          if (!isCurrentDeviceRegistered &&
+              _licenseStatus!.usedDevices < _licenseStatus!.maxDevices)
+            Card(
+              color: Colors.blue[50],
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  children: [
+                    const Icon(Icons.device_hub, size: 48, color: Colors.blue),
+                    const SizedBox(height: 8),
+                    Text(
+                      'register_this_device'.tr(),
+                      style: Theme.of(context).textTheme.titleLarge,
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'register_device_description'.tr(),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: _registerCurrentDevice,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.blue,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                        ),
+                        child: Text(
+                          'register_now'.tr(),
+                          style: const TextStyle(fontSize: 16),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+          const SizedBox(height: 16),
+
           Text('registered_devices'.tr(),
               style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 8),
+
           Expanded(
             child: _devices.isEmpty
                 ? Center(child: Text('no_devices_registered'.tr()))
@@ -2444,9 +3175,19 @@ class _DeviceManagementPageState extends State<DeviceManagementPage> {
                           device['fingerprint'] == _currentDeviceId;
 
                       return Card(
+                        color: isCurrent ? Colors.green[50] : null,
                         child: ListTile(
+                          leading: Icon(
+                            isCurrent ? Icons.check_circle : Icons.device_hub,
+                            color: isCurrent ? Colors.green : Colors.grey,
+                          ),
                           title: Text(
-                              device['deviceName'] ?? 'unknown_device'.tr()),
+                              device['deviceName'] ?? 'unknown_device'.tr(),
+                              style: TextStyle(
+                                fontWeight: isCurrent
+                                    ? FontWeight.bold
+                                    : FontWeight.normal,
+                              )),
                           subtitle: _buildDeviceInfoSubtitle(device, isCurrent),
                           trailing: !isCurrent
                               ? IconButton(
@@ -2455,13 +3196,15 @@ class _DeviceManagementPageState extends State<DeviceManagementPage> {
                                   onPressed: () =>
                                       _showDeviceDeleteDialog(device),
                                 )
-                              : null,
+                              : const Icon(Icons.check, color: Colors.green),
                         ),
                       );
                     },
                   ),
           ),
+
           const SizedBox(height: 16),
+
           Row(
             children: [
               Expanded(
@@ -2532,89 +3275,65 @@ class _DeviceManagementPageState extends State<DeviceManagementPage> {
       return;
     }
 
-    final success =
-        await _service.registerDeviceFingerprint(_resolvedLicenseId!);
-    if (success) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('device_registered_successfully'.tr())),
-        );
-        _loadDevices();
-      }
-    } else {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('failed_to_register_device'.tr())),
-        );
-      }
-    }
-  }
-/* 
-  Future<void> _unregisterDevice(String fingerprint) async {
-    if (_resolvedLicenseId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('license_not_found'.tr())),
-      );
-      return;
-    }
+    try {
+      safeDebugPrint('🔄 Starting device registration...');
 
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('unregister_device'.tr()),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('confirm_unregister_device'.tr()),
-            const SizedBox(height: 8),
-            Text(
-              'auto_register_warning'.tr(),
-              style: const TextStyle(
-                color: Colors.blue,
-                fontSize: 12,
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text('cancel'.tr()),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: Text('confirm'.tr()),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed == true) {
       if (!mounted) return;
       setState(() => _isLoading = true);
 
-      final success = await _service.unregisterDevice(_resolvedLicenseId!, fingerprint);
+      // ✅ التأكد من وجود بصمة حالية
+      if (_currentDeviceId.isEmpty) {
+        await _loadCurrentDeviceId();
+      }
+
+      safeDebugPrint(
+          '🔍 Registering device with fingerprint: $_currentDeviceId');
+
+      final success =
+          await _service.registerDeviceFingerprint(_resolvedLicenseId!);
 
       if (success) {
+        safeDebugPrint('✅ Device registered successfully in service');
+
+        // ✅ انتظار تحديث البيانات
+        await Future.delayed(const Duration(seconds: 3));
+
+        // ✅ إعادة تحميل البيانات
+        await _loadData(navigateIfValid: true);
+
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('device_unregistered_successfully'.tr())),
+            SnackBar(
+              content: Text('device_registered_successfully'.tr()),
+              backgroundColor: Colors.green,
+            ),
           );
-          await _loadData(navigateIfValid: false);
         }
       } else {
-        if (!mounted) return;
-        setState(() => _isLoading = false);
+        safeDebugPrint('❌ Device registration failed in service');
         if (mounted) {
+          setState(() => _isLoading = false);
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('failed_to_unregister_device'.tr())),
+            SnackBar(
+              content: Text('failed_to_register_device'.tr()),
+              backgroundColor: Colors.red,
+            ),
           );
         }
       }
+    } catch (e) {
+      safeDebugPrint('❌ Error in device registration: $e');
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('error_occurred'.tr()),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
- */
 
   Future<void> _unregisterDevice(String fingerprint) async {
     if (_resolvedLicenseId == null) {
@@ -2640,7 +3359,7 @@ class _DeviceManagementPageState extends State<DeviceManagementPage> {
       if (!mounted) return;
       setState(() => _isLoading = true);
 
-      safeDebugPrint('🔍 Searching for device with fingerprint: $fingerprint');
+      safeDebugPrint('🔍 Unregistering device with fingerprint: $fingerprint');
 
       // ✅ البحث عن الجهاز المراد حذفه
       final deviceToRemove = _devices.firstWhere(
@@ -2654,7 +3373,7 @@ class _DeviceManagementPageState extends State<DeviceManagementPage> {
 
       safeDebugPrint('✅ Found device to remove: $deviceToRemove');
 
-      // ✅ حذف الجهاز من الترخيص في Firestore
+      // ✅ حذف الجهاز من الترخيص (باستخدام الـ Map الكامل)
       await FirebaseFirestore.instance
           .collection('licenses')
           .doc(_resolvedLicenseId!)
@@ -2665,16 +3384,23 @@ class _DeviceManagementPageState extends State<DeviceManagementPage> {
 
       safeDebugPrint('✅ Device removed from license successfully');
 
-      // ✅ حذف الجهاز من المستخدم في Firestore
+      // ✅ ✅ ✅ الإصلاح: حذف fingerprint من قائمة deviceIds في المستخدم
       await FirebaseFirestore.instance
           .collection('users')
           .doc(user.uid)
           .update({
-        'deviceIds': FieldValue.arrayRemove([deviceToRemove]),
+        'deviceIds': FieldValue.arrayRemove([fingerprint]),
         'lastUpdated': FieldValue.serverTimestamp(),
       });
 
       safeDebugPrint('✅ Device removed from user successfully');
+
+      // ✅ إعادة توليد fingerprint للجهاز الحالي
+      final newFingerprint = await DeviceFingerprint.generate();
+      if (!mounted) return;
+      setState(() => _currentDeviceId = newFingerprint);
+
+      safeDebugPrint('🔄 Regenerated current device fingerprint');
 
       // ✅ تحديث الواجهة
       if (mounted) {
@@ -2682,8 +3408,11 @@ class _DeviceManagementPageState extends State<DeviceManagementPage> {
           SnackBar(content: Text('device_unregistered_successfully'.tr())),
         );
 
-        // إعادة تحميل البيانات
+        // إعادة تحميل البيانات مع السماح بالتسجيل التلقائي
         await _loadData(navigateIfValid: false);
+
+        // ✅ محاولة التسجيل التلقائي بعد الحذف
+        await _attemptAutoRegister();
       }
     } catch (e) {
       safeDebugPrint('❌ Error unregistering device: $e');
@@ -2695,6 +3424,43 @@ class _DeviceManagementPageState extends State<DeviceManagementPage> {
           SnackBar(content: Text('failed_to_unregister_device'.tr())),
         );
       }
+    }
+  }
+
+// ✅ دالة جديدة للتسجيل التلقائي بعد الحذف
+  Future<void> _attemptAutoRegister() async {
+    try {
+      safeDebugPrint('🔄 Attempting auto-registration after device removal');
+
+      if (_resolvedLicenseId != null &&
+          _licenseStatus != null &&
+          _licenseStatus!.usedDevices < _licenseStatus!.maxDevices) {
+        final success =
+            await _service.registerDeviceFingerprint(_resolvedLicenseId!);
+
+        if (success) {
+          safeDebugPrint('✅ Auto-registration successful');
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('device_auto_registered'.tr())),
+            );
+            await _loadData(navigateIfValid: true);
+          }
+        } else {
+          safeDebugPrint('❌ Auto-registration failed');
+        }
+      } else {
+        safeDebugPrint(
+            'ℹ️ Auto-registration not possible - checking conditions');
+        safeDebugPrint('License ID: $_resolvedLicenseId');
+        safeDebugPrint('License status: $_licenseStatus');
+        if (_licenseStatus != null) {
+          safeDebugPrint('Used devices: ${_licenseStatus!.usedDevices}');
+          safeDebugPrint('Max devices: ${_licenseStatus!.maxDevices}');
+        }
+      }
+    } catch (e) {
+      safeDebugPrint('❌ Error in auto-registration: $e');
     }
   }
 
@@ -2834,48 +3600,6 @@ class _DeviceManagementPageState extends State<DeviceManagementPage> {
       ],
     );
   }
-
-/*   Future<void> _showDeviceDeleteDialog(Map<String, dynamic> device) async {
-    final fingerprint = device['fingerprint'];
-
-    await showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('unregister_device'.tr()),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('confirm_unregister_device'.tr()),
-            const SizedBox(height: 16),
-            _buildDeviceInfoCard(device),
-            const SizedBox(height: 8),
-            Text(
-              'auto_register_warning'.tr(),
-              style: const TextStyle(
-                color: Colors.blue,
-                fontSize: 12,
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('cancel'.tr()),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _unregisterDevice(fingerprint);
-            },
-            child: Text('unregister'.tr()),
-          ),
-        ],
-      ),
-    );
-  }
- */
 
   Future<void> _showDeviceDeleteDialog(Map<String, dynamic> device) async {
     final fingerprint = device['fingerprint'];
