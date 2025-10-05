@@ -294,16 +294,16 @@ final GoRouter appRouter = GoRouter(
     final licenseStatus = await _getLicenseStatusWithFingerprintCheck(licenseKeyFromHive ?? '');
     
     safeDebugPrint('''
-🔍 Detailed License Check:
-- User ID: ${user.uid}
-- License Key from Hive: $licenseKeyFromHive
-- Has Pending Request: $hasUserPendingRequest
-- Path: $currentPath
-- License Valid: ${licenseStatus.isValid}
-- Fingerprint Valid: ${licenseStatus.deviceFingerprintValid}
-- Device Limit: ${licenseStatus.deviceLimitExceeded}
-- License Key: ${licenseStatus.licenseKey}
-''');
+    🔍 Detailed License Check:
+    - User ID: ${user.uid}
+    - License Key from Hive: $licenseKeyFromHive
+    - Has Pending Request: $hasUserPendingRequest
+    - Path: $currentPath
+    - License Valid: ${licenseStatus.isValid}
+    - Fingerprint Valid: ${licenseStatus.deviceFingerprintValid}
+    - Device Limit: ${licenseStatus.deviceLimitExceeded}
+    - License Key: ${licenseStatus.licenseKey}
+    ''');
 
     // 🎯 التسلسل المنطقي المصحح للتوجيه:
     
@@ -423,16 +423,16 @@ Future<String?> _appRedirectLogic(BuildContext context, GoRouterState state) asy
     final licenseStatus = await _getLicenseStatusWithFingerprintCheck(licenseKeyFromHive ?? '');
     
     safeDebugPrint('''
-🔍 Detailed License Check:
-- User ID: ${user.uid}
-- License Key from Hive: $licenseKeyFromHive
-- Has Pending Request: $hasUserPendingRequest
-- Path: $currentPath
-- License Valid: ${licenseStatus.isValid}
-- Fingerprint Valid: ${licenseStatus.deviceFingerprintValid}
-- Device Limit: ${licenseStatus.deviceLimitExceeded}
-- License Key: ${licenseStatus.licenseKey}
-''');
+    🔍 Detailed License Check:
+    - User ID: ${user.uid}
+    - License Key from Hive: $licenseKeyFromHive
+    - Has Pending Request: $hasUserPendingRequest
+    - Path: $currentPath
+    - License Valid: ${licenseStatus.isValid}
+    - Fingerprint Valid: ${licenseStatus.deviceFingerprintValid}
+    - Device Limit: ${licenseStatus.deviceLimitExceeded}
+    - License Key: ${licenseStatus.licenseKey}
+    ''');
 
     // 🎯 التسلسل المنطقي المصحح للتوجيه:
     
@@ -1818,7 +1818,7 @@ Future<bool> _hasLicenseRequests() async {
             !licenseExemptPaths.contains(currentPath)) {
           return '/license/request';
         }
-// السماح إذا الترخيص صالح
+    // السماح إذا الترخيص صالح
         if (licenseStatus.isValid) {
           // لو المستخدم واقف على /license/request نرجعه للداشبورد
           if (currentPath == '/license/request') {
@@ -1827,15 +1827,15 @@ Future<bool> _hasLicenseRequests() async {
           return null;
         }
 
-// هنا الترخيص غير صالح
-// لو النت مقطوع لكن عندنا كاش صالح → السماح
+    // هنا الترخيص غير صالح
+    // لو النت مقطوع لكن عندنا كاش صالح → السماح
         if (licenseStatus.isOffline) {
           safeDebugPrint(
               "Offline mode with cached license, staying on $currentPath");
           return null;
         }
 
-// في حالة عدم وجود كاش أو الترخيص فعلاً منتهي → تحويل
+    // في حالة عدم وجود كاش أو الترخيص فعلاً منتهي → تحويل
         if (!licenseExemptPaths.contains(currentPath)) {
           return '/license/request';
         }

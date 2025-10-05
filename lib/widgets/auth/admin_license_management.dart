@@ -5473,6 +5473,19 @@ class _AdminLicenseManagementPageState
     );
   }
 
+  DateTime? _parseToDateTime(dynamic value) {
+    if (value is Timestamp) {
+      return value.toDate();
+    } else if (value is String) {
+      try {
+        return DateTime.parse(value);
+      } catch (e) {
+        return null;
+      }
+    }
+    return null;
+  }
+
   Widget _buildUserCard(
       Map<String, dynamic> userData,
       Map<String, dynamic> requestData,
@@ -5530,9 +5543,12 @@ class _AdminLicenseManagementPageState
             _buildInfoRow('duration'.tr(),
                 '${requestData['durationMonths']} ${'months'.tr()}'),
             _buildInfoRow(
-                'request_date'.tr(),
-                _formatDate(
-                    (requestData['createdAt'] as Timestamp?)?.toDate())),
+              'request_date'.tr(),
+              _formatDate(
+                _parseToDateTime(requestData['createdAt']),
+              ),
+            ),
+
             if (requestData['reason'] != null)
               _buildInfoRow('reason'.tr(), requestData['reason']),
 
