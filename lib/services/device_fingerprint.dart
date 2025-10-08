@@ -185,6 +185,7 @@ import 'package:crypto/crypto.dart';
 import 'dart:convert';
 import 'package:universal_io/io.dart' as io;
  */
+
 /* class DeviceFingerprint {
   static final DeviceInfoPlugin deviceInfo = DeviceInfoPlugin();
 
@@ -384,6 +385,7 @@ import 'package:universal_io/io.dart' as io;
 
   static Future<String> getFingerprint() => generate();
 } */
+
 /*   // ✅ دوال JS المحدثة (بدون استخدام dart:html مباشرة)
   static String _getUserAgentFromJS() {
     try {
@@ -419,6 +421,9 @@ import 'package:universal_io/io.dart' as io;
     }
   }
  */
+
+
+
 
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:crypto/crypto.dart';

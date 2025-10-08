@@ -38,7 +38,6 @@ import 'package:puresip_purchasing/pages/stock_movements/stock_movements_page.da
 import 'package:puresip_purchasing/pages/suppliers/add_supplier_page.dart';
 import 'package:puresip_purchasing/pages/suppliers/edit_supplier_page.dart';
 import 'package:puresip_purchasing/pages/suppliers/suppliers_page.dart';
-
 import 'package:puresip_purchasing/services/license_service.dart';
 import 'package:puresip_purchasing/services/order_service.dart';
 //import 'package:puresip_purchasing/services/user_subscription_service.dart';
@@ -258,135 +257,6 @@ final GoRouter appRouter = GoRouter(
         builder: (context, state) => const AdminLicenseManagementPage()),
   ], // 🧭 جميع المسارات موجودة كما هي دون تغيير
 );
-
-// 🔄 دالة إعادة التوجيه الرئيسية - الإصدار المصحح
-/* Future<String?> _appRedirectLogic(BuildContext context, GoRouterState state) async {
-  final user = FirebaseAuth.instance.currentUser;
-  final currentPath = state.matchedLocation;
-
-  if (currentPath == '/splash') return null;
-
-  if (user == null) {
-    return ['/login', '/signup'].contains(currentPath) ? null : '/login';
-  }
-
-  try {
-    await _syncUserData(user.uid);
-    await _syncLicenseData(user.uid);
-
-    final userBox = await Hive.openBox('userBox');
-    final isAdmin = userBox.get('isAdmin', defaultValue: false);
-
-    if (isAdmin) {
-      final hasPendingRequests = await _hasLicenseRequests();
-      if (currentPath == '/license/request') {
-        return hasPendingRequests ? '/admin/licenses' : '/dashboard';
-      }
-      return null;
-    }
-
-    final hasUserPendingRequest = await _hasUserLicenseRequest();
-    if (hasUserPendingRequest && currentPath != '/license/request') {
-      return '/license/request';
-    }
-
-    final licenseKeyFromHive = userBox.get('licenseKey') as String?;
-    final licenseStatus = await _getLicenseStatusWithFingerprintCheck(licenseKeyFromHive ?? '');
-    
-    safeDebugPrint('''
-    🔍 Detailed License Check:
-    - User ID: ${user.uid}
-    - License Key from Hive: $licenseKeyFromHive
-    - Has Pending Request: $hasUserPendingRequest
-    - Path: $currentPath
-    - License Valid: ${licenseStatus.isValid}
-    - Fingerprint Valid: ${licenseStatus.deviceFingerprintValid}
-    - Device Limit: ${licenseStatus.deviceLimitExceeded}
-    - License Key: ${licenseStatus.licenseKey}
-    ''');
-
-    // 🎯 التسلسل المنطقي المصحح للتوجيه:
-    
-    // 1. إذا كان هناك طلب ترخيص معلق
-    if (hasUserPendingRequest && currentPath != '/license/request') {
-      safeDebugPrint('📋 Redirecting to /license/request - Pending request exists');
-      return '/license/request';
-    }
-
-    // 2. إذا كانت الرخصة غير صالحة تماماً ولا يوجد مفتاح
-    if (!licenseStatus.isValid && licenseKeyFromHive == null) {
-      safeDebugPrint('🚫 Redirecting to /license/request - No license key');
-      return '/license/request';
-    }
-
-    // 3. إذا كانت الرخصة صالحة لكن البصمة غير صالحة
-    if (licenseStatus.isValid && !licenseStatus.deviceFingerprintValid) {
-      if (!['/device-registration', '/device-request'].contains(currentPath)) {
-        safeDebugPrint('📱 Redirecting to /device-registration - Valid license but invalid fingerprint');
-        
-        // ✅ التحقق إذا كان هناك أماكن متاحة للأجهزة
-        if (licenseStatus.usedDevices < licenseStatus.maxDevices) {
-          return '/device-registration';
-        } else {
-          return '/device-request';
-        }
-      }
-      return null;
-    }
-
-    // 4. إذا تم تجاوز حد الأجهزة
-    if (licenseStatus.deviceLimitExceeded && licenseStatus.licenseKey != null) {
-      if (!['/device-management', '/device-request'].contains(currentPath)) {
-        safeDebugPrint('⚠️ Redirecting to /device-management - Device limit exceeded');
-        return '/device-management';
-      }
-      return null;
-    }
-
-    // 5. إذا كانت الرخصة والبصمة صالحتين
-    if (licenseStatus.isValid && licenseStatus.deviceFingerprintValid) {
-      if (['/license/request', '/device-registration', '/device-request'].contains(currentPath)) {
-        safeDebugPrint('✅ Redirecting to /dashboard - Valid license and fingerprint');
-        return '/dashboard';
-      }
-      return null;
-    }
-
-    // 6. إذا كانت الرخصة صالحة ولكن تحتاج تسجيل جهاز
-    if (licenseStatus.isValid && 
-        !licenseStatus.deviceFingerprintValid && 
-        licenseStatus.usedDevices < licenseStatus.maxDevices) {
-      if (currentPath != '/device-registration') {
-        safeDebugPrint('📱 Redirecting to /device-registration - License valid but device not registered');
-        return '/device-registration';
-      }
-      return null;
-    }
-
-    // 7. إذا كانت الرخصة صالحة ولكن تجاوز الحد ويحتاج طلب جهاز
-    if (licenseStatus.isValid && 
-        !licenseStatus.deviceFingerprintValid && 
-        licenseStatus.deviceLimitExceeded) {
-      if (currentPath != '/device-request') {
-        safeDebugPrint('📋 Redirecting to /device-request - License valid but device limit exceeded');
-        return '/device-request';
-      }
-      return null;
-    }
-
-    // 8. الحالات الأخرى - العودة إلى طلب الترخيص
-    if (!licenseExemptPaths.contains(currentPath)) {
-      safeDebugPrint('🔁 Redirecting to /license/request - Fallback case');
-      return '/license/request';
-    }
-
-    return null;
-  } catch (e) {
-    safeDebugPrint('Router Error: $e');
-    return '/login';
-  }
-}
- */
 
 // 🔄 دالة إعادة التوجيه الرئيسية - معدلة لفتح إدارة الأجهزة
 Future<String?> _appRedirectLogic(BuildContext context, GoRouterState state) async {
@@ -674,6 +544,136 @@ Future<bool> _hasLicenseRequests() async {
 
   return snapshot.docs.isNotEmpty;
 }
+
+
+// 🔄 دالة إعادة التوجيه الرئيسية - الإصدار المصحح
+/* Future<String?> _appRedirectLogic(BuildContext context, GoRouterState state) async {
+  final user = FirebaseAuth.instance.currentUser;
+  final currentPath = state.matchedLocation;
+
+  if (currentPath == '/splash') return null;
+
+  if (user == null) {
+    return ['/login', '/signup'].contains(currentPath) ? null : '/login';
+  }
+
+  try {
+    await _syncUserData(user.uid);
+    await _syncLicenseData(user.uid);
+
+    final userBox = await Hive.openBox('userBox');
+    final isAdmin = userBox.get('isAdmin', defaultValue: false);
+
+    if (isAdmin) {
+      final hasPendingRequests = await _hasLicenseRequests();
+      if (currentPath == '/license/request') {
+        return hasPendingRequests ? '/admin/licenses' : '/dashboard';
+      }
+      return null;
+    }
+
+    final hasUserPendingRequest = await _hasUserLicenseRequest();
+    if (hasUserPendingRequest && currentPath != '/license/request') {
+      return '/license/request';
+    }
+
+    final licenseKeyFromHive = userBox.get('licenseKey') as String?;
+    final licenseStatus = await _getLicenseStatusWithFingerprintCheck(licenseKeyFromHive ?? '');
+    
+    safeDebugPrint('''
+    🔍 Detailed License Check:
+    - User ID: ${user.uid}
+    - License Key from Hive: $licenseKeyFromHive
+    - Has Pending Request: $hasUserPendingRequest
+    - Path: $currentPath
+    - License Valid: ${licenseStatus.isValid}
+    - Fingerprint Valid: ${licenseStatus.deviceFingerprintValid}
+    - Device Limit: ${licenseStatus.deviceLimitExceeded}
+    - License Key: ${licenseStatus.licenseKey}
+    ''');
+
+    // 🎯 التسلسل المنطقي المصحح للتوجيه:
+    
+    // 1. إذا كان هناك طلب ترخيص معلق
+    if (hasUserPendingRequest && currentPath != '/license/request') {
+      safeDebugPrint('📋 Redirecting to /license/request - Pending request exists');
+      return '/license/request';
+    }
+
+    // 2. إذا كانت الرخصة غير صالحة تماماً ولا يوجد مفتاح
+    if (!licenseStatus.isValid && licenseKeyFromHive == null) {
+      safeDebugPrint('🚫 Redirecting to /license/request - No license key');
+      return '/license/request';
+    }
+
+    // 3. إذا كانت الرخصة صالحة لكن البصمة غير صالحة
+    if (licenseStatus.isValid && !licenseStatus.deviceFingerprintValid) {
+      if (!['/device-registration', '/device-request'].contains(currentPath)) {
+        safeDebugPrint('📱 Redirecting to /device-registration - Valid license but invalid fingerprint');
+        
+        // ✅ التحقق إذا كان هناك أماكن متاحة للأجهزة
+        if (licenseStatus.usedDevices < licenseStatus.maxDevices) {
+          return '/device-registration';
+        } else {
+          return '/device-request';
+        }
+      }
+      return null;
+    }
+
+    // 4. إذا تم تجاوز حد الأجهزة
+    if (licenseStatus.deviceLimitExceeded && licenseStatus.licenseKey != null) {
+      if (!['/device-management', '/device-request'].contains(currentPath)) {
+        safeDebugPrint('⚠️ Redirecting to /device-management - Device limit exceeded');
+        return '/device-management';
+      }
+      return null;
+    }
+
+    // 5. إذا كانت الرخصة والبصمة صالحتين
+    if (licenseStatus.isValid && licenseStatus.deviceFingerprintValid) {
+      if (['/license/request', '/device-registration', '/device-request'].contains(currentPath)) {
+        safeDebugPrint('✅ Redirecting to /dashboard - Valid license and fingerprint');
+        return '/dashboard';
+      }
+      return null;
+    }
+
+    // 6. إذا كانت الرخصة صالحة ولكن تحتاج تسجيل جهاز
+    if (licenseStatus.isValid && 
+        !licenseStatus.deviceFingerprintValid && 
+        licenseStatus.usedDevices < licenseStatus.maxDevices) {
+      if (currentPath != '/device-registration') {
+        safeDebugPrint('📱 Redirecting to /device-registration - License valid but device not registered');
+        return '/device-registration';
+      }
+      return null;
+    }
+
+    // 7. إذا كانت الرخصة صالحة ولكن تجاوز الحد ويحتاج طلب جهاز
+    if (licenseStatus.isValid && 
+        !licenseStatus.deviceFingerprintValid && 
+        licenseStatus.deviceLimitExceeded) {
+      if (currentPath != '/device-request') {
+        safeDebugPrint('📋 Redirecting to /device-request - License valid but device limit exceeded');
+        return '/device-request';
+      }
+      return null;
+    }
+
+    // 8. الحالات الأخرى - العودة إلى طلب الترخيص
+    if (!licenseExemptPaths.contains(currentPath)) {
+      safeDebugPrint('🔁 Redirecting to /license/request - Fallback case');
+      return '/license/request';
+    }
+
+    return null;
+  } catch (e) {
+    safeDebugPrint('Router Error: $e');
+    return '/login';
+  }
+}
+ */
 
 /* import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
