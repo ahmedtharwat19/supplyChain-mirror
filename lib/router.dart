@@ -94,7 +94,8 @@ final GoRouter appRouter = GoRouter(
   navigatorKey: navigatorKey,
   initialLocation: '/splash',
   redirect: _appRedirectLogic,
-  routes: [  GoRoute(
+  routes: [
+    GoRoute(
       path: '/splash',
       pageBuilder: (context, state) =>
           MaterialPage(key: state.pageKey, child: const SplashScreen()),
@@ -259,7 +260,8 @@ final GoRouter appRouter = GoRouter(
 );
 
 // 🔄 دالة إعادة التوجيه الرئيسية - معدلة لفتح إدارة الأجهزة
-Future<String?> _appRedirectLogic(BuildContext context, GoRouterState state) async {
+Future<String?> _appRedirectLogic(
+    BuildContext context, GoRouterState state) async {
   final user = FirebaseAuth.instance.currentUser;
   final currentPath = state.matchedLocation;
 
@@ -290,8 +292,9 @@ Future<String?> _appRedirectLogic(BuildContext context, GoRouterState state) asy
     }
 
     final licenseKeyFromHive = userBox.get('licenseKey') as String?;
-    final licenseStatus = await _getLicenseStatusWithFingerprintCheck(licenseKeyFromHive ?? '');
-    
+    final licenseStatus =
+        await _getLicenseStatusWithFingerprintCheck(licenseKeyFromHive ?? '');
+
     safeDebugPrint('''
     🔍 Detailed License Check:
     - User ID: ${user.uid}
@@ -305,10 +308,11 @@ Future<String?> _appRedirectLogic(BuildContext context, GoRouterState state) asy
     ''');
 
     // 🎯 التسلسل المنطقي المصحح للتوجيه:
-    
+
     // 1. إذا كان هناك طلب ترخيص معلق
     if (hasUserPendingRequest && currentPath != '/license/request') {
-      safeDebugPrint('📋 Redirecting to /license/request - Pending request exists');
+      safeDebugPrint(
+          '📋 Redirecting to /license/request - Pending request exists');
       return '/license/request';
     }
 
@@ -320,9 +324,11 @@ Future<String?> _appRedirectLogic(BuildContext context, GoRouterState state) asy
 
     // 3. إذا كانت الرخصة صالحة لكن البصمة غير صالحة - ✅ التغيير هنا
     if (licenseStatus.isValid && !licenseStatus.deviceFingerprintValid) {
-      if (!['/device-management', '/device-registration', '/device-request'].contains(currentPath)) {
-        safeDebugPrint('📱 Redirecting to /device-management - Valid license but invalid fingerprint');
-        
+      if (!['/device-management', '/device-registration', '/device-request']
+          .contains(currentPath)) {
+        safeDebugPrint(
+            '📱 Redirecting to /device-management - Valid license but invalid fingerprint');
+
         // ✅ الآن نوجه مباشرة إلى إدارة الأجهزة بدلاً من التسجيل
         return '/device-management';
       }
@@ -332,7 +338,8 @@ Future<String?> _appRedirectLogic(BuildContext context, GoRouterState state) asy
     // 4. إذا تم تجاوز حد الأجهزة
     if (licenseStatus.deviceLimitExceeded && licenseStatus.licenseKey != null) {
       if (!['/device-management', '/device-request'].contains(currentPath)) {
-        safeDebugPrint('⚠️ Redirecting to /device-management - Device limit exceeded');
+        safeDebugPrint(
+            '⚠️ Redirecting to /device-management - Device limit exceeded');
         return '/device-management';
       }
       return null;
@@ -340,8 +347,14 @@ Future<String?> _appRedirectLogic(BuildContext context, GoRouterState state) asy
 
     // 5. إذا كانت الرخصة والبصمة صالحتين
     if (licenseStatus.isValid && licenseStatus.deviceFingerprintValid) {
-      if (['/license/request', '/device-management', '/device-registration', '/device-request'].contains(currentPath)) {
-        safeDebugPrint('✅ Redirecting to /dashboard - Valid license and fingerprint');
+      if ([
+        '/license/request',
+        '/device-management',
+        '/device-registration',
+        '/device-request'
+      ].contains(currentPath)) {
+        safeDebugPrint(
+            '✅ Redirecting to /dashboard - Valid license and fingerprint');
         return '/dashboard';
       }
       return null;
@@ -363,13 +376,14 @@ Future<String?> _appRedirectLogic(BuildContext context, GoRouterState state) asy
 // 📦 مزامنة بيانات المستخدم من Firestore إلى Hive
 Future<void> _syncUserData(String userId) async {
   try {
-    final doc = await FirebaseFirestore.instance.collection('users').doc(userId).get();
+    final doc =
+        await FirebaseFirestore.instance.collection('users').doc(userId).get();
     if (!doc.exists) return;
 
     final data = doc.data() ?? {};
     final userBox = await Hive.openBox('userBox');
     final authBox = await Hive.openBox('authbox');
-    
+
     // ✅ تعريف licenseKey مرة واحدة فقط
     final licenseKey = data['licenseKey'] as String?;
     final licenseExpiry = (data['license_expiry'] as Timestamp?)?.toDate();
@@ -378,7 +392,8 @@ Future<void> _syncUserData(String userId) async {
     final deviceIds = data['deviceIds'] as List<dynamic>? ?? [];
 
     final now = DateTime.now();
-    final isValid = isActive && licenseExpiry != null && licenseExpiry.isAfter(now);
+    final isValid =
+        isActive && licenseExpiry != null && licenseExpiry.isAfter(now);
 
     // ✅ حفظ بيانات المستخدم في userBox
     await userBox.putAll({
@@ -406,6 +421,7 @@ Future<void> _syncUserData(String userId) async {
     safeDebugPrint('[Sync] ❌ User data sync failed: $e');
   }
 }
+
 // 🔁 مزامنة بيانات الترخيص من Firestore إلى Hive
 Future<void> _syncLicenseData(String userId) async {
   try {
@@ -438,7 +454,8 @@ Future<void> _syncLicenseData(String userId) async {
       }
     }
 
-    final deviceFingerprintValid = await _checkDeviceFingerprint(licenseKey ?? '');
+    final deviceFingerprintValid =
+        await _checkDeviceFingerprint(licenseKey ?? '');
 
     await authBox.put('licenseStatus', {
       'isValid': isValid,
@@ -456,28 +473,32 @@ Future<void> _syncLicenseData(String userId) async {
     });
 
     safeDebugPrint('[Sync] ✅ License data synced');
-    
+    for (final doc in snapshot.docs) {
+      debugPrint('[License] 🔍 Found license: ${doc.id}');
+    }
   } catch (e) {
     safeDebugPrint('[Sync] ❌ License sync failed: $e');
   }
 }
 
 // 🧠 التحقق من حالة الترخيص مع البصمة
-Future<LicenseStatusWithFingerprint> _getLicenseStatusWithFingerprintCheck(String licenseKey) async {
+Future<LicenseStatusWithFingerprint> _getLicenseStatusWithFingerprintCheck(
+    String licenseKey) async {
   try {
     final licenseService = LicenseService();
     final basicStatus = await licenseService.checkLicenseStatus(licenseKey);
-    
+
     bool deviceFingerprintValid = false;
     bool hasValidLicense = basicStatus.isValid;
 
     // ✅ الإصلاح: إذا كانت الرخصة صالحة ولكن البصمة غير صالحة
     if (basicStatus.isValid && licenseKey.isNotEmpty) {
       final userSubscriptionService = UserSubscriptionService();
-      final subscriptionResult = await userSubscriptionService.checkUserSubscription();
-      
+      final subscriptionResult =
+          await userSubscriptionService.checkUserSubscription();
+
       deviceFingerprintValid = subscriptionResult.isValid;
-      
+
       // ✅ التصحيح: الرخصة صالحة لكن البصمة تحتاج تصحيح
       hasValidLicense = deviceFingerprintValid; // فقط إذا كانت البصمة صالحة
     }
@@ -509,11 +530,11 @@ Future<LicenseStatusWithFingerprint> _getLicenseStatusWithFingerprintCheck(Strin
     );
   }
 }
+
 // 🔒 التحقق من البصمة
 Future<bool> _checkDeviceFingerprint(String licenseKey) async {
   try {
     return await _licenseService.checkDeviceFingerprint(licenseKey);
-    
   } catch (e) {
     safeDebugPrint('[Fingerprint] ❌ Failed: $e');
     return false;
@@ -532,7 +553,6 @@ Future<bool> _hasUserLicenseRequest() async {
       .get();
 
   return snapshot.docs.isNotEmpty;
-  
 }
 
 // 📬 التحقق من وجود طلبات ترخيص عالقة للمشرف
@@ -544,7 +564,6 @@ Future<bool> _hasLicenseRequests() async {
 
   return snapshot.docs.isNotEmpty;
 }
-
 
 // 🔄 دالة إعادة التوجيه الرئيسية - الإصدار المصحح
 /* Future<String?> _appRedirectLogic(BuildContext context, GoRouterState state) async {

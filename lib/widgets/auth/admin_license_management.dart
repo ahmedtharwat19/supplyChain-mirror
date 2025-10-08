@@ -5656,6 +5656,15 @@ class _AdminLicenseManagementPageState
         'deactivatedBy': FirebaseAuth.instance.currentUser?.uid,
       });
 
+      // تحديث بيانات المستخدم في مجموعة users
+      await _firestore.collection('users').doc(userId).update({
+        'licenseKey': null, // إلغاء الترخيص النشط
+        'license_expiry': null,
+        'isActive': false,
+        'deviceIds': [],
+        // يمكنك إضافة تحديثات أخرى إذا تحتاج
+      });
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('license_deactivated'.tr())),
@@ -5678,6 +5687,7 @@ class _AdminLicenseManagementPageState
       final batch = _firestore.batch();
       final licenseRef = _firestore.collection('licenses').doc(licenseId);
       final userRef = _firestore.collection('users').doc(userId);
+      final now = DateTime.now().toUtc();
 
       batch.update(licenseRef, {
         'isActive': false,
@@ -5687,6 +5697,7 @@ class _AdminLicenseManagementPageState
       batch.update(userRef, {
         'deviceIds': [],
         'isActive': false,
+        'license_expiry': Timestamp.fromDate(now),
       });
 
       await batch.commit();

@@ -4,6 +4,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:puresip_purchasing/adapters/timestamp_adapter.dart';
 import 'package:puresip_purchasing/pages/compositions/services/composition_service.dart';
 import 'package:puresip_purchasing/pages/finished_products/services/finished_product_service.dart';
 import 'package:puresip_purchasing/pages/manufacturing/services/manufacturing_service.dart';
@@ -33,7 +34,8 @@ Future<void> _initializeFirebase() async {
         options: DefaultFirebaseOptions.currentPlatform,
       );
 
-      FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+      FirebaseMessaging.onBackgroundMessage(
+          _firebaseMessagingBackgroundHandler);
 
       await LicenseService().initialize();
       await LicenseNotifications.initialize();
@@ -84,7 +86,8 @@ Future<void> main() async {
               children: [
                 const Icon(Icons.error_outline, size: 64, color: Colors.red),
                 const SizedBox(height: 12),
-                const Text('حدث خطأ في التطبيق', style: TextStyle(fontSize: 18)),
+                const Text('حدث خطأ في التطبيق',
+                    style: TextStyle(fontSize: 18)),
                 const SizedBox(height: 8),
                 Text(
                   details.exceptionAsString(),
@@ -104,6 +107,7 @@ Future<void> main() async {
     // HiveService.init يفتح الصناديق التي تحتاجها الخدمات
     await HiveService.init();
 
+    Hive.registerAdapter(TimestampAdapter());
     // Initialize Firebase and permissions in parallel
     await Future.wait([
       _initializeFirebase(),
@@ -118,11 +122,13 @@ Future<void> main() async {
         child: MultiProvider(
           providers: [
             Provider<FirestoreService>(create: (_) => FirestoreService()),
-            Provider<FinishedProductService>(create: (_) => FinishedProductService()),
+            Provider<FinishedProductService>(
+                create: (_) => FinishedProductService()),
             ChangeNotifierProvider(create: (_) => CompanyService()),
             ChangeNotifierProvider(create: (_) => FactoryService()),
             ChangeNotifierProvider(create: (_) => CompositionService()),
-            Provider<ManufacturingService>(create: (_) => ManufacturingService()),
+            Provider<ManufacturingService>(
+                create: (_) => ManufacturingService()),
           ],
           child: const MyApp(),
         ),
@@ -156,7 +162,8 @@ class MyApp extends StatelessWidget {
         }
 
         return MediaQuery(
-          data: MediaQuery.of(context).copyWith(textScaler: TextScaler.noScaling),
+          data:
+              MediaQuery.of(context).copyWith(textScaler: TextScaler.noScaling),
           child: child,
         );
       },

@@ -732,6 +732,68 @@ Future<LicenseStatus> checkLicenseStatus(String licenseKey) async {
   }
  */} */
 
+/* Future<LicenseStatus> getCurrentUserLicenseStatus() async {
+  final user = FirebaseAuth.instance.currentUser;
+  if (user == null) {
+    return LicenseStatus.invalid(reason: "User not logged in", isOffline: false);
+  }
+
+  try {
+    final licenseSnapshot = await FirebaseFirestore.instance
+        .collection('licenses')
+        .where('userId', isEqualTo: user.uid)
+        .where('isActive', isEqualTo: true)
+        .get();
+
+    if (licenseSnapshot.docs.isEmpty) {
+      return LicenseStatus.invalid(reason: "No active license found", isOffline: false);
+    }
+
+    final doc = licenseSnapshot.docs.first;
+    final expiry = (doc.get('expiryDate') as Timestamp?)?.toDate();
+    final maxDevices = doc.get('maxDevices') as int? ?? 0;
+    final devices = doc.get('devices') as List<dynamic>? ?? [];
+
+    if (expiry == null || expiry.isBefore(DateTime.now())) {
+      return LicenseStatus.invalid(reason: "License expired", isOffline: false);
+    }
+
+    final daysLeft = expiry.difference(DateTime.now()).inDays;
+
+    return LicenseStatus.valid(
+      licenseKey: doc.get('licenseKey'),
+      expiryDate: expiry,
+      maxDevices: maxDevices,
+      usedDevices: devices.length,
+      daysLeft: daysLeft,
+      formattedRemaining: '$daysLeft days',
+      isOffline: false,
+    );
+  } catch (e) {
+    // fallback to cache
+    final authBox = await Hive.openBox('authbox');
+    final cachedData = authBox.get('licenseStatus', defaultValue: {});
+
+    if (cachedData['isValid'] == true) {
+      return LicenseStatus.valid(
+        licenseKey: cachedData['licenseKey'],
+        expiryDate: DateTime.parse(cachedData['expiryDate']),
+        maxDevices: cachedData['maxDevices'] ?? 0,
+        usedDevices: cachedData['usedDevices'] ?? 0,
+        daysLeft: cachedData['daysLeft'] ?? 0,
+        formattedRemaining: '${cachedData['daysLeft'] ?? 0} days',
+        isOffline: true,
+      );
+    }
+
+    return LicenseStatus.invalid(
+      reason: "Error checking license: $e",
+      isOffline: true,
+    );
+  }
+}
+ */
+  
 // services/license_service.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:easy_localization/easy_localization.dart';
@@ -847,6 +909,15 @@ class LicenseService {
         'processedAt': DateTime.now().toIso8601String(),
         'linkedLicenseKey': licenseKey,
       });
+
+      await _firestore.collection('users').doc(userId).update({
+        'licenseKey': licenseKey,
+        'license_expiry': Timestamp.fromDate(expiryDate),
+        'isActive': true,
+        'maxDevices': maxDevices,
+        'lastUpdated': Timestamp.fromDate(now),
+      });
+      safeDebugPrint('License successfully created and linked to user.');
 
       safeDebugPrint('✅ License created: $licenseKey');
       safeDebugPrint('   Expiry: $expiryDate');
@@ -1315,68 +1386,7 @@ class LicenseService {
     }
   }
 
-/* Future<LicenseStatus> getCurrentUserLicenseStatus() async {
-  final user = FirebaseAuth.instance.currentUser;
-  if (user == null) {
-    return LicenseStatus.invalid(reason: "User not logged in", isOffline: false);
-  }
-
-  try {
-    final licenseSnapshot = await FirebaseFirestore.instance
-        .collection('licenses')
-        .where('userId', isEqualTo: user.uid)
-        .where('isActive', isEqualTo: true)
-        .get();
-
-    if (licenseSnapshot.docs.isEmpty) {
-      return LicenseStatus.invalid(reason: "No active license found", isOffline: false);
-    }
-
-    final doc = licenseSnapshot.docs.first;
-    final expiry = (doc.get('expiryDate') as Timestamp?)?.toDate();
-    final maxDevices = doc.get('maxDevices') as int? ?? 0;
-    final devices = doc.get('devices') as List<dynamic>? ?? [];
-
-    if (expiry == null || expiry.isBefore(DateTime.now())) {
-      return LicenseStatus.invalid(reason: "License expired", isOffline: false);
-    }
-
-    final daysLeft = expiry.difference(DateTime.now()).inDays;
-
-    return LicenseStatus.valid(
-      licenseKey: doc.get('licenseKey'),
-      expiryDate: expiry,
-      maxDevices: maxDevices,
-      usedDevices: devices.length,
-      daysLeft: daysLeft,
-      formattedRemaining: '$daysLeft days',
-      isOffline: false,
-    );
-  } catch (e) {
-    // fallback to cache
-    final authBox = await Hive.openBox('authbox');
-    final cachedData = authBox.get('licenseStatus', defaultValue: {});
-
-    if (cachedData['isValid'] == true) {
-      return LicenseStatus.valid(
-        licenseKey: cachedData['licenseKey'],
-        expiryDate: DateTime.parse(cachedData['expiryDate']),
-        maxDevices: cachedData['maxDevices'] ?? 0,
-        usedDevices: cachedData['usedDevices'] ?? 0,
-        daysLeft: cachedData['daysLeft'] ?? 0,
-        formattedRemaining: '${cachedData['daysLeft'] ?? 0} days',
-        isOffline: true,
-      );
-    }
-
-    return LicenseStatus.invalid(
-      reason: "Error checking license: $e",
-      isOffline: true,
-    );
-  }
-}
- */
-  /// إصلاح التراخيص الموجودة (للمسؤولين)
+/// إصلاح التراخيص الموجودة (للمسؤولين)
   Future<void> fixExistingLicenses() async {
     try {
       final user = _auth.currentUser;
