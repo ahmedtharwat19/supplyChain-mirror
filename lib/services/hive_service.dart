@@ -22,6 +22,8 @@ class HiveService {
   static Box? _userHive;
   static Box? _settingsHive;
   static Box? _cacheHive;
+  static const String _appDataBox = 'app_data';
+  static Box? _appDataBoxInstance;
 
   // Singleton (إن أردت استعمال نسخة كائن أيضاً متاح)
   static final HiveService _instance = HiveService._internal();
@@ -164,7 +166,7 @@ class HiveService {
     await _settingsHive?.put(key, value);
   }
 
-  static Future<T?> getSetting<T>(String key, {T? defaultValue}) async {
+/*   static Future<T?> getSetting<T>(String key, {T? defaultValue}) async {
     final value = _settingsHive?.get(key);
     if (value == null) return defaultValue;
     try {
@@ -173,6 +175,57 @@ class HiveService {
       safeDebugPrint('❌ Error casting setting $key: $e');
       return defaultValue;
     }
+  } */
+
+  static Future<T?> getSetting<T>(String key, {T? defaultValue}) async {
+    try {
+      // تأكد من فتح الصندوق أولاً
+      final box = await _getSettingsBox();
+      final value = box.get(key);
+
+      if (value == null) {
+        safeDebugPrint(
+            '🔍 Setting $key is null, returning default: $defaultValue');
+        return defaultValue;
+      }
+
+      safeDebugPrint(
+          '🔍 Raw setting $key: $value (type: ${value.runtimeType})');
+
+      // معالجة خاصة لأنواع List
+      if (value is List && value.every((element) => element is String)) {
+        try {
+          final result = value.cast<String>().toList() as T;
+          safeDebugPrint('✅ Successfully cast List<String> for $key: $result');
+          return result;
+        } catch (e) {
+          safeDebugPrint('❌ Error casting List<String> for $key: $e');
+          // حاول تحويل كل عنصر إلى String
+          final stringList = value.map((item) => item.toString()).toList() as T;
+          safeDebugPrint('🔄 Converted to List<String>: $stringList');
+          return stringList;
+        }
+      }
+
+      // معالجة أنواع أخرى
+      try {
+        return value as T;
+      } catch (castError) {
+        safeDebugPrint('❌ Cast error for $key: $castError');
+        return defaultValue;
+      }
+    } catch (e) {
+      safeDebugPrint('❌ Error getting setting $key: $e');
+      return defaultValue;
+    }
+  }
+
+// دالة مساعدة لفتح صندوق الإعدادات
+  static Future<Box> _getSettingsBox() async {
+    if (_settingsHive == null || !_settingsHive!.isOpen) {
+      _settingsHive = await Hive.openBox('settings');
+    }
+    return _settingsHive!;
   }
 
   static Future<void> clearSettings() async {
@@ -180,7 +233,44 @@ class HiveService {
   }
 
   // ══════════════ Cache Methods ══════════════
-  static Future<void> cacheData(String key, dynamic data,
+  // 🔥 دالة لفتح الصندوق مرة واحدة وإعادة استخدامه
+  static Future<Box> _getAppDataBox() async {
+    if (_appDataBoxInstance == null || !_appDataBoxInstance!.isOpen) {
+      _appDataBoxInstance = await Hive.openBox(_appDataBox);
+      safeDebugPrint('📦 Hive Box opened: $_appDataBox');
+    }
+    return _appDataBoxInstance!;
+  }
+
+  static Future<void> cacheData(String key, dynamic data) async {
+    try {
+      final box = await _getAppDataBox();
+      await box.put(key, data);
+      safeDebugPrint(
+          '💾 Hive SAVE: $key = ${data is List ? "${data.length} items" : data}');
+
+      // التحقق الفوري من الحفظ
+      final verified = box.get(key);
+      safeDebugPrint(
+          '🔍 Hive IMMEDIATE VERIFY: $key = ${verified != null ? "SAVED" : "NOT SAVED"}');
+    } catch (e) {
+      safeDebugPrint('❌ Hive SAVE ERROR for $key: $e');
+    }
+  }
+
+  static Future<dynamic> getCachedData(String key) async {
+    try {
+      final box = await _getAppDataBox();
+      final value = box.get(key);
+      safeDebugPrint(
+          '🔍 Hive GET: $key = ${value != null ? (value is List ? "${value.length} items" : value) : "NULL"}');
+      return value;
+    } catch (e) {
+      safeDebugPrint('❌ Hive GET ERROR for $key: $e');
+      return null;
+    }
+  }
+/*   static Future<void> cacheData(String key, dynamic data,
       {Duration? expiry}) async {
     final cacheItem = {
       'data': data,
@@ -208,9 +298,45 @@ class HiveService {
 
     return cacheItem['data'];
   }
+ */
+
+  static Future<Map<String, dynamic>> getAllCachedData() async {
+    try {
+      final box = await Hive.openBox('app_data');
+      final allKeys = box.keys.toList();
+      final Map<String, dynamic> result = {};
+
+      for (var key in allKeys) {
+        result[key] = box.get(key);
+      }
+
+      return result;
+    } catch (e) {
+      safeDebugPrint('❌ Error getting all cached data: $e');
+      return {};
+    }
+  }
 
   static Future<void> clearCache() async {
     await _cacheHive?.clear();
+  }
+
+  // دالة لرؤية جميع المفاتيح في الصندوق
+  static Future<void> debugHiveBox() async {
+    try {
+      final box = await _getAppDataBox();
+      final allKeys = box.keys.toList();
+      safeDebugPrint('=== HIVE BOX DEBUG ===');
+      safeDebugPrint('All keys in box: $allKeys');
+      for (var key in allKeys) {
+        final value = box.get(key);
+        safeDebugPrint(
+            '$key: ${value is List ? "${value.length} items" : value}');
+      }
+      safeDebugPrint('=== END HIVE DEBUG ===');
+    } catch (e) {
+      safeDebugPrint('❌ Hive DEBUG ERROR: $e');
+    }
   }
 
   // ══════════════ Dashboard Settings Methods ══════════════

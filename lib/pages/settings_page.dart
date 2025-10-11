@@ -529,7 +529,7 @@ class _SettingsPageState extends State<SettingsPage> {
     _loadSettings();
   }
 
-  Future<void> _loadSettings() async {
+/*   Future<void> _loadSettings() async {
     try {
       // تحميل الإعدادات من Hive
       final viewString = await HiveService.getSetting<String>('dashboard_view');
@@ -598,6 +598,138 @@ class _SettingsPageState extends State<SettingsPage> {
             .toSet();
       });
     }
+  }
+ */
+
+  Future<void> _loadSettings() async {
+    try {
+      safeDebugPrint('🔄 Starting to load settings from Hive...');
+
+      // تحميل الإعدادات من Hive بطريقة أكثر أماناً
+      final viewString = await HiveService.getSetting<String>('dashboard_view');
+      final selectedCards =
+          await HiveService.getSetting<List<dynamic>>('selected_cards');
+
+      safeDebugPrint(
+          '🔍 Raw Hive data - view: $viewString, cards: $selectedCards');
+
+      // معالجة selected_cards بشكل آمن
+      Set<String> cardsSet = {};
+      if (selectedCards != null && selectedCards.isNotEmpty) {
+        cardsSet = selectedCards.map((item) => item.toString()).toSet();
+      } else {
+        // إذا لم توجد كروت محفوظة، استخدم الافتراضية
+        cardsSet = _getDefaultCardsForView(DashboardView.short);
+        safeDebugPrint('🔄 No cards found, using defaults: $cardsSet');
+      }
+
+      safeDebugPrint('✅ Processed cards set: $cardsSet');
+
+      // تحديد view
+      DashboardView? loadedView;
+      if (viewString == 'short') {
+        loadedView = DashboardView.short;
+      } else if (viewString == 'long') {
+        loadedView = DashboardView.long;
+      } else {
+        loadedView = null;
+        safeDebugPrint('🔄 No view found in Hive, will auto-detect');
+      }
+
+      // إذا كان view null، حاول اكتشافه تلقائياً من الكروت
+      if (loadedView == null) {
+        loadedView = _detectViewFromCards(cardsSet);
+        safeDebugPrint('🔍 Auto-detected view: $loadedView');
+      }
+
+      // تحقق من صحة الكروت (إذا كانت هناك كروت غير موجودة في القائمة الأساسية)
+      final validCards = _validateCards(cardsSet);
+      if (validCards.length != cardsSet.length) {
+        safeDebugPrint(
+            '🔄 Filtered out invalid cards: ${cardsSet.length} -> ${validCards.length}');
+        cardsSet = validCards;
+      }
+
+      setState(() {
+        _selectedView = loadedView;
+        _selectedCards = cardsSet;
+      });
+
+      safeDebugPrint(
+          '✅ Settings loaded successfully: view=$loadedView, cards=$cardsSet');
+    } catch (e) {
+      safeDebugPrint('❌ Error loading settings from Hive: $e');
+      // القيم الافتراضية في حالة الخطأ
+      _setDefaultSettings();
+    }
+  }
+
+// دالة مساعدة لاكتشاف العرض من الكروت
+  DashboardView _detectViewFromCards(Set<String> cards) {
+    final allShortCards = dashboardMetrics
+        .where((m) => m.defaultMenuType == 'short')
+        .map((m) => m.titleKey)
+        .toSet();
+
+    final allLongCards = dashboardMetrics
+        .where(
+            (m) => m.defaultMenuType == 'long' || m.defaultMenuType == 'short')
+        .map((m) => m.titleKey)
+        .toSet();
+
+    // تحقق إذا كانت الكروت تطابق العرض القصير
+    if (cards.length == allShortCards.length &&
+        cards.containsAll(allShortCards)) {
+      return DashboardView.short;
+    }
+
+    // تحقق إذا كانت الكروت تطابق العرض الطويل
+    if (cards.length == allLongCards.length &&
+        cards.containsAll(allLongCards)) {
+      return DashboardView.long;
+    }
+
+    // إذا لم تطابق أي من النمطين، اعتبرها تعديل يدوي واستخدم العرض القصير كافتراضي
+    return DashboardView.short;
+  }
+
+// دالة مساعدة للحصول على الكروت الافتراضية لكل عرض
+  Set<String> _getDefaultCardsForView(DashboardView view) {
+    if (view == DashboardView.long) {
+      return dashboardMetrics
+          .where((metric) =>
+              metric.defaultMenuType == 'long' ||
+              metric.defaultMenuType == 'short')
+          .map((metric) => metric.titleKey)
+          .toSet();
+    } else {
+      return dashboardMetrics
+          .where((metric) => metric.defaultMenuType == 'short')
+          .map((metric) => metric.titleKey)
+          .toSet();
+    }
+  }
+
+// دالة للتحقق من صحة الكروت (إزالة أي كروت غير موجودة في القائمة الأساسية)
+  Set<String> _validateCards(Set<String> cards) {
+    final allValidCards =
+        dashboardMetrics.map((metric) => metric.titleKey).toSet();
+
+    return cards.where((card) => allValidCards.contains(card)).toSet();
+  }
+
+// دالة للإعدادات الافتراضية
+  void _setDefaultSettings() {
+    final defaultView = DashboardView.short;
+    final defaultCards = _getDefaultCardsForView(defaultView);
+
+    setState(() {
+      _selectedView = defaultView;
+      _selectedCards = defaultCards;
+    });
+
+    safeDebugPrint(
+        '🔄 Using default settings: view=$defaultView, cards=$defaultCards');
   }
 
   Future<void> _saveSettings({bool showMessage = true}) async {

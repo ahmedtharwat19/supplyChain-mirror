@@ -851,6 +851,9 @@
   "device_fingerprint": "بصمة الجهاز",
   "registration_status": "حالة التسجيل",
   "not_registered": "غير مسجّل",
+    "loading_app": "جاري تحميل التطبيق...",
+  "updating_data": "جاري تحديث البيانات...",
+
   "register_device_to_access": "سجّل هذا الجهاز للوصول إلى لوحة التحكم",
   "register_this_device": "تسجيل هذا الجهاز",
   "register_now": "سجّل الآن",

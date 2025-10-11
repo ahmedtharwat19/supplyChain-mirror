@@ -539,13 +539,94 @@ class _AppScaffoldState extends State<AppScaffold> {
      _loadUserNameFromHive();
   }
 
-    Future<void> _loadUserNameFromHive() async {
-    final userData = await HiveService.getUserData(); // أو اسم الكلاس الفعلي
+Future<void> _loadUserNameFromHive() async {
+  try {
+    final userData = await HiveService.getUserData();
     debugPrint('Loaded user data from Hive: $userData');
-    setState(() {
-      _userName = userData?['displayName'] ?? userData?['email'].split('@').first; // غيّر 'name' إلى اسم المفتاح الصحيح داخل الـ Map
-    });
+    
+    // فحص هيكل البيانات
+    _debugUserData(userData);
+    
+    String? userName;
+    
+    if (userData != null) {
+      // المحاولة 1: displayName من المستوى العلوي
+      userName = userData['displayName'];
+      debugPrint('Top level displayName: $userName');
+      
+      // المحاولة 2: displayName من كائن user المتداخل
+      if ((userName == null || userName.isEmpty) && userData['user'] is Map) {
+        final user = userData['user'] as Map<String, dynamic>;
+        userName = user['displayName'];
+        debugPrint('Nested user displayName: $userName');
+      }
+      
+      // المحاولة 3: email من المستوى العلوي
+      if ((userName == null || userName.isEmpty)) {
+        final email = userData['email'];
+        debugPrint('Top level email: $email');
+        
+        if (email != null && email is String && email.contains('@')) {
+          userName = email.split('@').first;
+          debugPrint('Extracted username from top level email: $userName');
+        }
+      }
+      
+      // المحاولة 4: email من كائن user المتداخل
+      if ((userName == null || userName.isEmpty) && userData['user'] is Map) {
+        final user = userData['user'] as Map<String, dynamic>;
+        final email = user['email'];
+        debugPrint('Nested user email: $email');
+        
+        if (email != null && email is String && email.contains('@')) {
+          userName = email.split('@').first;
+          debugPrint('Extracted username from nested email: $userName');
+        }
+      }
+    }
+    
+    // القيمة الافتراضية
+    userName ??= 'User';
+    
+    if (mounted) {
+      setState(() {
+        _userName = userName;
+      });
+    }
+    
+    debugPrint('Final username: $_userName');
+    
+  } catch (e) {
+    debugPrint('Error in _loadUserNameFromHive: $e');
+    if (mounted) {
+      setState(() {
+        _userName = 'User';
+      });
+    }
   }
+}
+
+// دالة مساعدة لفحص هيكل البيانات
+void _debugUserData(Map<String, dynamic>? userData) {
+  if (userData == null) {
+    debugPrint('User data is null');
+    return;
+  }
+  
+  debugPrint('=== DEBUG USER DATA STRUCTURE ===');
+  debugPrint('All keys: ${userData.keys.toList()}');
+  
+  for (var key in userData.keys) {
+    final value = userData[key];
+    debugPrint('$key: $value (type: ${value?.runtimeType})');
+    
+    // إذا كان الكائن متداخلاً، اطبع مفاتيحه أيضاً
+    if (value is Map) {
+      debugPrint('  $key subkeys: ${value.keys.toList()}');
+    }
+  }
+  debugPrint('=== END DEBUG ===');
+}
 
   Future<void> _checkAdminNotifications() async {
     final user = FirebaseAuth.instance.currentUser;

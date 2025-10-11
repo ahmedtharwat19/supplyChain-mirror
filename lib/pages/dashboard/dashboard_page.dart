@@ -1668,7 +1668,9 @@ class DashboardPageState extends State<DashboardPage> {
   String? userId;
   String? userName;
   List<String> userCompanyIds = [];
-
+  bool _isInitialLoading = true;
+  bool _isDataLoading = false;
+  bool _isRefreshing = false;
 /*   @override
   void initState() {
     super.initState();
@@ -1684,29 +1686,41 @@ class DashboardPageState extends State<DashboardPage> {
       });
     });
   } */
-@override
-void initState() {
-  super.initState();
-  safeDebugPrint('🔄 DashboardPage initState called');
-  _initializeFromHiveFirst();
-}
-
-Future<void> _initializeFromHiveFirst() async {
-  safeDebugPrint('📦 Loading data from Hive first...');
-
-  await _loadUserDataFromHive();
-  await loadSettingsFromHive();
-  await loadCachedDataFromHive();
-
-  if (mounted) {
-    setState(() => isLoading = false);
+  @override
+  void initState() {
+    super.initState();
+    safeDebugPrint('🔄 DashboardPage initState called');
+    _initializeFromHiveFirst();
   }
 
-  if (mounted) { // ✅ التحقق قبل بدء التحديثات
-    _startBackgroundUpdates();
-    _setupListenersAndNotifications();
+  Future<void> _initializeFromHiveFirst() async {
+    safeDebugPrint('📦 Loading data from Hive first...');
+
+    try {
+      // تحميل البيانات الأساسية من Hive
+      await _loadUserDataFromHive();
+      await loadSettingsFromHive();
+      await loadCachedDataFromHive();
+
+      // إخفاء التحميل الأولي فوراً
+      if (mounted) {
+        setState(() => _isInitialLoading = false);
+      }
+
+      // بدء تحميل البيانات الخلفية بعد عرض الصفحة
+      if (mounted) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _startBackgroundUpdates();
+        });
+      }
+    } catch (e) {
+      safeDebugPrint('❌ Error in initial Hive load: $e');
+      if (mounted) {
+        setState(() => _isInitialLoading = false);
+      }
+    }
   }
-}
+
   Future<void> _loadUserDataFromHive() async {
     try {
       final data = await HiveService.getUserData();
@@ -1775,7 +1789,7 @@ Future<void> _initializeFromHiveFirst() async {
     }
   }
 
-  void _startBackgroundUpdates() {
+/*   void _startBackgroundUpdates() {
     safeDebugPrint('🔄 Starting background updates from Firestore...');
 
     Future.wait([
@@ -1794,6 +1808,116 @@ Future<void> _initializeFromHiveFirst() async {
     }
     });
   }
+ */
+
+  void _startBackgroundUpdates() {
+    if (mounted) {
+      setState(() => _isDataLoading = true);
+    }
+
+    safeDebugPrint('🔄 Starting background updates from Firestore...');
+
+    // المهام الأساسية فقط
+    final essentialTasks = [
+      _syncUserDataWithFirestore(),
+      _checkSubscriptionStatus(),
+      _loadEssentialStats(),
+      _checkLicenseExpiryStatus(), // إضافة هنا
+      _saveExpiryDateToLocalStorage(), // إضافة هنا
+    ];
+
+    Future.wait(essentialTasks).then((_) {
+      if (mounted) {
+        setState(() => _isDataLoading = false);
+      }
+      safeDebugPrint('✅ Essential background updates completed');
+
+      // تحميل البيانات الثانوية لاحقاً
+      _loadSecondaryData();
+    }).catchError((error) {
+      safeDebugPrint('❌ Error in background updates: $error');
+      if (mounted) {
+        setState(() => _isDataLoading = false);
+      }
+    });
+
+    _setupListenersAndNotifications();
+  }
+
+  Future<void> _loadEssentialStats() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      final criticalResults = await Future.wait([
+        _fetchCollectionCount('items'),
+        _fetchCollectionCount('vendors'),
+        _fetchPoStats(),
+      ], eagerError: false);
+
+      if (mounted) {
+        setState(() {
+          _stats.totalItems = criticalResults[0] as int;
+          _stats.totalSuppliers = criticalResults[1] as int;
+          _stats.totalOrders = (criticalResults[2] as Map)['count'] as int;
+          _stats.totalAmount =
+              (criticalResults[2] as Map)['totalAmount'] as double;
+        });
+      }
+    } catch (e) {
+      safeDebugPrint('❌ Error in essential stats: $e');
+    }
+  }
+
+  Future<void> _loadSecondaryStats() async {
+    // هذه البيانات أقل أهمية ويمكن أن تأتي لاحقاً
+    try {
+      await Future.wait([
+        _fetchCollectionCount('finished_products'),
+        _fetchManufacturingOrdersCount(),
+        _loadMovementStats(),
+      ], eagerError: false);
+    } catch (e) {
+      safeDebugPrint('❌ Error in secondary stats: $e');
+    }
+  }
+/* Future<void> _loadEssentialStats() async {
+  try {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    final criticalResults = await Future.wait([
+      _fetchCollectionCount('items'),
+      _fetchCollectionCount('vendors'),
+      _fetchPoStats(),
+    ], eagerError: false);
+
+    if (mounted) {
+      setState(() {
+        _stats.totalItems = criticalResults[0] as int;
+        _stats.totalSuppliers = criticalResults[1] as int;
+        _stats.totalOrders = (criticalResults[2] as Map)['count'] as int;
+        _stats.totalAmount = (criticalResults[2] as Map)['totalAmount'] as double;
+      });
+    }
+  } catch (e) {
+    safeDebugPrint('❌ Error in essential stats: $e');
+  }
+}
+
+Future<void> _loadSecondaryStats() async {
+  // هذه البيانات أقل أهمية ويمكن أن تأتي لاحقاً
+  try {
+    await Future.wait([
+      _fetchCollectionCount('finished_products'),
+      _fetchManufacturingOrdersCount(),
+      _loadMovementStats(),
+    ], eagerError: false);
+  } catch (e) {
+    safeDebugPrint('❌ Error in secondary stats: $e');
+  }
+}
+ */
 
   void _setupListenersAndNotifications() {
     _startListeningToUserChanges();
@@ -2324,7 +2448,7 @@ Future<void> _initializeFromHiveFirst() async {
         .toSet();
   }
 
-  Future<void> fetchStats() async {
+/*   Future<void> fetchStats() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null || !mounted) return;
 
@@ -2418,7 +2542,94 @@ Future<void> _initializeFromHiveFirst() async {
     }
     }
   }
+ */
 
+  Future<void> fetchStats() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null || !mounted) return;
+
+    try {
+      final localUser = await HiveService.getUserData();
+      if (localUser == null) return;
+
+      final updatedCompanyIds =
+          (localUser['companyIds'] as List?)?.cast<String>() ?? [];
+
+      // تحديث عدد الشركات أولاً (فوري)
+      if (mounted) {
+        setState(() {
+          userCompanyIds = updatedCompanyIds;
+          _stats.totalCompanies = updatedCompanyIds.length;
+        });
+      }
+
+      // جلب البيانات الأكثر أهمية أولاً
+      final criticalResults = await Future.wait([
+        _fetchCollectionCount('items'),
+        _fetchCollectionCount('vendors'),
+        _fetchPoStats(),
+      ], eagerError: false);
+
+      // تحديث الواجهة بالبيانات الحرجة أولاً
+      if (mounted) {
+        setState(() {
+          _stats.totalItems = criticalResults[0] as int;
+          _stats.totalSuppliers = criticalResults[1] as int;
+          _stats.totalOrders = (criticalResults[2] as Map)['count'] as int;
+          _stats.totalAmount =
+              (criticalResults[2] as Map)['totalAmount'] as double;
+        });
+      }
+
+      // البيانات الأقل أهمية تأتي لاحقاً
+      _loadSecondaryStats();
+    } catch (e) {
+      safeDebugPrint('❌ Error in fetchStats: $e');
+    }
+  }
+
+/*   Future<void> _loadSecondaryStats(List<String> companyIds) async {
+    try {
+      final secondaryResults = await Future.wait([
+        _fetchCollectionCount('finished_products'),
+        _fetchManufacturingOrdersCount(),
+      ], eagerError: false);
+
+      int movementCount = 0;
+      if (companyIds.isNotEmpty) {
+        try {
+          final companyResults = await Future.wait(
+            companyIds.map((companyId) => _getCompanyStats(companyId)),
+          );
+
+          for (final result in companyResults) {
+            movementCount += (result['movements'] as num).toInt();
+          }
+        } catch (e) {
+          safeDebugPrint('❌ Error in company stats: $e');
+        }
+      }
+
+      final factoryIds =
+          (userData?['factoryIds'] as List?)?.cast<String>() ?? [];
+      final factoryCount = factoryIds.length;
+
+      if (mounted) {
+        setState(() {
+          _stats.totalMovements = movementCount;
+          _stats.totalManufacturingOrders = secondaryResults[1];
+          _stats.totalFinishedProducts = secondaryResults[0];
+          _stats.totalFactories = factoryCount;
+        });
+
+        await _saveToLocalStorage();
+      }
+    } catch (e) {
+      safeDebugPrint('❌ Error in secondary stats: $e');
+    }
+  }
+ */
+  
   Future<bool> _checkCollectionPermission(String collection) async {
     try {
       final query = _firestore.collection(collection).limit(1);
@@ -2564,15 +2775,71 @@ Future<void> _initializeFromHiveFirst() async {
   }
 
   Future<void> _handleRefresh() async {
+    if (mounted) {
+      setState(() => _isRefreshing = true);
+    }
+
     try {
       await _syncUserDataWithFirestore();
-      await fetchStats();
+      await _loadEssentialStats();
       await _checkSubscriptionStatus();
 
       _refreshController.refreshCompleted();
     } catch (e) {
       safeDebugPrint('❌ Refresh failed: $e');
       _refreshController.refreshFailed();
+    } finally {
+      if (mounted) {
+        setState(() => _isRefreshing = false);
+      }
+    }
+  }
+
+// أضف هذه الدوال قبل نهاية الـ class
+  Future<void> _loadMovementStats() async {
+    try {
+      int movementCount = 0;
+      if (userCompanyIds.isNotEmpty) {
+        final companyResults = await Future.wait(
+          userCompanyIds.map((companyId) => _getCompanyStats(companyId)),
+        );
+
+        for (final result in companyResults) {
+          movementCount += (result['movements'] as num).toInt();
+        }
+      }
+
+      if (mounted) {
+        setState(() {
+          _stats.totalMovements = movementCount;
+        });
+      }
+    } catch (e) {
+      safeDebugPrint('❌ Error loading movement stats: $e');
+    }
+  }
+
+// استبدل الدالة المكررة
+  Future<void> _loadSecondaryData() async {
+    try {
+      await Future.wait([
+        _fetchCollectionCount('finished_products'),
+        _fetchManufacturingOrdersCount(),
+        _loadMovementStats(),
+      ], eagerError: false);
+
+      final factoryIds =
+          (userData?['factoryIds'] as List?)?.cast<String>() ?? [];
+      final factoryCount = factoryIds.length;
+
+      if (mounted) {
+        setState(() {
+          _stats.totalFactories = factoryCount;
+        });
+        await _saveToLocalStorage();
+      }
+    } catch (e) {
+      safeDebugPrint('❌ Error in secondary data: $e');
     }
   }
 
@@ -2625,7 +2892,7 @@ Future<void> _initializeFromHiveFirst() async {
     safeDebugPrint('   userId: $userId');
   }
 
-  Widget _buildStatsGrid() {
+/*   Widget _buildStatsGrid() {
     final statsMap = _stats.toMap();
     List<DashboardMetric> filteredMetrics;
 
@@ -2667,6 +2934,51 @@ Future<void> _initializeFromHiveFirst() async {
         );
       },
     );
+  }
+ */
+
+  Widget _buildStatsGrid() {
+    final statsMap = _stats.toMap();
+    final filteredMetrics = _getFilteredMetrics();
+
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+        maxCrossAxisExtent: 300,
+        mainAxisExtent: 135,
+        mainAxisSpacing: 12,
+        crossAxisSpacing: 12,
+        childAspectRatio: 1.6,
+      ),
+      itemCount: filteredMetrics.length,
+      itemBuilder: (context, index) {
+        final metric = filteredMetrics[index];
+        // final value = statsMap[metric.titleKey];
+        // final bool showLoading = _isDataLoading && value == null;
+
+        return DashboardTileWidget(
+          metric: metric,
+          data: statsMap,
+          highlight: metric.titleKey == 'totalCompanies',
+          //isLoading: showLoading,
+        );
+      },
+    );
+  }
+
+  List<DashboardMetric> _getFilteredMetrics() {
+    if (_selectedCards.isEmpty) {
+      final defaultViewType =
+          _dashboardView == DashboardView.long ? 'long' : 'short';
+      return dashboardMetrics
+          .where((metric) => metric.defaultMenuType == defaultViewType)
+          .toList();
+    } else {
+      return dashboardMetrics
+          .where((metric) => _selectedCards.contains(metric.titleKey))
+          .toList();
+    }
   }
 
   Widget _buildLicenseExpiredWarning() {
@@ -2733,7 +3045,7 @@ Future<void> _initializeFromHiveFirst() async {
   }
 
   @override
-  Widget build(BuildContext context) {
+/*   Widget build(BuildContext context) {
     if (isLoading || userData == null) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
@@ -2774,6 +3086,140 @@ Future<void> _initializeFromHiveFirst() async {
             ],
           ),
         ),
+      ),
+    );
+  }
+} */
+
+  @override
+  Widget build(BuildContext context) {
+    // التحميل الأولي - يظهر فقط عند فتح الصفحة أول مرة
+    if (_isInitialLoading) {
+      return _buildInitialLoadingScreen();
+    }
+
+    return AppScaffold(
+      title: tr('dashboard'),
+      userName: userName,
+      isSubscriptionExpiringSoon: isSubscriptionExpiringSoon,
+      isSubscriptionExpired: isSubscriptionExpired,
+      isDashboard: true,
+      body: Stack(
+        children: [
+          SmartRefresher(
+            controller: _refreshController,
+            onRefresh: _handleRefresh,
+            enablePullDown: true,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // رسالة ترحيب
+                  _buildWelcomeSection(),
+
+                  // تحذيرات الاشتراك
+                  if (isSubscriptionExpiringSoon) _buildTimeLeftBar(),
+                  if (isSubscriptionExpired && !isAdmin)
+                    _buildLicenseExpiredWarning(),
+
+                  const SizedBox(height: 16),
+
+                  // شبكة الإحصائيات
+                  _buildStatsGrid(),
+
+                  // زر طلب جهاز إضافي
+                  if (subscriptionTimeLeft != null &&
+                      subscriptionTimeLeft!
+                          .contains('maximum number of devices'))
+                    _buildDeviceRequestButton(),
+                ],
+              ),
+            ),
+          ),
+
+          // مؤشر تحميل للبيانات الخلفية
+          if (_isDataLoading && !_isRefreshing) _buildDataLoadingOverlay(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInitialLoadingScreen() {
+    return  Scaffold(
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const CircularProgressIndicator(),
+            const SizedBox(height: 16),
+            Text(tr('loading_app'), style: const TextStyle(fontSize: 16)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWelcomeSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          tr('welcome_back', args: [userName ?? '']),
+          style: Theme.of(context).textTheme.headlineSmall,
+        ),
+        if (_isDataLoading) ...[
+          const SizedBox(height: 8),
+          Text(
+             tr('updating_data'),
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Colors.grey,
+                  fontStyle: FontStyle.italic,
+                ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildDataLoadingOverlay() {
+    return Positioned(
+      top: 0,
+      left: 0,
+      right: 0,
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        color: Colors.blue.withAlpha(25),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+            const SizedBox(width: 12),
+            Text(
+               tr('updating_data'),
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.blue.shade700,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDeviceRequestButton() {
+    return Padding(
+      padding: const EdgeInsets.only(top: 16.0),
+      child: FloatingActionButton(
+        onPressed: () => context.push('/device-request'),
+        backgroundColor: Colors.orange,
+        child: const Icon(Icons.device_hub),
       ),
     );
   }

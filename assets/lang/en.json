@@ -63,6 +63,9 @@
   "device_fingerprint": "Device Fingerprint",
   "registration_status": "Registration Status",
   "not_registered": "Not Registered",
+    "loading_app": "Loading app...",
+  "updating_data": "Updating data...", 
+
   "register_device_to_access": "Register this device to access dashboard",
   "register_this_device": "Register This Device",
   "register_now": "Register Now",
