@@ -378,6 +378,31 @@ class _FinishedProductsPageState extends State<FinishedProductsPage> {
   }
 } */
 
+/*   Widget _buildDaysRemaining(FinishedProduct product) {
+    if (product.isValid) {
+      final daysExpired = DateTime.now().difference(product.expiryDateTime).inDays;
+      return Text(
+        '${'manufacturing.days_expired'.tr()}: $daysExpired',
+        style: const TextStyle(color: Colors.red),
+      );
+    } else {
+      final daysRemaining = product.expiryDateTime.difference(DateTime.now()).inDays;
+      return Text(
+        '${'manufacturing.days_remaining'.tr()}: $daysRemaining',
+        style: TextStyle(
+          color: product.isExpiringSoon ? Colors.orange : Colors.green,
+        ),
+      );
+    }
+  } */
+
+/*   String _formatDate(DateTime date) {
+    return '${date.year}/${date.month.toString().padLeft(2, '0')}/${date.day.toString().padLeft(2, '0')}';
+  }
+
+  String _formatDateDetailed(DateTime date) {
+    return '${date.year}/${date.month.toString().padLeft(2, '0')}/${date.day.toString().padLeft(2, '0')} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+  } */
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -449,7 +474,8 @@ class _FinishedProductsPageState extends State<FinishedProductsPage> {
           _buildFilterBar(context, companyService, factoryService),
           Expanded(
             child: StreamBuilder<List<FinishedProduct>>(
-              stream: finishedProductService.getFinishedProducts(_currentUser?.uid ?? ''),
+              stream: finishedProductService
+                  .getFinishedProducts(_currentUser?.uid ?? ''),
               builder: (context, snapshot) {
                 if (snapshot.hasError) {
                   return Center(child: Text('error_loading_data'.tr()));
@@ -470,7 +496,8 @@ class _FinishedProductsPageState extends State<FinishedProductsPage> {
                   itemCount: filteredProducts.length,
                   itemBuilder: (context, index) {
                     final product = filteredProducts[index];
-                    return _buildProductCard(context, product, companyService, factoryService);
+                    return _buildProductCard(
+                        context, product, companyService, factoryService);
                   },
                 );
               },
@@ -481,7 +508,8 @@ class _FinishedProductsPageState extends State<FinishedProductsPage> {
     );
   }
 
-  Widget _buildFilterBar(BuildContext context, CompanyService companyService, FactoryService factoryService) {
+  Widget _buildFilterBar(BuildContext context, CompanyService companyService,
+      FactoryService factoryService) {
     return Padding(
       padding: const EdgeInsets.all(8.0),
       child: Column(
@@ -495,7 +523,6 @@ class _FinishedProductsPageState extends State<FinishedProductsPage> {
             ),
           ),
           const SizedBox(height: 8),
-          
           StreamBuilder<List<Company>>(
             stream: companyService.getUserCompanies(_currentUser!.uid),
             builder: (context, snapshot) {
@@ -515,7 +542,8 @@ class _FinishedProductsPageState extends State<FinishedProductsPage> {
                     ...companies.map((company) {
                       return DropdownMenuItem(
                         value: company.id,
-                        child: Text(_isArabic ? company.nameAr : company.nameEn),
+                        child:
+                            Text(_isArabic ? company.nameAr : company.nameEn),
                       );
                     }),
                   ],
@@ -530,9 +558,7 @@ class _FinishedProductsPageState extends State<FinishedProductsPage> {
               return const SizedBox.shrink();
             },
           ),
-          
           const SizedBox(height: 8),
-          
           if (_selectedCompanyId != null)
             StreamBuilder<List<Factory>>(
               stream: factoryService.getFactoriesByCompany(_selectedCompanyId!),
@@ -554,7 +580,8 @@ class _FinishedProductsPageState extends State<FinishedProductsPage> {
                         ...factories.map((factory) {
                           return DropdownMenuItem(
                             value: factory.id,
-                            child: Text(_isArabic ? factory.nameAr : factory.nameEn),
+                            child: Text(
+                                _isArabic ? factory.nameAr : factory.nameEn),
                           );
                         }),
                       ],
@@ -576,40 +603,57 @@ class _FinishedProductsPageState extends State<FinishedProductsPage> {
 
   List<FinishedProduct> _filterProducts(List<FinishedProduct> products) {
     List<FinishedProduct> filtered = products;
-    
+
     if (_searchController.text.isNotEmpty) {
       filtered = filtered.where((product) {
-        return product.nameAr.toLowerCase().contains(_searchController.text.toLowerCase()) ||
-               product.barCode.toLowerCase().contains(_searchController.text.toLowerCase());
+        return product.nameAr
+                .toLowerCase()
+                .contains(_searchController.text.toLowerCase()) ||
+            product.barCode
+                .toLowerCase()
+                .contains(_searchController.text.toLowerCase());
       }).toList();
     }
-    
+
     if (_selectedCompanyId != null) {
-      filtered = filtered.where((product) => product.companyId == _selectedCompanyId).toList();
+      filtered = filtered
+          .where((product) => product.companyId == _selectedCompanyId)
+          .toList();
     }
-    
+
     if (_selectedFactoryId != null) {
-      filtered = filtered.where((product) => product.factoryId == _selectedFactoryId).toList();
+      filtered = filtered
+          .where((product) => product.factoryId == _selectedFactoryId)
+          .toList();
     }
-    
+
     return filtered;
   }
 
-  Widget _buildProductCard(BuildContext context, FinishedProduct product, CompanyService companyService, FactoryService factoryService) {
+  Widget _buildProductCard(BuildContext context, FinishedProduct product,
+      CompanyService companyService, FactoryService factoryService) {
     return FutureBuilder<Company?>(
       future: companyService.getCompanyById(product.companyId),
       builder: (context, companySnapshot) {
         return FutureBuilder<Factory?>(
           future: factoryService.getFactoryById(product.factoryId),
           builder: (context, factorySnapshot) {
-            final companyName = companySnapshot.hasData ? _isArabic ? companySnapshot.data!.nameAr : companySnapshot.data!.nameEn : '...';
-            final factoryName = factorySnapshot.hasData ? _isArabic ? factorySnapshot.data!.nameAr : factorySnapshot.data!.nameEn : '...';
-            
+            final companyName = companySnapshot.hasData
+                ? _isArabic
+                    ? companySnapshot.data!.nameAr
+                    : companySnapshot.data!.nameEn
+                : '...';
+            final factoryName = factorySnapshot.hasData
+                ? _isArabic
+                    ? factorySnapshot.data!.nameAr
+                    : factorySnapshot.data!.nameEn
+                : '...';
+
             return Card(
               margin: const EdgeInsets.all(8.0),
               child: ListTile(
                 title: Text(
-                  product.nameAr,
+                  _isArabic ? product.nameAr : product.nameEn,
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                     color: product.isValid ? Colors.green : Colors.black,
@@ -622,25 +666,30 @@ class _FinishedProductsPageState extends State<FinishedProductsPage> {
                       Text('${'company'.tr()}: $companyName'),
                     if (factoryName.isNotEmpty)
                       Text('${'factory'.tr()}: $factoryName'),
-                    Text('${'manufacturing.batch_number'.tr()}: ${product.barCode}'),
-                    Text('${'manufacturing.quantity'.tr()}: ${product.quantity} ${product.unit}'),
+                    Text(
+                        '${'manufacturing.batch_number'.tr()}: ${product.barCode}'),
+                    Text(
+                        '${'manufacturing.quantity'.tr()}: ${product.quantity} ${product.unit}'),
                     Text('${'manufacturing.isValid'.tr()}: ${product.isValid}'),
-                //    Text('${'manufacturing.expiry_date'.tr()}: ${_formatDate(product.expiryDateTime)}'),
+                    //    Text('${'manufacturing.expiry_date'.tr()}: ${_formatDate(product.expiryDateTime)}'),
                     if (!product.isValid)
                       Text(
                         'manufacturing.notValid'.tr(),
-                        style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+                        style: const TextStyle(
+                            color: Colors.red, fontWeight: FontWeight.bold),
                       )
-                    else 
+                    else
                       Text(
                         'manufacturing.isValid'.tr(),
-                        style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold),
+                        style: const TextStyle(
+                            color: Colors.green, fontWeight: FontWeight.bold),
                       ),
-              //      _buildDaysRemaining(product),
+                    //      _buildDaysRemaining(product),
                   ],
                 ),
                 trailing: _buildStatusIcon(product),
-                onTap: () => _showProductDetails(context, product, companyName, factoryName),
+                onTap: () => _showProductDetails(
+                    context, product, companyName, factoryName),
               ),
             );
           },
@@ -649,39 +698,23 @@ class _FinishedProductsPageState extends State<FinishedProductsPage> {
     );
   }
 
-/*   Widget _buildDaysRemaining(FinishedProduct product) {
-    if (product.isValid) {
-      final daysExpired = DateTime.now().difference(product.expiryDateTime).inDays;
-      return Text(
-        '${'manufacturing.days_expired'.tr()}: $daysExpired',
-        style: const TextStyle(color: Colors.red),
-      );
-    } else {
-      final daysRemaining = product.expiryDateTime.difference(DateTime.now()).inDays;
-      return Text(
-        '${'manufacturing.days_remaining'.tr()}: $daysRemaining',
-        style: TextStyle(
-          color: product.isExpiringSoon ? Colors.orange : Colors.green,
-        ),
-      );
-    }
-  } */
-
   Widget _buildStatusIcon(FinishedProduct product) {
     if (!product.isValid) {
       return const Icon(Icons.warning, color: Colors.red, size: 30);
 /*     } else if (product.isExpiringSoon) {
       return const Icon(Icons.warning, color: Colors.orange, size: 30);
-     */} else {
+     */
+    } else {
       return const Icon(Icons.check_circle, color: Colors.green, size: 30);
     }
   }
 
-  void _showProductDetails(BuildContext context, FinishedProduct product, String companyName, String factoryName) {
+  void _showProductDetails(BuildContext context, FinishedProduct product,
+      String companyName, String factoryName) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(product.nameEn),
+        title: Text(_isArabic ? product.nameAr : product.nameEn),
         content: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -690,19 +723,21 @@ class _FinishedProductsPageState extends State<FinishedProductsPage> {
                 Text('${'company'.tr()}: $companyName'),
               if (factoryName.isNotEmpty)
                 Text('${'factory'.tr()}: $factoryName'),
-              
+
               Text('${'manufacturing.batch_number'.tr()}: ${product.barCode}'),
-              Text('${'manufacturing.quantity'.tr()}: ${product.quantity} ${product.unit}'),
+              Text(
+                  '${'manufacturing.quantity'.tr()}: ${product.quantity} ${product.unit}'),
               Text('${'manufacturing.isValid'.tr()}: ${product.isValid}'),
               // Text('${'manufacturing.expiry_date'.tr()}: ${_formatDateDetailed(product.expiryDateTime)}'),
               // Text('${'manufacturing.created_at'.tr()}: ${_formatDateDetailed(product.createdAtDateTime)}'),
-              
+
               const SizedBox(height: 16),
-              
+
               if (!product.isValid)
                 Text(
                   'manufacturing.expired'.tr(),
-                  style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                      color: Colors.red, fontWeight: FontWeight.bold),
                 )
 /*               else if (product.isExpiringSoon)
                 Text(
@@ -712,11 +747,12 @@ class _FinishedProductsPageState extends State<FinishedProductsPage> {
               else
                 Text(
                   'manufacturing.isValid'.tr(),
-                  style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                      color: Colors.green, fontWeight: FontWeight.bold),
                 ),
 
               const SizedBox(height: 16),
-              
+
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
@@ -750,12 +786,4 @@ class _FinishedProductsPageState extends State<FinishedProductsPage> {
       ),
     );
   }
-
-/*   String _formatDate(DateTime date) {
-    return '${date.year}/${date.month.toString().padLeft(2, '0')}/${date.day.toString().padLeft(2, '0')}';
-  }
-
-  String _formatDateDetailed(DateTime date) {
-    return '${date.year}/${date.month.toString().padLeft(2, '0')}/${date.day.toString().padLeft(2, '0')} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
-  } */
 }

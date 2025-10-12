@@ -475,18 +475,6 @@ class _AppScaffoldState extends State<AppScaffold> {
 }
  */
 
-import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
-import 'package:puresip_purchasing/pages/dashboard/dashboard_metrics.dart';
-import 'package:puresip_purchasing/pages/dashboard/dashboard_page.dart';
-import 'package:puresip_purchasing/services/hive_service.dart';
-//import 'package:puresip_purchasing/pages/settings_page.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:easy_localization/easy_localization.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:puresip_purchasing/services/license_service.dart';
-
 // نفترض وجود خدمة للتراخيص مع دالة للتحقق من وجود طلبات ترخيص معلقة
 /* class LicenseService {
   Future<bool> hasPendingLicenseRequests() async {
@@ -499,6 +487,18 @@ import 'package:puresip_purchasing/services/license_service.dart';
 } */
 
 
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:puresip_purchasing/pages/dashboard/dashboard_metrics.dart';
+import 'package:puresip_purchasing/pages/dashboard/dashboard_page.dart';
+import 'package:puresip_purchasing/services/hive_service.dart';
+//import 'package:puresip_purchasing/pages/settings_page.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:easy_localization/easy_localization.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:puresip_purchasing/services/license_service.dart';
+
 //  late final LicenseService _licenseService;
 
 class AppScaffold extends StatefulWidget {
@@ -510,6 +510,7 @@ class AppScaffold extends StatefulWidget {
   final List<Widget>? actions;
   final bool isSubscriptionExpiringSoon;
   final bool isSubscriptionExpired;
+final VoidCallback? onSettingsPressed; 
 
   const AppScaffold({
     super.key,
@@ -521,6 +522,7 @@ class AppScaffold extends StatefulWidget {
     this.actions,
     this.isSubscriptionExpiringSoon = false,
     this.isSubscriptionExpired = false,
+    this.onSettingsPressed,
   });
 
   @override

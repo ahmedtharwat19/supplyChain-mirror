@@ -63,9 +63,8 @@
   "device_fingerprint": "Device Fingerprint",
   "registration_status": "Registration Status",
   "not_registered": "Not Registered",
-    "loading_app": "Loading app...",
-  "updating_data": "Updating data...", 
-
+  "loading_app": "Loading app...",
+  "updating_data": "Updating data...",
   "register_device_to_access": "Register this device to access dashboard",
   "register_this_device": "Register This Device",
   "register_now": "Register Now",
@@ -802,6 +801,7 @@
   "balance": "Balance",
   "in": "In",
   "out": "Out",
+  "save_and_close": "Save & Close",
   "newest_first": "Newest First",
   "oldest_first": "Oldest First",
   "from": "From",
@@ -923,6 +923,8 @@
     "status_inProgress": "In Progress",
     "status_completed": "Completed",
     "status_cancelled": "Cancelled",
+    "isValid": "Valid",
+    "name": "Name",
     "alerts": {
       "expiry_alert": "Expiry Alert",
       "expiry_message": "The product {product} (Batch No: {batch}) will expire on {date}",

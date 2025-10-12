@@ -106,6 +106,7 @@ Future<void> main() async {
 
     // HiveService.init يفتح الصناديق التي تحتاجها الخدمات
     await HiveService.init();
+    await HiveService.testHive();
 
     Hive.registerAdapter(TimestampAdapter());
     // Initialize Firebase and permissions in parallel

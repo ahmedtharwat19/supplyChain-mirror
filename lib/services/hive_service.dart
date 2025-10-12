@@ -167,17 +167,6 @@ class HiveService {
   }
 
 /*   static Future<T?> getSetting<T>(String key, {T? defaultValue}) async {
-    final value = _settingsHive?.get(key);
-    if (value == null) return defaultValue;
-    try {
-      return value as T;
-    } catch (e) {
-      safeDebugPrint('❌ Error casting setting $key: $e');
-      return defaultValue;
-    }
-  } */
-
-  static Future<T?> getSetting<T>(String key, {T? defaultValue}) async {
     try {
       // تأكد من فتح الصندوق أولاً
       final box = await _getSettingsBox();
@@ -227,6 +216,78 @@ class HiveService {
     }
     return _settingsHive!;
   }
+ */
+
+  // في services/hive_service.dart - استبدل دالة getSetting
+  static Future<T?> getSetting<T>(String key, {T? defaultValue}) async {
+    try {
+      // تأكد من فتح الصندوق أولاً
+      final box = await _getSettingsBox();
+      final value = box.get(key);
+
+      safeDebugPrint(
+          '🔍 Hive GET Setting: $key = $value (type: ${value?.runtimeType})');
+
+      if (value == null) {
+        return defaultValue;
+      }
+
+      // معالجة خاصة للقوائم
+      if (value is List && value.every((element) => element is String)) {
+        try {
+          final stringList = value.map((item) => item.toString()).toList();
+          safeDebugPrint('✅ Converted to List<String>: $stringList');
+          return stringList as T;
+        } catch (e) {
+          safeDebugPrint('❌ Error converting to List<String>: $e');
+          return defaultValue;
+        }
+      }
+
+      // محاولة التحويل للنوع المطلوب
+      try {
+        return value as T;
+      } catch (e) {
+        safeDebugPrint('❌ Cast error for $key: $e');
+        return defaultValue;
+      }
+    } catch (e) {
+      safeDebugPrint('❌ Error getting setting $key: $e');
+      return defaultValue;
+    }
+  }
+
+// في HiveService - أضف هذه الدالة
+  static Future<void> testHive() async {
+    try {
+      safeDebugPrint('🧪 Testing Hive...');
+
+      // اختبار الحفظ
+      await saveSetting('test_key', 'test_value');
+
+      // اختبار القراءة
+      final testValue = await getSetting<String>('test_key');
+
+      safeDebugPrint('🧪 Hive Test Result: $testValue');
+
+      if (testValue == 'test_value') {
+        safeDebugPrint('✅ Hive is working correctly!');
+      } else {
+        safeDebugPrint('❌ Hive is NOT working!');
+      }
+    } catch (e) {
+      safeDebugPrint('❌ Hive Test Failed: $e');
+    }
+  }
+
+// تأكد من وجود هذه الدالة المساعدة
+  static Future<Box> _getSettingsBox() async {
+    if (_settingsHive == null || !_settingsHive!.isOpen) {
+      _settingsHive = await Hive.openBox(_settingsBox);
+      safeDebugPrint('📦 Hive Settings Box opened');
+    }
+    return _settingsHive!;
+  }
 
   static Future<void> clearSettings() async {
     await _settingsHive?.clear();
@@ -270,35 +331,6 @@ class HiveService {
       return null;
     }
   }
-/*   static Future<void> cacheData(String key, dynamic data,
-      {Duration? expiry}) async {
-    final cacheItem = {
-      'data': data,
-      'timestamp': DateTime.now().millisecondsSinceEpoch,
-      'expiry': expiry?.inMilliseconds
-    };
-    await _cacheHive?.put(key, cacheItem);
-  }
-
-  static Future<dynamic> getCachedData(String key) async {
-    final cacheItem = _cacheHive?.get(key);
-
-    if (cacheItem == null) return null;
-
-    final timestamp = cacheItem['timestamp'];
-    final expiry = cacheItem['expiry'];
-
-    if (expiry != null) {
-      final now = DateTime.now().millisecondsSinceEpoch;
-      if (now - timestamp > expiry) {
-        await _cacheHive?.delete(key);
-        return null;
-      }
-    }
-
-    return cacheItem['data'];
-  }
- */
 
   static Future<Map<String, dynamic>> getAllCachedData() async {
     try {
@@ -346,22 +378,6 @@ class HiveService {
     safeDebugPrint('💾 Saved dashboard view: $viewString');
   }
 
-  /* static Future<DashboardView> getDashboardView() async {
-    try {
-      final viewString = _settingsHive?.get('dashboard_view');
-      safeDebugPrint('🔍 Retrieved dashboard view from Hive: $viewString');
-
-      if (viewString == 'long') {
-        return DashboardView.long;
-      }
-      // القيمة الافتراضية هي short
-      return DashboardView.short;
-    } catch (e) {
-      safeDebugPrint('❌ Error getting dashboard view: $e');
-      return DashboardView.short;
-    }
-  } */
-
 // في HiveService.dart
   static Future<DashboardView> getDashboardView() async {
     try {
@@ -403,7 +419,6 @@ class HiveService {
   }
 
   // ══════════════ Selected Cards Methods ══════════════
-
   static Future<void> saveSelectedCards(Set<String> selectedCards) async {
     await _settingsHive?.put('selected_cards', selectedCards.toList());
     safeDebugPrint('💾 Saved selected cards: ${selectedCards.toList()}');
@@ -499,3 +514,60 @@ class HiveService {
     return {};
   }
 }
+
+/*   static Future<T?> getSetting<T>(String key, {T? defaultValue}) async {
+    final value = _settingsHive?.get(key);
+    if (value == null) return defaultValue;
+    try {
+      return value as T;
+    } catch (e) {
+      safeDebugPrint('❌ Error casting setting $key: $e');
+      return defaultValue;
+    }
+  } */
+
+/* static Future<DashboardView> getDashboardView() async {
+    try {
+      final viewString = _settingsHive?.get('dashboard_view');
+      safeDebugPrint('🔍 Retrieved dashboard view from Hive: $viewString');
+
+      if (viewString == 'long') {
+        return DashboardView.long;
+      }
+      // القيمة الافتراضية هي short
+      return DashboardView.short;
+    } catch (e) {
+      safeDebugPrint('❌ Error getting dashboard view: $e');
+      return DashboardView.short;
+    }
+  } */
+
+/*   static Future<void> cacheData(String key, dynamic data,
+      {Duration? expiry}) async {
+    final cacheItem = {
+      'data': data,
+      'timestamp': DateTime.now().millisecondsSinceEpoch,
+      'expiry': expiry?.inMilliseconds
+    };
+    await _cacheHive?.put(key, cacheItem);
+  }
+
+  static Future<dynamic> getCachedData(String key) async {
+    final cacheItem = _cacheHive?.get(key);
+
+    if (cacheItem == null) return null;
+
+    final timestamp = cacheItem['timestamp'];
+    final expiry = cacheItem['expiry'];
+
+    if (expiry != null) {
+      final now = DateTime.now().millisecondsSinceEpoch;
+      if (now - timestamp > expiry) {
+        await _cacheHive?.delete(key);
+        return null;
+      }
+    }
+
+    return cacheItem['data'];
+  }
+ */

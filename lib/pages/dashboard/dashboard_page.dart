@@ -1614,6 +1614,402 @@ class DashboardStats {
 }
  */
 
+/* 
+  @override
+  Widget build(BuildContext context) {
+    if (isLoading || userData == null) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+
+    return AppScaffold(
+      title: tr('dashboard'),
+      userName: userName,
+      isSubscriptionExpiringSoon: isSubscriptionExpiringSoon,
+      isSubscriptionExpired: isSubscriptionExpired,
+      isDashboard: true,
+      body: SmartRefresher(
+        controller: _refreshController,
+        onRefresh: _handleRefresh,
+        enablePullDown: true,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(tr('welcome_back', args: [userName ?? '']),
+                  style: Theme.of(context).textTheme.headlineSmall),
+              const SizedBox(height: 16),
+              if (isSubscriptionExpiringSoon) _buildTimeLeftBar(),
+              if (isSubscriptionExpired && !isAdmin)
+                _buildLicenseExpiredWarning(),
+              const SizedBox(height: 16),
+              _buildStatsGrid(),
+              if (subscriptionTimeLeft != null &&
+                  subscriptionTimeLeft!.contains('maximum number of devices'))
+                Padding(
+                  padding: const EdgeInsets.only(top: 16.0),
+                  child: FloatingActionButton(
+                    onPressed: () => context.push('/device-request'),
+                    backgroundColor: Colors.orange,
+                    child: const Icon(Icons.device_hub),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+} */
+
+/*   @override
+  void initState() {
+    super.initState();
+    safeDebugPrint('🔄 DashboardPage initState called');
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initializeFromHiveFirst().then((_) {
+        // إعادة تحميل البيانات بعد اكتمال البناء الأولي
+        if (mounted) {
+          fetchStats();
+          _checkSubscriptionStatus();
+        }
+      });
+    });
+  } */
+/*   void _startBackgroundUpdates() {
+    safeDebugPrint('🔄 Starting background updates from Firestore...');
+
+    Future.wait([
+      _syncUserDataWithFirestore(),
+      _checkSubscriptionStatus(),
+      fetchStats(),
+      _checkLicenseExpiryStatus(),
+      _saveExpiryDateToLocalStorage(),
+    ]).then((_) {
+     if (mounted) { // ✅ التحقق قبل التحديث
+      safeDebugPrint('✅ All background updates completed');
+    }
+    }).catchError((error) {
+      if (mounted) { // ✅ التحقق قبل التحديث
+      safeDebugPrint('❌ Error in background updates: $error');
+    }
+    });
+  }
+ */
+
+/* Future<void> _loadEssentialStats() async {
+  try {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    final criticalResults = await Future.wait([
+      _fetchCollectionCount('items'),
+      _fetchCollectionCount('vendors'),
+      _fetchPoStats(),
+    ], eagerError: false);
+
+    if (mounted) {
+      setState(() {
+        _stats.totalItems = criticalResults[0] as int;
+        _stats.totalSuppliers = criticalResults[1] as int;
+        _stats.totalOrders = (criticalResults[2] as Map)['count'] as int;
+        _stats.totalAmount = (criticalResults[2] as Map)['totalAmount'] as double;
+      });
+    }
+  } catch (e) {
+    safeDebugPrint('❌ Error in essential stats: $e');
+  }
+}
+
+Future<void> _loadSecondaryStats() async {
+  // هذه البيانات أقل أهمية ويمكن أن تأتي لاحقاً
+  try {
+    await Future.wait([
+      _fetchCollectionCount('finished_products'),
+      _fetchManufacturingOrdersCount(),
+      _loadMovementStats(),
+    ], eagerError: false);
+  } catch (e) {
+    safeDebugPrint('❌ Error in secondary stats: $e');
+  }
+}
+ */
+
+/*   Future<void> fetchStats() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null || !mounted) return;
+
+    try {
+      final localUser = await HiveService.getUserData();
+      if (localUser == null) return;
+
+      final updatedCompanyIds =
+          (localUser['companyIds'] as List?)?.cast<String>() ?? [];
+
+      // تحديث عدد الشركات أولاً
+      if (mounted) {
+        setState(() {
+          userCompanyIds = updatedCompanyIds;
+          _stats.totalCompanies = updatedCompanyIds.length;
+        });
+      }
+
+      // جلب البيانات الأخرى بشكل متوازي مع معالجة الأخطاء
+      final results = await Future.wait([
+        _fetchCollectionCount('items').catchError((e) {
+          safeDebugPrint('❌ Error fetching items: $e');
+          return 0;
+        }),
+        _fetchCollectionCount('vendors').catchError((e) {
+          safeDebugPrint('❌ Error fetching vendors: $e');
+          return 0;
+        }),
+        _fetchCollectionCount('finished_products').catchError((e) {
+          safeDebugPrint('❌ Error fetching finished_products: $e');
+          return 0;
+        }),
+        _fetchPoStats().catchError((e) {
+          safeDebugPrint('❌ Error fetching PO stats: $e');
+          return {'count': 0, 'totalAmount': 0.0};
+        }),
+        _fetchManufacturingOrdersCount().catchError((e) {
+          safeDebugPrint('❌ Error fetching manufacturing orders: $e');
+          return 0;
+        }),
+      ], eagerError: false);
+
+      int movementCount = 0;
+      //  int manufacturingCount = 0;
+
+      if (updatedCompanyIds.isNotEmpty) {
+        try {
+          final companyResults = await Future.wait(
+            updatedCompanyIds
+                .map((companyId) => _getCompanyStats(companyId).catchError((e) {
+                      safeDebugPrint(
+                          '❌ Error getting stats for company $companyId: $e');
+                      return {'movements': 0, 'manufacturing': 0};
+                    })),
+          );
+
+          for (final result in companyResults) {
+            movementCount += (result['movements'] as num).toInt();
+            //  manufacturingCount += results[4] as int, //await _fetchManufacturingOrdersCount();
+          }
+        } catch (e) {
+          safeDebugPrint('❌ Error in company stats: $e');
+        }
+      }
+
+      final factoryIds =
+          (localUser['factoryIds'] as List?)?.cast<String>() ?? [];
+      final factoryCount = factoryIds.length;
+
+      final newStats = DashboardStats(
+        totalCompanies: updatedCompanyIds.length,
+        totalItems: results[0] as int,
+        totalSuppliers: results[1] as int,
+        totalOrders: (results[3] as Map)['count'] as int,
+        totalAmount: (results[3] as Map)['totalAmount'] as double,
+        totalMovements: movementCount,
+        totalManufacturingOrders: results[4] as int, // manufacturingCount,
+        totalFinishedProducts: results[2] as int,
+        totalFactories: factoryCount,
+      );
+
+      if (mounted) {
+        setState(() {
+          _stats.updateFrom(newStats);
+        });
+        await _saveToLocalStorage();
+      }
+    } catch (e) {
+      if (mounted) {
+      safeDebugPrint('❌ Error in fetchStats: $e');
+    }
+    }
+  }
+ */
+
+/*   Widget _buildStatsGrid() {
+    final statsMap = _stats.toMap();
+    List<DashboardMetric> filteredMetrics;
+
+    if (_selectedCards.isEmpty) {
+      final defaultViewType =
+          _dashboardView == DashboardView.long ? 'long' : 'short';
+      filteredMetrics = dashboardMetrics
+          .where((metric) => metric.defaultMenuType == defaultViewType)
+          .toList();
+    } else {
+      filteredMetrics = dashboardMetrics
+          .where((metric) => _selectedCards.contains(metric.titleKey))
+          .toList();
+    }
+
+    if (filteredMetrics.isEmpty) {
+      filteredMetrics = dashboardMetrics
+          .where((metric) => metric.defaultMenuType == 'short')
+          .toList();
+    }
+
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+        maxCrossAxisExtent: 300,
+        mainAxisExtent: 135,
+        mainAxisSpacing: 12,
+        crossAxisSpacing: 12,
+        childAspectRatio: 1.6,
+      ),
+      itemCount: filteredMetrics.length,
+      itemBuilder: (context, index) {
+        final metric = filteredMetrics[index];
+        return DashboardTileWidget(
+          metric: metric,
+          data: statsMap,
+          highlight: metric.titleKey == 'totalCompanies',
+        );
+      },
+    );
+  }
+ */
+
+/*   Future<void> _loadSecondaryStats(List<String> companyIds) async {
+    try {
+      final secondaryResults = await Future.wait([
+        _fetchCollectionCount('finished_products'),
+        _fetchManufacturingOrdersCount(),
+      ], eagerError: false);
+
+      int movementCount = 0;
+      if (companyIds.isNotEmpty) {
+        try {
+          final companyResults = await Future.wait(
+            companyIds.map((companyId) => _getCompanyStats(companyId)),
+          );
+
+          for (final result in companyResults) {
+            movementCount += (result['movements'] as num).toInt();
+          }
+        } catch (e) {
+          safeDebugPrint('❌ Error in company stats: $e');
+        }
+      }
+
+      final factoryIds =
+          (userData?['factoryIds'] as List?)?.cast<String>() ?? [];
+      final factoryCount = factoryIds.length;
+
+      if (mounted) {
+        setState(() {
+          _stats.totalMovements = movementCount;
+          _stats.totalManufacturingOrders = secondaryResults[1];
+          _stats.totalFinishedProducts = secondaryResults[0];
+          _stats.totalFactories = factoryCount;
+        });
+
+        await _saveToLocalStorage();
+      }
+    } catch (e) {
+      safeDebugPrint('❌ Error in secondary stats: $e');
+    }
+  }
+ */
+
+/*   Future<void> fetchStats() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null || !mounted) return;
+
+    try {
+      final localUser = await HiveService.getUserData();
+      if (localUser == null) return;
+
+      final updatedCompanyIds =
+          (localUser['companyIds'] as List?)?.cast<String>() ?? [];
+
+      // تحديث عدد الشركات أولاً (فوري)
+      if (mounted) {
+        setState(() {
+          userCompanyIds = updatedCompanyIds;
+          _stats.totalCompanies = updatedCompanyIds.length;
+        });
+      }
+
+      // جلب البيانات الأكثر أهمية أولاً
+      final criticalResults = await Future.wait([
+        _fetchCollectionCount('items'),
+        _fetchCollectionCount('vendors'),
+        _fetchPoStats(),
+      ], eagerError: false);
+
+      // تحديث الواجهة بالبيانات الحرجة أولاً
+      if (mounted) {
+        setState(() {
+          _stats.totalItems = criticalResults[0] as int;
+          _stats.totalSuppliers = criticalResults[1] as int;
+          _stats.totalOrders = (criticalResults[2] as Map)['count'] as int;
+          _stats.totalAmount =
+              (criticalResults[2] as Map)['totalAmount'] as double;
+        });
+      }
+
+      // البيانات الأقل أهمية تأتي لاحقاً
+      _loadSecondaryStats();
+    } catch (e) {
+      safeDebugPrint('❌ Error in fetchStats: $e');
+    }
+  }
+ */
+
+/*   Future<void> _loadUserDataFromHive() async {
+    try {
+      final data = await HiveService.getUserData();
+      if (data != null && mounted) {
+        setState(() {
+          userData = data;
+          isAdmin = data['isAdmin'] == true;
+          userName = data['displayName'] ?? data['email'] ?? '';
+          userId = data['userId'];
+          userCompanyIds = (data['companyIds'] as List?)?.cast<String>() ?? [];
+          _stats.totalCompanies = userCompanyIds.length;
+        });
+        safeDebugPrint('✅ User data loaded from Hive');
+      }
+    } catch (e) {
+      safeDebugPrint('❌ Error loading user data from Hive: $e');
+    }
+  }
+ */
+
+/*   Future<void> _loadEssentialStats() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      final criticalResults = await Future.wait([
+        _fetchCollectionCount('items'),
+        _fetchCollectionCount('vendors'),
+        _fetchPoStats(),
+      ], eagerError: false);
+
+      if (mounted) {
+        setState(() {
+          _stats.totalItems = criticalResults[0] as int;
+          _stats.totalSuppliers = criticalResults[1] as int;
+          _stats.totalOrders = (criticalResults[2] as Map)['count'] as int;
+          _stats.totalAmount =
+              (criticalResults[2] as Map)['totalAmount'] as double;
+        });
+      }
+    } catch (e) {
+      safeDebugPrint('❌ Error in essential stats: $e');
+    }
+  }
+ */
+
 import 'dart:async';
 import 'package:collection/collection.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -1624,6 +2020,7 @@ import 'package:go_router/go_router.dart';
 import 'package:puresip_purchasing/notifications/notification_service.dart';
 import 'package:puresip_purchasing/pages/dashboard/dashboard_metrics.dart';
 import 'package:puresip_purchasing/pages/dashboard/dashboard_tile_widget.dart';
+import 'package:puresip_purchasing/pages/settings_page.dart';
 import 'package:puresip_purchasing/services/hive_service.dart';
 import 'package:puresip_purchasing/services/subscription_notifier.dart';
 import 'package:puresip_purchasing/services/user_subscription_service.dart';
@@ -1650,7 +2047,8 @@ class DashboardPageState extends State<DashboardPage> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   String? subscriptionTimeLeft;
   Timer? _timer;
-
+  late final List<String> _allCardKeys =
+      dashboardMetrics.map((metric) => metric.titleKey).toList();
   final RefreshController _refreshController =
       RefreshController(initialRefresh: false);
   DashboardView _dashboardView = DashboardView.short;
@@ -1671,21 +2069,7 @@ class DashboardPageState extends State<DashboardPage> {
   bool _isInitialLoading = true;
   bool _isDataLoading = false;
   bool _isRefreshing = false;
-/*   @override
-  void initState() {
-    super.initState();
-    safeDebugPrint('🔄 DashboardPage initState called');
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _initializeFromHiveFirst().then((_) {
-        // إعادة تحميل البيانات بعد اكتمال البناء الأولي
-        if (mounted) {
-          fetchStats();
-          _checkSubscriptionStatus();
-        }
-      });
-    });
-  } */
   @override
   void initState() {
     super.initState();
@@ -1693,6 +2077,127 @@ class DashboardPageState extends State<DashboardPage> {
     _initializeFromHiveFirst();
   }
 
+// في DashboardPageState - أضف هذه الدالة
+/*   void _openSettingsPage() async {
+    safeDebugPrint('🔄 Opening settings page...');
+
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => SettingsPage(
+          allCards: _allCardKeys, //dashboardMetrics.map((metric) => metric.titleKey).toList(),
+        ),
+      ),
+    );
+
+    // ⭐ إذا تم الحفظ والعودة، حدّث الإعدادات
+    if (result == true && mounted) {
+      safeDebugPrint('🔄 Settings updated, reloading dashboard...');
+
+      // إعادة تحميل الإعدادات من Hive
+      await loadSettingsFromHive();
+
+      // إعادة بناء الواجهة
+      setState(() {});
+
+      safeDebugPrint('✅ Dashboard updated with new settings');
+    }
+  }
+ */
+
+void _openSettingsPage() async {
+  safeDebugPrint('🔄 Opening settings page...');
+
+  // ⭐ إلغاء أي عمليات تحميل غير ضرورية قبل الفتح
+  _cancelPendingOperations();
+
+  if (!context.mounted) return;
+
+  // فتح الصفحة فوراً بدون انتظار
+  final result = await Navigator.push<bool>(
+    context,
+    PageRouteBuilder(
+      pageBuilder: (context, animation, secondaryAnimation) => SettingsPage(
+        allCards: _allCardKeys,
+      ),
+      transitionsBuilder: (context, animation, secondaryAnimation, child) {
+        return FadeTransition(
+          opacity: animation,
+          child: child,
+        );
+      },
+      transitionDuration: const Duration(milliseconds: 200),
+    ),
+  );
+
+  if (!mounted) return;
+
+  if (result == true) {
+    safeDebugPrint('🔄 Settings updated, reloading dashboard...');
+    
+    // ⭐ تحديث غير متزامن بدون حجب الواجهة
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _updateDashboardAfterSettingsChange();
+    });
+  }
+}
+
+// ⭐ إضافة دالة لإلغاء العمليات المعلقة
+void _cancelPendingOperations() {
+  _debounceTimers.forEach((key, timer) => timer.cancel());
+  _debounceTimers.clear();
+  _timer?.cancel();
+}
+// ⭐ دالة منفصلة للتحديث
+Future<void> _updateDashboardAfterSettingsChange() async {
+  safeDebugPrint('⚡ Quick settings update started');
+  
+  try {
+    // ⭐ تحميل الإعدادات فقط بدون بيانات Firestore
+    await _loadSettingsOnly();
+    
+    // ⭐ تحديث الواجهة فوراً
+    if (mounted) {
+      setState(() {});
+    }
+    
+    // ⭐ تحديث البيانات الخلفية بشكل منفصل
+    _updateBackgroundData();
+    
+    safeDebugPrint('✅ Dashboard updated quickly with new settings');
+  } catch (e) {
+    safeDebugPrint('❌ Quick settings update failed: $e');
+  }
+}
+
+// ⭐ دالة منفصلة لتحميل الإعدادات فقط
+Future<void> _loadSettingsOnly() async {
+  try {
+    final dashboardView = await HiveService.getDashboardView();
+    final selectedCards = await HiveService.getSelectedCards();
+
+    if (mounted) {
+      setState(() {
+        _dashboardView = dashboardView;
+        _selectedCards = selectedCards.isNotEmpty ? 
+            selectedCards : _getDefaultMetrics();
+      });
+    }
+  } catch (e) {
+    safeDebugPrint('❌ Error loading settings only: $e');
+  }
+}
+
+// ⭐ دالة منفصلة لتحديث البيانات الخلفية
+void _updateBackgroundData() {
+  // استخدام Timer لتأخير التحديث حتى لا يؤثر على أداء الواجهة
+  Timer(const Duration(milliseconds: 500), () {
+    if (mounted) {
+      _loadEssentialStats();
+    }
+  });
+}
+  
   Future<void> _initializeFromHiveFirst() async {
     safeDebugPrint('📦 Loading data from Hive first...');
 
@@ -1731,19 +2236,55 @@ class DashboardPageState extends State<DashboardPage> {
           userName = data['displayName'] ?? data['email'] ?? '';
           userId = data['userId'];
           userCompanyIds = (data['companyIds'] as List?)?.cast<String>() ?? [];
-          _stats.totalCompanies = userCompanyIds.length;
+          _stats.totalCompanies = userCompanyIds.length; // هذا موجود
         });
         safeDebugPrint('✅ User data loaded from Hive');
+
+        // ⭐ إضافة مهمة: تحديث عدد الشركات فوراً من Firestore
+        _updateCompaniesCountImmediately();
       }
+      _debugCompaniesData(); // دالة تصحيحية جديدة
     } catch (e) {
       safeDebugPrint('❌ Error loading user data from Hive: $e');
     }
   }
 
+// ⭐ إضافة دالة جديدة لتحديث عدد الشركات فورياً
+  Future<void> _updateCompaniesCountImmediately() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      final userDoc = await _firestore.collection('users').doc(user.uid).get();
+      if (userDoc.exists) {
+        final data = userDoc.data();
+        final updatedCompanyIds =
+            (data?['companyIds'] as List?)?.cast<String>() ?? [];
+
+        if (mounted) {
+          setState(() {
+            userCompanyIds = updatedCompanyIds;
+            _stats.totalCompanies = updatedCompanyIds.length;
+          });
+        }
+        safeDebugPrint(
+            '🔢 Updated companies count immediately: ${updatedCompanyIds.length}');
+      }
+      _debugCompaniesData(); // دالة تصحيحية جديدة
+    } catch (e) {
+      safeDebugPrint('❌ Error updating companies count immediately: $e');
+    }
+  }
+
   Future<void> loadSettingsFromHive() async {
     try {
+      safeDebugPrint('🔄 Loading settings from Hive in Dashboard...');
+
       final dashboardView = await HiveService.getDashboardView();
       final selectedCards = await HiveService.getSelectedCards();
+
+      safeDebugPrint(
+          '🔍 Loaded from Hive - view: $dashboardView, cards: $selectedCards');
 
       if (mounted) {
         setState(() {
@@ -1752,9 +2293,11 @@ class DashboardPageState extends State<DashboardPage> {
               selectedCards.isNotEmpty ? selectedCards : _getDefaultMetrics();
         });
       }
-      safeDebugPrint('✅ Settings loaded from Hive');
+
+      safeDebugPrint(
+          '✅ Settings loaded in Dashboard: $_dashboardView, ${_selectedCards.length} cards');
     } catch (e) {
-      safeDebugPrint('❌ Error loading settings from Hive: $e');
+      safeDebugPrint('❌ Error loading settings in Dashboard: $e');
       if (mounted) {
         setState(() {
           _dashboardView = DashboardView.short;
@@ -1788,27 +2331,6 @@ class DashboardPageState extends State<DashboardPage> {
       safeDebugPrint('❌ Error loading cached data from Hive: $e');
     }
   }
-
-/*   void _startBackgroundUpdates() {
-    safeDebugPrint('🔄 Starting background updates from Firestore...');
-
-    Future.wait([
-      _syncUserDataWithFirestore(),
-      _checkSubscriptionStatus(),
-      fetchStats(),
-      _checkLicenseExpiryStatus(),
-      _saveExpiryDateToLocalStorage(),
-    ]).then((_) {
-     if (mounted) { // ✅ التحقق قبل التحديث
-      safeDebugPrint('✅ All background updates completed');
-    }
-    }).catchError((error) {
-      if (mounted) { // ✅ التحقق قبل التحديث
-      safeDebugPrint('❌ Error in background updates: $error');
-    }
-    });
-  }
- */
 
   void _startBackgroundUpdates() {
     if (mounted) {
@@ -1849,6 +2371,9 @@ class DashboardPageState extends State<DashboardPage> {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
 
+      // ⭐ تحديث عدد الشركات أولاً (الأهم)
+      await _updateCompaniesCountImmediately();
+
       final criticalResults = await Future.wait([
         _fetchCollectionCount('items'),
         _fetchCollectionCount('vendors'),
@@ -1881,43 +2406,6 @@ class DashboardPageState extends State<DashboardPage> {
       safeDebugPrint('❌ Error in secondary stats: $e');
     }
   }
-/* Future<void> _loadEssentialStats() async {
-  try {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
-
-    final criticalResults = await Future.wait([
-      _fetchCollectionCount('items'),
-      _fetchCollectionCount('vendors'),
-      _fetchPoStats(),
-    ], eagerError: false);
-
-    if (mounted) {
-      setState(() {
-        _stats.totalItems = criticalResults[0] as int;
-        _stats.totalSuppliers = criticalResults[1] as int;
-        _stats.totalOrders = (criticalResults[2] as Map)['count'] as int;
-        _stats.totalAmount = (criticalResults[2] as Map)['totalAmount'] as double;
-      });
-    }
-  } catch (e) {
-    safeDebugPrint('❌ Error in essential stats: $e');
-  }
-}
-
-Future<void> _loadSecondaryStats() async {
-  // هذه البيانات أقل أهمية ويمكن أن تأتي لاحقاً
-  try {
-    await Future.wait([
-      _fetchCollectionCount('finished_products'),
-      _fetchManufacturingOrdersCount(),
-      _loadMovementStats(),
-    ], eagerError: false);
-  } catch (e) {
-    safeDebugPrint('❌ Error in secondary stats: $e');
-  }
-}
- */
 
   void _setupListenersAndNotifications() {
     _startListeningToUserChanges();
@@ -1973,6 +2461,17 @@ Future<void> _loadSecondaryStats() async {
             localDisplayName != displayName) {
           needUpdate = true;
         }
+        // ⭐ تحديث عدد الشركات فوراً حتى لو لم تكن هناك حاجة لتحديث كامل البيانات
+        final currentCompanyIds =
+            (data['companyIds'] as List?)?.cast<String>() ?? [];
+        if (mounted) {
+          setState(() {
+            userCompanyIds = currentCompanyIds;
+            _stats.totalCompanies = currentCompanyIds.length;
+          });
+        }
+        safeDebugPrint(
+            '🔢 Companies count updated in sync: ${currentCompanyIds.length}');
       }
 
       if (needUpdate && createdAt != null) {
@@ -2448,120 +2947,13 @@ Future<void> _loadSecondaryStats() async {
         .toSet();
   }
 
-/*   Future<void> fetchStats() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null || !mounted) return;
-
-    try {
-      final localUser = await HiveService.getUserData();
-      if (localUser == null) return;
-
-      final updatedCompanyIds =
-          (localUser['companyIds'] as List?)?.cast<String>() ?? [];
-
-      // تحديث عدد الشركات أولاً
-      if (mounted) {
-        setState(() {
-          userCompanyIds = updatedCompanyIds;
-          _stats.totalCompanies = updatedCompanyIds.length;
-        });
-      }
-
-      // جلب البيانات الأخرى بشكل متوازي مع معالجة الأخطاء
-      final results = await Future.wait([
-        _fetchCollectionCount('items').catchError((e) {
-          safeDebugPrint('❌ Error fetching items: $e');
-          return 0;
-        }),
-        _fetchCollectionCount('vendors').catchError((e) {
-          safeDebugPrint('❌ Error fetching vendors: $e');
-          return 0;
-        }),
-        _fetchCollectionCount('finished_products').catchError((e) {
-          safeDebugPrint('❌ Error fetching finished_products: $e');
-          return 0;
-        }),
-        _fetchPoStats().catchError((e) {
-          safeDebugPrint('❌ Error fetching PO stats: $e');
-          return {'count': 0, 'totalAmount': 0.0};
-        }),
-        _fetchManufacturingOrdersCount().catchError((e) {
-          safeDebugPrint('❌ Error fetching manufacturing orders: $e');
-          return 0;
-        }),
-      ], eagerError: false);
-
-      int movementCount = 0;
-      //  int manufacturingCount = 0;
-
-      if (updatedCompanyIds.isNotEmpty) {
-        try {
-          final companyResults = await Future.wait(
-            updatedCompanyIds
-                .map((companyId) => _getCompanyStats(companyId).catchError((e) {
-                      safeDebugPrint(
-                          '❌ Error getting stats for company $companyId: $e');
-                      return {'movements': 0, 'manufacturing': 0};
-                    })),
-          );
-
-          for (final result in companyResults) {
-            movementCount += (result['movements'] as num).toInt();
-            //  manufacturingCount += results[4] as int, //await _fetchManufacturingOrdersCount();
-          }
-        } catch (e) {
-          safeDebugPrint('❌ Error in company stats: $e');
-        }
-      }
-
-      final factoryIds =
-          (localUser['factoryIds'] as List?)?.cast<String>() ?? [];
-      final factoryCount = factoryIds.length;
-
-      final newStats = DashboardStats(
-        totalCompanies: updatedCompanyIds.length,
-        totalItems: results[0] as int,
-        totalSuppliers: results[1] as int,
-        totalOrders: (results[3] as Map)['count'] as int,
-        totalAmount: (results[3] as Map)['totalAmount'] as double,
-        totalMovements: movementCount,
-        totalManufacturingOrders: results[4] as int, // manufacturingCount,
-        totalFinishedProducts: results[2] as int,
-        totalFactories: factoryCount,
-      );
-
-      if (mounted) {
-        setState(() {
-          _stats.updateFrom(newStats);
-        });
-        await _saveToLocalStorage();
-      }
-    } catch (e) {
-      if (mounted) {
-      safeDebugPrint('❌ Error in fetchStats: $e');
-    }
-    }
-  }
- */
-
   Future<void> fetchStats() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null || !mounted) return;
 
     try {
-      final localUser = await HiveService.getUserData();
-      if (localUser == null) return;
-
-      final updatedCompanyIds =
-          (localUser['companyIds'] as List?)?.cast<String>() ?? [];
-
-      // تحديث عدد الشركات أولاً (فوري)
-      if (mounted) {
-        setState(() {
-          userCompanyIds = updatedCompanyIds;
-          _stats.totalCompanies = updatedCompanyIds.length;
-        });
-      }
+      // ⭐ تحديث عدد الشركات أولاً وفورياً
+      await _updateCompaniesCountImmediately();
 
       // جلب البيانات الأكثر أهمية أولاً
       final criticalResults = await Future.wait([
@@ -2588,48 +2980,6 @@ Future<void> _loadSecondaryStats() async {
     }
   }
 
-/*   Future<void> _loadSecondaryStats(List<String> companyIds) async {
-    try {
-      final secondaryResults = await Future.wait([
-        _fetchCollectionCount('finished_products'),
-        _fetchManufacturingOrdersCount(),
-      ], eagerError: false);
-
-      int movementCount = 0;
-      if (companyIds.isNotEmpty) {
-        try {
-          final companyResults = await Future.wait(
-            companyIds.map((companyId) => _getCompanyStats(companyId)),
-          );
-
-          for (final result in companyResults) {
-            movementCount += (result['movements'] as num).toInt();
-          }
-        } catch (e) {
-          safeDebugPrint('❌ Error in company stats: $e');
-        }
-      }
-
-      final factoryIds =
-          (userData?['factoryIds'] as List?)?.cast<String>() ?? [];
-      final factoryCount = factoryIds.length;
-
-      if (mounted) {
-        setState(() {
-          _stats.totalMovements = movementCount;
-          _stats.totalManufacturingOrders = secondaryResults[1];
-          _stats.totalFinishedProducts = secondaryResults[0];
-          _stats.totalFactories = factoryCount;
-        });
-
-        await _saveToLocalStorage();
-      }
-    } catch (e) {
-      safeDebugPrint('❌ Error in secondary stats: $e');
-    }
-  }
- */
-  
   Future<bool> _checkCollectionPermission(String collection) async {
     try {
       final query = _firestore.collection(collection).limit(1);
@@ -2795,6 +3145,13 @@ Future<void> _loadSecondaryStats() async {
     }
   }
 
+  void _debugCompaniesData() {
+    safeDebugPrint('🔍 Companies Data Debug:');
+    safeDebugPrint('   userCompanyIds: $userCompanyIds');
+    safeDebugPrint('   totalCompanies in stats: ${_stats.totalCompanies}');
+    safeDebugPrint('   userData companyIds: ${userData?['companyIds']}');
+  }
+
 // أضف هذه الدوال قبل نهاية الـ class
   Future<void> _loadMovementStats() async {
     try {
@@ -2891,51 +3248,6 @@ Future<void> _loadSecondaryStats() async {
     safeDebugPrint('   subscriptionTimeLeft: $subscriptionTimeLeft');
     safeDebugPrint('   userId: $userId');
   }
-
-/*   Widget _buildStatsGrid() {
-    final statsMap = _stats.toMap();
-    List<DashboardMetric> filteredMetrics;
-
-    if (_selectedCards.isEmpty) {
-      final defaultViewType =
-          _dashboardView == DashboardView.long ? 'long' : 'short';
-      filteredMetrics = dashboardMetrics
-          .where((metric) => metric.defaultMenuType == defaultViewType)
-          .toList();
-    } else {
-      filteredMetrics = dashboardMetrics
-          .where((metric) => _selectedCards.contains(metric.titleKey))
-          .toList();
-    }
-
-    if (filteredMetrics.isEmpty) {
-      filteredMetrics = dashboardMetrics
-          .where((metric) => metric.defaultMenuType == 'short')
-          .toList();
-    }
-
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-        maxCrossAxisExtent: 300,
-        mainAxisExtent: 135,
-        mainAxisSpacing: 12,
-        crossAxisSpacing: 12,
-        childAspectRatio: 1.6,
-      ),
-      itemCount: filteredMetrics.length,
-      itemBuilder: (context, index) {
-        final metric = filteredMetrics[index];
-        return DashboardTileWidget(
-          metric: metric,
-          data: statsMap,
-          highlight: metric.titleKey == 'totalCompanies',
-        );
-      },
-    );
-  }
- */
 
   Widget _buildStatsGrid() {
     final statsMap = _stats.toMap();
@@ -3045,53 +3357,6 @@ Future<void> _loadSecondaryStats() async {
   }
 
   @override
-/*   Widget build(BuildContext context) {
-    if (isLoading || userData == null) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    }
-
-    return AppScaffold(
-      title: tr('dashboard'),
-      userName: userName,
-      isSubscriptionExpiringSoon: isSubscriptionExpiringSoon,
-      isSubscriptionExpired: isSubscriptionExpired,
-      isDashboard: true,
-      body: SmartRefresher(
-        controller: _refreshController,
-        onRefresh: _handleRefresh,
-        enablePullDown: true,
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(tr('welcome_back', args: [userName ?? '']),
-                  style: Theme.of(context).textTheme.headlineSmall),
-              const SizedBox(height: 16),
-              if (isSubscriptionExpiringSoon) _buildTimeLeftBar(),
-              if (isSubscriptionExpired && !isAdmin)
-                _buildLicenseExpiredWarning(),
-              const SizedBox(height: 16),
-              _buildStatsGrid(),
-              if (subscriptionTimeLeft != null &&
-                  subscriptionTimeLeft!.contains('maximum number of devices'))
-                Padding(
-                  padding: const EdgeInsets.only(top: 16.0),
-                  child: FloatingActionButton(
-                    onPressed: () => context.push('/device-request'),
-                    backgroundColor: Colors.orange,
-                    child: const Icon(Icons.device_hub),
-                  ),
-                ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-} */
-
-  @override
   Widget build(BuildContext context) {
     // التحميل الأولي - يظهر فقط عند فتح الصفحة أول مرة
     if (_isInitialLoading) {
@@ -3104,6 +3369,7 @@ Future<void> _loadSecondaryStats() async {
       isSubscriptionExpiringSoon: isSubscriptionExpiringSoon,
       isSubscriptionExpired: isSubscriptionExpired,
       isDashboard: true,
+      onSettingsPressed: _openSettingsPage,
       body: Stack(
         children: [
           SmartRefresher(
@@ -3146,7 +3412,7 @@ Future<void> _loadSecondaryStats() async {
   }
 
   Widget _buildInitialLoadingScreen() {
-    return  Scaffold(
+    return Scaffold(
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -3171,7 +3437,7 @@ Future<void> _loadSecondaryStats() async {
         if (_isDataLoading) ...[
           const SizedBox(height: 8),
           Text(
-             tr('updating_data'),
+            tr('updating_data'),
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: Colors.grey,
                   fontStyle: FontStyle.italic,
@@ -3200,7 +3466,7 @@ Future<void> _loadSecondaryStats() async {
             ),
             const SizedBox(width: 12),
             Text(
-               tr('updating_data'),
+              tr('updating_data'),
               style: TextStyle(
                 fontSize: 14,
                 color: Colors.blue.shade700,

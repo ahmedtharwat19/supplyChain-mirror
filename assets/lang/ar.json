@@ -704,6 +704,7 @@
     "not_supported": "غير مدعوم",
     "error_fetching_mac": "خطأ في جلب العنوان"
   },
+  "save_and_close": "حفظ وإغلاق",
   "delete_order_confirm": "هل أنت متأكد أنك تريد حذف أمر الشراء؟",
   "permission_denied_error": "تم رفض الإذن - تحقق من صلاحيات الوصول",
   "document_not_found_error": "الوثيقة غير موجودة",
@@ -851,9 +852,8 @@
   "device_fingerprint": "بصمة الجهاز",
   "registration_status": "حالة التسجيل",
   "not_registered": "غير مسجّل",
-    "loading_app": "جاري تحميل التطبيق...",
+  "loading_app": "جاري تحميل التطبيق...",
   "updating_data": "جاري تحديث البيانات...",
-
   "register_device_to_access": "سجّل هذا الجهاز للوصول إلى لوحة التحكم",
   "register_this_device": "تسجيل هذا الجهاز",
   "register_now": "سجّل الآن",
@@ -1009,6 +1009,8 @@
     "status_inProgress": "قيد التصنيع",
     "status_completed": "مكتمل",
     "status_cancelled": "ملغى",
+    "isValid": "صالح",
+    "name": "الاسم",
     "alerts": {
       "expiry_alert": "تنبيه انتهاء الصلاحية",
       "expiry_message": "المنتج {product} (رقم التشغيلة: {batch}) سينتهي صلاحيته في {date}",
