@@ -9,6 +9,484 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:go_router/go_router.dart';
+import 'package:hive_flutter/hive_flutter.dart';
+
+class AddCompanyPage extends StatefulWidget {
+  const AddCompanyPage({super.key});
+
+  @override
+  State<AddCompanyPage> createState() => _AddCompanyPageState();
+}
+
+class _AddCompanyPageState extends State<AddCompanyPage> {
+  final _nameArController = TextEditingController();
+  final _nameEnController = TextEditingController();
+  final _addressController = TextEditingController();
+  final _managerNameController = TextEditingController();
+  final _managerPhoneController = TextEditingController();
+
+  File? _logoImage;
+  Uint8List? _webImageBytes;
+  String? _base64Logo;
+
+  bool _isLoading = false;
+  User? _currentUser;
+
+  // صناديق Hive
+  late Box _companiesBox;
+  late Box _userDataBox;
+
+  final arabicOnlyFormatter =
+      FilteringTextInputFormatter.allow(RegExp(r'[\u0600-\u06FF\s]'));
+  final englishOnlyFormatter =
+      FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z\s]'));
+  final numbersOnlyFormatter = FilteringTextInputFormatter.digitsOnly;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentUser = FirebaseAuth.instance.currentUser;
+    safeDebugPrint('👤 المستخدم الحالي: ${_currentUser?.uid ?? "غير مسجل"}');
+    _initializeHive();
+  }
+
+  // تهيئة Hive
+  Future<void> _initializeHive() async {
+    try {
+      await Hive.initFlutter();
+      _companiesBox = await Hive.openBox('companies_cache');
+      _userDataBox = await Hive.openBox('user_data_cache');
+      safeDebugPrint('[HIVE] Hive initialized successfully');
+    } catch (e) {
+      safeDebugPrint('[HIVE ERROR] Initialization failed: $e');
+    }
+  }
+
+  @override
+  void dispose() {
+    _nameArController.dispose();
+    _nameEnController.dispose();
+    _addressController.dispose();
+    _managerNameController.dispose();
+    _managerPhoneController.dispose();
+    _companiesBox.close();
+    _userDataBox.close();
+    super.dispose();
+  }
+
+  // التحقق من أن المستخدم نشط في النظام
+  Future<bool> _checkUserActive() async {
+    final userId = _currentUser?.uid;
+    if (userId == null) return false;
+
+    try {
+      // التحقق من التخزين المحلي أولاً
+      final cachedUser = _userDataBox.get('user_$userId');
+      if (cachedUser != null && cachedUser['isActive'] == true) {
+        return true;
+      }
+
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
+          .get();
+      if (!userDoc.exists) return false;
+      final isActive = userDoc.data()?['isActive'] ?? false;
+
+      // حفظ في Hive للمرة القادمة
+      _userDataBox.put('user_$userId', {
+        'isActive': isActive,
+        'lastUpdated': DateTime.now().millisecondsSinceEpoch,
+      });
+
+      return isActive == true;
+    } catch (e) {
+      safeDebugPrint('❌ خطأ في التحقق من حالة المستخدم: $e');
+      return false;
+    }
+  }
+
+  // ✅ التحقق من تكرار الشركة (بناءً على الاسم العربي أو الإنجليزي)
+  Future<bool> _isCompanyDuplicate(String nameAr, String nameEn) async {
+    final userId = _currentUser?.uid;
+    if (userId == null) return false;
+
+    // التحقق من التخزين المحلي أولاً
+    final cachedCompanies = _companiesBox.get('user_companies_$userId');
+    if (cachedCompanies != null) {
+      final companies = List<Map<String, dynamic>>.from(cachedCompanies);
+      final normalizedAr = nameAr.trim().toLowerCase();
+      final normalizedEn = nameEn.trim().toLowerCase();
+
+      for (var company in companies) {
+        final existingAr =
+            (company['nameAr'] ?? '').toString().trim().toLowerCase();
+        final existingEn =
+            (company['nameEn'] ?? '').toString().trim().toLowerCase();
+        if (existingAr == normalizedAr || existingEn == normalizedEn) {
+          return true;
+        }
+      }
+    }
+
+    // إذا لم يوجد في التخزين المحلي، التحقق من Firebase
+    final userDoc =
+        await FirebaseFirestore.instance.collection('users').doc(userId).get();
+    final companyIds = List<String>.from(userDoc.data()?['companyIds'] ?? []);
+
+    if (companyIds.isEmpty) return false;
+
+    final snapshot = await FirebaseFirestore.instance
+        .collection('companies')
+        .where(FieldPath.documentId, whereIn: companyIds)
+        .get();
+
+    final normalizedAr = nameAr.trim().toLowerCase();
+    final normalizedEn = nameEn.trim().toLowerCase();
+
+    for (var doc in snapshot.docs) {
+      final existingAr = (doc['nameAr'] ?? '').toString().trim().toLowerCase();
+      final existingEn = (doc['nameEn'] ?? '').toString().trim().toLowerCase();
+      if (existingAr == normalizedAr || existingEn == normalizedEn) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // التحقق من صحة الحقول المطلوبة قبل الإرسال
+  bool _validateInputs() {
+    if (_nameArController.text.trim().isEmpty ||
+        _nameEnController.text.trim().isEmpty ||
+        _addressController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(tr('required_fields'))),
+      );
+      return false;
+    }
+    if (_base64Logo == null || _base64Logo!.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(tr('please_select_logo'))),
+      );
+      return false;
+    }
+    return true;
+  }
+
+  // اختيار صورة الشعار من المعرض وتحويلها إلى base64
+  Future<void> _pickLogo() async {
+    try {
+      final picker = ImagePicker();
+      final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+
+      if (pickedFile == null) {
+        safeDebugPrint('❌ لم يتم اختيار صورة');
+        return;
+      }
+
+      if (kIsWeb) {
+        final bytes = await pickedFile.readAsBytes();
+        _webImageBytes = bytes;
+        _base64Logo = base64Encode(bytes);
+      } else {
+        _logoImage = File(pickedFile.path);
+        final bytes = await _logoImage!.readAsBytes();
+        _base64Logo = base64Encode(bytes);
+      }
+      setState(() {});
+      safeDebugPrint('✅ تم اختيار الشعار بنجاح');
+    } catch (e) {
+      safeDebugPrint('❌ خطأ أثناء اختيار الشعار: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(tr('error_selecting_logo'))),
+        );
+      }
+    }
+  }
+
+  // حفظ البيانات في Hive
+  Future<void> _saveToHive(
+      String companyId, Map<String, dynamic> companyData, String userId) async {
+    try {
+      // حفظ بيانات الشركة
+      await _companiesBox.put(companyId, {
+        ...companyData,
+        'cachedAt': DateTime.now().millisecondsSinceEpoch,
+      });
+
+      // تحديث قائمة شركات المستخدم
+      final userCompaniesKey = 'user_companies_$userId';
+      final existingCompanies = _companiesBox.get(userCompaniesKey) ?? [];
+      final updatedCompanies =
+          List<Map<String, dynamic>>.from(existingCompanies);
+
+      updatedCompanies.add({
+        'id': companyId,
+        'nameAr': companyData['nameAr'],
+        'nameEn': companyData['nameEn'],
+        'logoBase64': companyData['logoBase64'],
+        'cachedAt': DateTime.now().millisecondsSinceEpoch,
+      });
+
+      await _companiesBox.put(userCompaniesKey, updatedCompanies);
+
+      safeDebugPrint('[HIVE] تم حفظ بيانات الشركة في التخزين المحلي');
+    } catch (e) {
+      safeDebugPrint('[HIVE ERROR] فشل في حفظ البيانات المحلية: $e');
+    }
+  }
+
+  Future<bool> _verifyUserPermissions() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return false;
+
+      // تحديث token للمستخدم لتفعيل الصلاحيات
+      await user.getIdToken(true);
+
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+
+      if (!userDoc.exists) return false;
+
+      final isActive = userDoc.data()?['isActive'] ?? false;
+      final isAdmin = userDoc.data()?['isAdmin'] ?? false;
+
+      safeDebugPrint('🔐 حالة المستخدم - نشط: $isActive, أدمن: $isAdmin');
+
+      return isActive == true || isAdmin == true;
+    } catch (e) {
+      safeDebugPrint('❌ خطأ في التحقق من صلاحيات المستخدم: $e');
+      return false;
+    }
+  }
+
+  // دالة إضافة الشركة
+Future<void> _addCompany() async {
+  if (!_validateInputs()) return;
+
+  final userId = _currentUser?.uid;
+  if (userId == null) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(tr('user_not_logged_in'))),
+    );
+    return;
+  }
+
+  // التحقق من الصلاحيات أولاً
+  final hasPermission = await _verifyUserPermissions();
+  if (!hasPermission) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(tr('user_not_active_or_no_permission'))),
+    );
+    return;
+  }
+
+  final isActive = await _checkUserActive();
+  if (!isActive) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(tr('user_not_active'))),
+    );
+    return;
+  }
+
+  final isDuplicate = await _isCompanyDuplicate(
+      _nameArController.text, _nameEnController.text);
+  if (isDuplicate) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(tr('company_already_exists'))),
+    );
+    return;
+  }
+
+  setState(() => _isLoading = true);
+
+  try {
+    final companyData = {
+      'nameAr': _nameArController.text.trim(),
+      'nameEn': _nameEnController.text.trim(),
+      'address': _addressController.text.trim(),
+      'managerName': _managerNameController.text.trim(),
+      'managerPhone': _managerPhoneController.text.trim(),
+      'logoBase64': _base64Logo,
+      'userId': userId,
+      'createdAt': FieldValue.serverTimestamp(),
+    };
+
+    final docRef = await FirebaseFirestore.instance
+        .collection('companies')
+        .add(companyData);
+
+    final companyId = docRef.id;
+
+    // تحديث قائمة الشركات في مستند المستخدم
+    final userDocRef = FirebaseFirestore.instance.collection('users').doc(userId);
+    await userDocRef.update({
+      'companyIds': FieldValue.arrayUnion([companyId]),
+    });
+
+    // حفظ البيانات في Hive
+    await _saveToHive(companyId, companyData, userId);
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(tr('company_added_successfully'))),
+      );
+
+      // ✅ التعديل هنا: إرجاع بيانات الشركة الجديدة بدلاً من الانتقال
+      context.pop({
+        'success': true,
+        'company': {
+          'id': companyId,
+          'nameAr': _nameArController.text.trim(),
+          'nameEn': _nameEnController.text.trim(),
+          'address': _addressController.text.trim(),
+          'managerName': _managerNameController.text.trim(),
+          'managerPhone': _managerPhoneController.text.trim(),
+          'logoBase64': _base64Logo,
+          'userId': userId,
+          'createdAt': Timestamp.now(),
+        }
+      });
+    }
+  } catch (e) {
+    safeDebugPrint('❌ خطأ أثناء إضافة الشركة: $e');
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(tr('error_while_adding_company'))),
+      );
+      
+      // ✅ إرجاع حالة الفشل
+      context.pop({
+        'success': false,
+        'error': e.toString()
+      });
+    }
+  } finally {
+    setState(() => _isLoading = false);
+  }
+}
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(tr('add_company')),
+      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  TextField(
+                    controller: _nameArController,
+                    decoration:
+                        InputDecoration(labelText: tr('company_nameArabic')),
+                    inputFormatters: [arabicOnlyFormatter],
+                    textInputAction: TextInputAction.next,
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: _nameEnController,
+                    decoration:
+                        InputDecoration(labelText: tr('company_nameEnglish')),
+                    inputFormatters: [englishOnlyFormatter],
+                    textInputAction: TextInputAction.next,
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: _addressController,
+                    decoration:
+                        InputDecoration(labelText: tr('company_address')),
+                    textInputAction: TextInputAction.next,
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: _managerNameController,
+                    decoration:
+                        InputDecoration(labelText: tr('company_managerName')),
+                    textInputAction: TextInputAction.next,
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: _managerPhoneController,
+                    decoration:
+                        InputDecoration(labelText: tr('company_managerPhone')),
+                    keyboardType: TextInputType.phone,
+                    inputFormatters: [numbersOnlyFormatter],
+                    textInputAction: TextInputAction.done,
+                  ),
+                  const SizedBox(height: 24),
+                  ElevatedButton.icon(
+                    onPressed: _pickLogo,
+                    icon: const Icon(Icons.image),
+                    label: Text(tr('please_select_logo')),
+                    style: ElevatedButton.styleFrom(
+                      minimumSize: const Size.fromHeight(50),
+                    ),
+                  ),
+                  if (_base64Logo != null) ...[
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.grey.shade300),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: kIsWeb
+                          ? Image.memory(_webImageBytes!,
+                              height: 150, fit: BoxFit.contain)
+                          : Image.file(_logoImage!,
+                              height: 150, fit: BoxFit.contain),
+                    ),
+                  ],
+                  const SizedBox(height: 32),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: _addCompany,
+                      style: ElevatedButton.styleFrom(
+                        minimumSize: const Size.fromHeight(50),
+                        backgroundColor: Theme.of(context).primaryColor,
+                      ),
+                      child: _isLoading
+                          ? const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : Text(
+                              tr('add_company'),
+                              style: const TextStyle(
+                                  fontSize: 16, color: Colors.white),
+                            ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+    );
+  }
+}
+
+/* import 'dart:convert';
+import 'dart:io';
+import 'package:puresip_purchasing/debug_helper.dart';
+import 'package:easy_localization/easy_localization.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:go_router/go_router.dart';
 
 class AddCompanyPage extends StatefulWidget {
   const AddCompanyPage({super.key});
@@ -1358,4 +1836,4 @@ class _AddCompanyPageState extends State<AddCompanyPage> {
     );
   }
 }
- */ */
+ */ */ */
