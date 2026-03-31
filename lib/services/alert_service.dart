@@ -1,4 +1,4 @@
-//import 'package:flutter/material.dart';
+/* //import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:puresip_purchasing/models/manufacturing_order_model.dart';
 import 'package:easy_localization/easy_localization.dart';
@@ -115,4 +115,141 @@ void _showExpiryAlert(ManufacturingOrder order) async {
     );
   }
   
+} */
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:puresip_purchasing/models/manufacturing_order_model.dart';
+import 'package:easy_localization/easy_localization.dart';
+import 'package:puresip_purchasing/pages/manufacturing/services/manufacturing_service.dart';
+import 'package:puresip_purchasing/debug_helper.dart';
+
+class AlertService {
+  final FlutterLocalNotificationsPlugin _notifications =
+      FlutterLocalNotificationsPlugin();
+  final ManufacturingService _manufacturingService;
+
+  AlertService(this._manufacturingService) {
+    _initializeNotifications();
+    _startMonitoring();
+  }
+
+  void _initializeNotifications() async {
+    const AndroidInitializationSettings initializationSettingsAndroid =
+        AndroidInitializationSettings('@mipmap/ic_launcher');
+
+    const DarwinInitializationSettings initializationSettingsIOS =
+        DarwinInitializationSettings(
+      requestAlertPermission: true,
+      requestBadgePermission: true,
+      requestSoundPermission: true,
+    );
+
+    const InitializationSettings initializationSettings =
+        InitializationSettings(
+      android: initializationSettingsAndroid,
+      iOS: initializationSettingsIOS,
+    );
+
+    // ✅ تمرير settings كمعامل مسمّى
+    await _notifications.initialize(settings: initializationSettings);
+  }
+
+  void _startMonitoring() {
+    // مراقبة المنتجات المنتهية الصلاحية
+    _manufacturingService.getExpiringProducts().listen((orders) {
+      for (final order in orders) {
+        _showExpiryAlert(order);
+      }
+    });
+
+    // مراقبة المخزون المنخفض
+    try {
+      _manufacturingService.getLowStockMaterials().listen((materials) {
+        for (final material in materials) {
+          _showLowStockAlert(material);
+        }
+      }, onError: (error) {
+        safeDebugPrint('Error monitoring low stock: $error');
+      });
+    } catch (e) {
+      safeDebugPrint('Failed to start low stock monitoring: $e');
+    }
+  }
+
+  void _showExpiryAlert(ManufacturingOrder order) async {
+    const androidDetails = AndroidNotificationDetails(
+      'expiry_alerts',
+      'تنبيهات انتهاء الصلاحية',
+      importance: Importance.max,
+      priority: Priority.high,
+    );
+
+    const iosDetails = DarwinNotificationDetails();
+
+    const notificationDetails = NotificationDetails(
+      android: androidDetails,
+      iOS: iosDetails,
+    );
+
+    // ✅ تمرير notificationDetails كمعامل مسمّى + id كمعامل مسمّى
+    await _notifications.show(
+      id: 0,
+      title: 'manufacturing.alerts.expiry_alert'.tr(),
+      body: 'manufacturing.alerts.expiry_message'.tr(
+        args: [
+          order.productName,
+          order.runs.isNotEmpty ? order.runs.first.batchNumber : 'N/A',
+          '${order.expiryDate.year}/${order.expiryDate.month}/${order.expiryDate.day}'
+        ],
+      ),
+      notificationDetails: notificationDetails,
+    );
+  }
+
+  void _showLowStockAlert(RawMaterial material) async {
+    const androidDetails = AndroidNotificationDetails(
+      'stock_alerts',
+      'تنبيهات المخزون',
+      importance: Importance.max,
+      priority: Priority.high,
+    );
+
+    const iosDetails = DarwinNotificationDetails();
+
+    const notificationDetails = NotificationDetails(
+      android: androidDetails,
+      iOS: iosDetails,
+    );
+
+    await _notifications.show(
+      id: 1,
+      title: 'manufacturing.alerts.low_stock'.tr(),
+      body: 'manufacturing.alerts.low_stock_message'.tr(
+        args: [material.materialName],
+      ),
+      notificationDetails: notificationDetails,
+    );
+  }
+
+  Future<void> showCustomNotification(String title, String body) async {
+    const androidDetails = AndroidNotificationDetails(
+      'custom_alerts',
+      'تنبيهات مخصصة',
+      importance: Importance.max,
+      priority: Priority.high,
+    );
+
+    const iosDetails = DarwinNotificationDetails();
+
+    const notificationDetails = NotificationDetails(
+      android: androidDetails,
+      iOS: iosDetails,
+    );
+
+    await _notifications.show(
+      id: DateTime.now().millisecondsSinceEpoch.remainder(100000),
+      title: title,
+      body: body,
+      notificationDetails: notificationDetails,
+    );
+  }
 }

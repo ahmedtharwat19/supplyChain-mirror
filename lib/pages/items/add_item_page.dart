@@ -255,12 +255,10 @@ class _AddItemPageState extends State<AddItemPage> {
   bool _isLoading = false;
 
   final arabicOnlyFormatter =
-      FilteringTextInputFormatter.allow(RegExp(r'[\u0600-\u06FF\s]'));
-  final englishOnlyFormatter =
-      FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z\s]'));
+      FilteringTextInputFormatter.allow(r'[\u0600-\u06FF\s]');
+  final englishOnlyFormatter = FilteringTextInputFormatter.allow(r'[a-zA-Z\s]');
   final numbersOnlyFormatter = FilteringTextInputFormatter.digitsOnly;
-  final priceFormatter =
-      FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}'));
+  final priceFormatter = FilteringTextInputFormatter.allow(r'^\d*\.?\d{0,2}');
 
   @override
   void initState() {
@@ -302,10 +300,10 @@ class _AddItemPageState extends State<AddItemPage> {
       final userId = user?['userId'];
       safeDebugPrint('Local User ID: $userId');
 
-    //       final authUser = FirebaseAuth.instance.currentUser;
-    // final userId = authUser?.uid;
+      //       final authUser = FirebaseAuth.instance.currentUser;
+      // final userId = authUser?.uid;
 
-    // safeDebugPrint('🔥 Auth UID: $userId');
+      // safeDebugPrint('🔥 Auth UID: $userId');
       if (userId == null) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
@@ -436,7 +434,7 @@ class _AddItemPageState extends State<AddItemPage> {
                 decoration: InputDecoration(labelText: tr('unit_price')),
                 keyboardType: TextInputType.number,
                 inputFormatters: [
-                  FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}'))
+                  FilteringTextInputFormatter.allow(r'^\d+\.?\d{0,2}')
                 ],
                 validator: (value) {
                   if (value == null || value.trim().isEmpty) {

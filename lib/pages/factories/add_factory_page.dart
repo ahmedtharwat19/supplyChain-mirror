@@ -544,22 +544,23 @@ class _AddFactoryPageState extends State<AddFactoryPage> {
   TextInputFormatter _getFmt(String lang) {
     switch (lang) {
       case 'arabic':
-        return FilteringTextInputFormatter.allow(RegExp(r'[\u0600-\u06FF\s]'));
+        return FilteringTextInputFormatter.allow(r'[\u0600-\u06FF\s]');
       case 'english':
-        return FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z\s]'));
+        return FilteringTextInputFormatter.allow(r'[a-zA-Z\s]');
       case 'digits':
         return FilteringTextInputFormatter.digitsOnly;
       default:
-        return FilteringTextInputFormatter.allow(RegExp('.*'));
+        return FilteringTextInputFormatter.allow(r'.*');
     }
   }
 
   Function(String) _onChangeWarn(String lang) => (value) {
         final invalid = lang == 'arabic'
-            ? RegExp(r'[^\u0600-\u06FF\s]').hasMatch(value)
+            ? r'[^\u0600-\u06FF\s]'.allMatches(value).isNotEmpty
             : lang == 'english'
-                ? RegExp(r'[^a-zA-Z\s]').hasMatch(value)
-                : RegExp(r'[^\d]').hasMatch(value);
+                ? r'[^a-zA-Z\s]'.allMatches(value).isNotEmpty
+                : r'[^\d]'.allMatches(value).isNotEmpty;
+
         setState(() {
           if (lang == 'arabic') _warnAr = invalid;
           if (lang == 'english') _warnEn = invalid;

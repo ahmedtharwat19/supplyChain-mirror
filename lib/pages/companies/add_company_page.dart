@@ -1,5 +1,1105 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:go_router/go_router.dart';
+import 'package:hive_flutter/hive_flutter.dart';
+import 'package:easy_localization/easy_localization.dart';
+import 'package:puresip_purchasing/debug_helper.dart';
+import 'package:puresip_purchasing/widgets/app_scaffold.dart';
+
+// تجاهل تحذيرات RegExp على مستوى الملف
+// ignore_for_file: deprecated_member_use
+
+class AddCompanyPage extends StatefulWidget {
+  const AddCompanyPage({super.key});
+
+  @override
+  State<AddCompanyPage> createState() => _AddCompanyPageState();
+}
+
+class _AddCompanyPageState extends State<AddCompanyPage> {
+  final _nameArController = TextEditingController();
+  final _nameEnController = TextEditingController();
+  final _addressController = TextEditingController();
+  final _managerNameController = TextEditingController();
+  final _managerPhoneController = TextEditingController();
+
+  File? _logoImage;
+  Uint8List? _imageBytes;
+  String? _base64Logo;
+
+  bool _isLoading = false;
+  User? _currentUser;
+
+  late Box _companiesBox;
+  late Box _userDataBox;
+
+  // تعريف الـ RegExp للتحقق
+  final RegExp arabicRegExp = RegExp(r'^[\u0600-\u06FF\s]*$');
+  final RegExp englishRegExp = RegExp(r'^[a-zA-Z\s]*$');
+  final RegExp phoneRegExp = RegExp(r'^[\d+\-\s\(\)]*$');
+
+  @override
+  void initState() {
+    super.initState();
+    _currentUser = FirebaseAuth.instance.currentUser;
+    safeDebugPrint('👤 المستخدم الحالي: ${_currentUser?.uid ?? "غير مسجل"}');
+    _initializeHive();
+  }
+
+  Future<void> _initializeHive() async {
+    try {
+      await Hive.initFlutter();
+      _companiesBox = await Hive.openBox('companies_cache');
+      _userDataBox = await Hive.openBox('user_data_cache');
+      await _userDataBox.put('current_user', _currentUser?.uid);
+      safeDebugPrint('[HIVE] Hive initialized successfully');
+    } catch (e) {
+      safeDebugPrint('[HIVE ERROR] Initialization failed: $e');
+    }
+  }
+
+  @override
+  void dispose() {
+    _nameArController.dispose();
+    _nameEnController.dispose();
+    _addressController.dispose();
+    _managerNameController.dispose();
+    _managerPhoneController.dispose();
+    super.dispose();
+  }
+
+  bool _validateInputs() {
+    // التحقق من أن الحقول غير فارغة
+    if (_nameArController.text.trim().isEmpty ||
+        _nameEnController.text.trim().isEmpty ||
+        _addressController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(tr('required_fields'))),
+      );
+      return false;
+    }
+
+    // التحقق من أن الاسم العربي يحتوي على أحرف عربية فقط
+    if (!arabicRegExp.hasMatch(_nameArController.text)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(tr('company_name_arabic_invalid'))),
+      );
+      return false;
+    }
+
+    // التحقق من أن الاسم الإنجليزي يحتوي على أحرف إنجليزية فقط
+    if (!englishRegExp.hasMatch(_nameEnController.text)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(tr('company_name_english_invalid'))),
+      );
+      return false;
+    }
+
+    // التحقق من رقم الهاتف (إذا كان مدخلاً)
+    if (_managerPhoneController.text.trim().isNotEmpty) {
+      if (!phoneRegExp.hasMatch(_managerPhoneController.text)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(tr('phone_number_invalid'))),
+        );
+        return false;
+      }
+    }
+
+    if (_base64Logo == null || _base64Logo!.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(tr('please_select_logo'))),
+      );
+      return false;
+    }
+    return true;
+  }
+
+  Future<void> _pickLogo() async {
+    try {
+      final picker = ImagePicker();
+      final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+      if (pickedFile == null) return;
+
+      final bytes = await pickedFile.readAsBytes();
+      _imageBytes = bytes;
+      _base64Logo = base64Encode(bytes);
+      if (!kIsWeb) _logoImage = File(pickedFile.path);
+
+      setState(() {});
+      safeDebugPrint('✅ تم اختيار الشعار بنجاح');
+    } catch (e) {
+      safeDebugPrint('❌ خطأ أثناء اختيار الشعار: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(tr('error_selecting_logo'))),
+        );
+      }
+    }
+  }
+
+  Future<bool> _isCompanyDuplicate(String nameAr, String nameEn) async {
+    final userId = _currentUser?.uid;
+    if (userId == null) return false;
+
+    final cachedCompanies = _companiesBox.get('user_companies_$userId');
+    if (cachedCompanies != null) {
+      final companies = List<Map<String, dynamic>>.from(cachedCompanies);
+      final normalizedAr = nameAr.trim().toLowerCase();
+      final normalizedEn = nameEn.trim().toLowerCase();
+
+      for (var company in companies) {
+        final existingAr =
+            (company['nameAr'] ?? '').toString().trim().toLowerCase();
+        final existingEn =
+            (company['nameEn'] ?? '').toString().trim().toLowerCase();
+        if (existingAr == normalizedAr || existingEn == normalizedEn) return true;
+      }
+    }
+
+    final userDoc =
+        await FirebaseFirestore.instance.collection('users').doc(userId).get();
+    final companyIds = List<String>.from(userDoc.data()?['companyIds'] ?? []);
+
+    if (companyIds.isEmpty) return false;
+
+    for (var i = 0; i < companyIds.length; i += 10) {
+      final batchIds = companyIds.sublist(
+          i, i + 10 > companyIds.length ? companyIds.length : i + 10);
+      final snapshot = await FirebaseFirestore.instance
+          .collection('companies')
+          .where(FieldPath.documentId, whereIn: batchIds)
+          .get();
+
+      final normalizedAr = nameAr.trim().toLowerCase();
+      final normalizedEn = nameEn.trim().toLowerCase();
+
+      for (var doc in snapshot.docs) {
+        final existingAr = (doc['nameAr'] ?? '').toString().trim().toLowerCase();
+        final existingEn = (doc['nameEn'] ?? '').toString().trim().toLowerCase();
+        if (existingAr == normalizedAr || existingEn == normalizedEn) return true;
+      }
+    }
+    return false;
+  }
+
+  Future<void> _saveToHive(
+      String companyId, Map<String, dynamic> companyData, String userId) async {
+    try {
+      await _companiesBox.put(companyId, {
+        ...companyData,
+        'cachedAt': DateTime.now().millisecondsSinceEpoch,
+      });
+
+      final userCompaniesKey = 'user_companies_$userId';
+      final existingCompanies = _companiesBox.get(userCompaniesKey) ?? [];
+      final updatedCompanies = List<Map<String, dynamic>>.from(existingCompanies);
+
+      updatedCompanies.add({
+        'id': companyId,
+        'nameAr': companyData['nameAr'],
+        'nameEn': companyData['nameEn'],
+        'logoBase64': companyData['logoBase64'],
+        'cachedAt': DateTime.now().millisecondsSinceEpoch,
+      });
+
+      await _companiesBox.put(userCompaniesKey, updatedCompanies);
+      safeDebugPrint('[HIVE] تم حفظ بيانات الشركة في التخزين المحلي');
+    } catch (e) {
+      safeDebugPrint('[HIVE ERROR] فشل في حفظ البيانات المحلية: $e');
+    }
+  }
+
+  Future<bool> _verifyUserPermissions() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return false;
+      await user.getIdToken(true);
+
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+      if (!userDoc.exists) return false;
+
+      final isActive = userDoc.data()?['isActive'] ?? false;
+      final isAdmin = userDoc.data()?['isAdmin'] ?? false;
+
+      safeDebugPrint('🔐 حالة المستخدم - نشط: $isActive, أدمن: $isAdmin');
+
+      return isActive == true || isAdmin == true;
+    } catch (e) {
+      safeDebugPrint('❌ خطأ في التحقق من صلاحيات المستخدم: $e');
+      return false;
+    }
+  }
+
+  Future<void> _addCompany() async {
+    if (!_validateInputs()) return;
+
+    final userId = _currentUser?.uid;
+    if (userId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(tr('user_not_logged_in'))),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      final hasPermission = await _verifyUserPermissions();
+      if (!hasPermission) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(tr('user_not_active_or_no_permission'))),
+        );
+        return;
+      }
+
+      final isDuplicate = await _isCompanyDuplicate(
+          _nameArController.text, _nameEnController.text);
+      if (isDuplicate) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(tr('company_already_exists'))),
+        );
+        return;
+      }
+
+      final companyData = {
+        'nameAr': _nameArController.text.trim(),
+        'nameEn': _nameEnController.text.trim(),
+        'address': _addressController.text.trim(),
+        'managerName': _managerNameController.text.trim(),
+        'managerPhone': _managerPhoneController.text.trim(),
+        'logoBase64': _base64Logo,
+        'userId': userId,
+        'createdAt': FieldValue.serverTimestamp(),
+      };
+
+      final docRef = await FirebaseFirestore.instance
+          .collection('companies')
+          .add(companyData);
+      final companyId = docRef.id;
+
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
+          .update({'companyIds': FieldValue.arrayUnion([companyId])});
+
+      await _saveToHive(companyId, companyData, userId);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(tr('company_added_successfully'))),
+        );
+        context.pop({
+          'success': true,
+          'company': {
+            'id': companyId,
+            ...companyData,
+            'createdAt': Timestamp.now(),
+          }
+        });
+      }
+    } catch (e) {
+      safeDebugPrint('❌ خطأ أثناء إضافة الشركة: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(tr('error_while_adding_company'))),
+        );
+        context.pop({'success': false, 'error': e.toString()});
+      }
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AppScaffold(
+      title: tr('add_company'),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // اسم الشركة بالعربية
+                  TextFormField(
+                    controller: _nameArController,
+                    decoration: InputDecoration(
+                      labelText: tr('company_nameArabic'),
+                      labelStyle: TextStyle(color: Colors.grey.shade700),
+                      prefixIcon: const Icon(Icons.text_fields),
+                      hintText: 'مثال: شركة الأمل',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: Colors.grey.shade300),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: Theme.of(context).primaryColor, width: 2),
+                      ),
+                    ),
+                    textInputAction: TextInputAction.next,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(RegExp(r'[\u0600-\u06FF\s]')),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+
+                  // اسم الشركة بالإنجليزية
+                  TextFormField(
+                    controller: _nameEnController,
+                    decoration: InputDecoration(
+                      labelText: tr('company_nameEnglish'),
+                      labelStyle: TextStyle(color: Colors.grey.shade700),
+                      prefixIcon: const Icon(Icons.translate),
+                      hintText: 'Example: Al Amal Company',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: Colors.grey.shade300),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: Theme.of(context).primaryColor, width: 2),
+                      ),
+                    ),
+                    textInputAction: TextInputAction.next,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z\s]')),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+
+                  // عنوان الشركة
+                  TextFormField(
+                    controller: _addressController,
+                    decoration: InputDecoration(
+                      labelText: tr('company_address'),
+                      labelStyle: TextStyle(color: Colors.grey.shade700),
+                      prefixIcon: const Icon(Icons.location_on),
+                      hintText: tr('enter_address'),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: Colors.grey.shade300),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: Theme.of(context).primaryColor, width: 2),
+                      ),
+                    ),
+                    textInputAction: TextInputAction.next,
+                  ),
+                  const SizedBox(height: 16),
+
+                  // اسم المدير
+                  TextFormField(
+                    controller: _managerNameController,
+                    decoration: InputDecoration(
+                      labelText: tr('company_managerName'),
+                      labelStyle: TextStyle(color: Colors.grey.shade700),
+                      prefixIcon: const Icon(Icons.person),
+                      hintText: tr('enter_manager_name'),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: Colors.grey.shade300),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: Theme.of(context).primaryColor, width: 2),
+                      ),
+                    ),
+                    textInputAction: TextInputAction.next,
+                  ),
+                  const SizedBox(height: 16),
+
+                  // رقم هاتف المدير
+                  TextFormField(
+                    controller: _managerPhoneController,
+                    decoration: InputDecoration(
+                      labelText: tr('company_managerPhone'),
+                      labelStyle: TextStyle(color: Colors.grey.shade700),
+                      prefixIcon: const Icon(Icons.phone),
+                      hintText: '012xxxxxxx',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: Colors.grey.shade300),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: Theme.of(context).primaryColor, width: 2),
+                      ),
+                    ),
+                    keyboardType: TextInputType.phone,
+                    textInputAction: TextInputAction.done,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(RegExp(r'[\d+\-\s\(\)]')),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+
+                  // زر اختيار الشعار
+                  ElevatedButton.icon(
+                    onPressed: _pickLogo,
+                    icon: const Icon(Icons.image),
+                    label: Text(tr('please_select_logo')),
+                    style: ElevatedButton.styleFrom(
+                      minimumSize: const Size.fromHeight(50),
+                      backgroundColor: Colors.grey.shade200,
+                      foregroundColor: Colors.grey.shade800,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                  
+                  // عرض الصورة المختارة
+                  if (_imageBytes != null) ...[
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade50,
+                        border: Border.all(color: Colors.grey.shade300),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Column(
+                        children: [
+                          kIsWeb
+                              ? Image.memory(_imageBytes!, height: 150, fit: BoxFit.contain)
+                              : Image.file(_logoImage!, height: 150, fit: BoxFit.contain),
+                          const SizedBox(height: 8),
+                          TextButton.icon(
+                            onPressed: () {
+                              setState(() {
+                                _imageBytes = null;
+                                _logoImage = null;
+                                _base64Logo = null;
+                              });
+                            },
+                            icon: const Icon(Icons.delete, size: 16),
+                            label: Text(tr('remove_logo')),
+                            style: TextButton.styleFrom(
+                              foregroundColor: Colors.red,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                  
+                  const SizedBox(height: 32),
+                  
+                  // زر الإضافة
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: _addCompany,
+                      style: ElevatedButton.styleFrom(
+                        minimumSize: const Size.fromHeight(50),
+                        backgroundColor: const Color.fromARGB(255, 69, 200, 218), // Theme.of(context).primaryColor,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        elevation: 2,
+                      ),
+                      child: _isLoading
+                          ? const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                              ),
+                            )
+                          : Text(
+                              tr('add_company'),
+                              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                            ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+    );
+  }
+}
+/* import 'dart:convert';
+import 'dart:io';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:go_router/go_router.dart';
+import 'package:hive_flutter/hive_flutter.dart';
+import 'package:easy_localization/easy_localization.dart';
+import 'package:puresip_purchasing/debug_helper.dart';
+
+class AddCompanyPage extends StatefulWidget {
+  const AddCompanyPage({super.key});
+
+  @override
+  State<AddCompanyPage> createState() => _AddCompanyPageState();
+}
+
+class _AddCompanyPageState extends State<AddCompanyPage> {
+  final _nameArController = TextEditingController();
+  final _nameEnController = TextEditingController();
+  final _addressController = TextEditingController();
+  final _managerNameController = TextEditingController();
+  final _managerPhoneController = TextEditingController();
+
+  File? _logoImage;
+  Uint8List? _imageBytes;
+  String? _base64Logo;
+
+  bool _isLoading = false;
+  User? _currentUser;
+
+  late Box _companiesBox;
+  late Box _userDataBox;
+
+  // استخدام RegExp بدلاً من Pattern
+  final RegExp arabicOnlyRegExp = RegExp(r'[\u0600-\u06FF\s]');
+  final RegExp englishOnlyRegExp = RegExp(r'[a-zA-Z\s]');
+  final RegExp numbersOnlyRegExp = RegExp(r'\d+');
+  final RegExp phoneRegExp = RegExp(r'^[\d+\-\s\(\)]+$'); // للسماح بالأرقام والرموز
+
+  @override
+  void initState() {
+    super.initState();
+    _currentUser = FirebaseAuth.instance.currentUser;
+    safeDebugPrint('👤 المستخدم الحالي: ${_currentUser?.uid ?? "غير مسجل"}');
+    _initializeHive();
+  }
+
+  Future<void> _initializeHive() async {
+    try {
+      await Hive.initFlutter();
+      _companiesBox = await Hive.openBox('companies_cache');
+      _userDataBox = await Hive.openBox('user_data_cache');
+      await _userDataBox.put('current_user', _currentUser?.uid);
+      safeDebugPrint('[HIVE] Hive initialized successfully');
+    } catch (e) {
+      safeDebugPrint('[HIVE ERROR] Initialization failed: $e');
+    }
+  }
+
+  @override
+  void dispose() {
+    _nameArController.dispose();
+    _nameEnController.dispose();
+    _addressController.dispose();
+    _managerNameController.dispose();
+    _managerPhoneController.dispose();
+    super.dispose();
+  }
+
+  bool _validateInputs() {
+    if (_nameArController.text.trim().isEmpty ||
+        _nameEnController.text.trim().isEmpty ||
+        _addressController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(tr('required_fields'))),
+      );
+      return false;
+    }
+    if (_base64Logo == null || _base64Logo!.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(tr('please_select_logo'))),
+      );
+      return false;
+    }
+    return true;
+  }
+
+  Future<void> _pickLogo() async {
+    try {
+      final picker = ImagePicker();
+      final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+      if (pickedFile == null) return;
+
+      final bytes = await pickedFile.readAsBytes();
+      _imageBytes = bytes;
+      _base64Logo = base64Encode(bytes);
+      if (!kIsWeb) _logoImage = File(pickedFile.path);
+
+      setState(() {});
+      safeDebugPrint('✅ تم اختيار الشعار بنجاح');
+    } catch (e) {
+      safeDebugPrint('❌ خطأ أثناء اختيار الشعار: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(tr('error_selecting_logo'))),
+        );
+      }
+    }
+  }
+
+  Future<bool> _isCompanyDuplicate(String nameAr, String nameEn) async {
+    final userId = _currentUser?.uid;
+    if (userId == null) return false;
+
+    final cachedCompanies = _companiesBox.get('user_companies_$userId');
+    if (cachedCompanies != null) {
+      final companies = List<Map<String, dynamic>>.from(cachedCompanies);
+      final normalizedAr = nameAr.trim().toLowerCase();
+      final normalizedEn = nameEn.trim().toLowerCase();
+
+      for (var company in companies) {
+        final existingAr =
+            (company['nameAr'] ?? '').toString().trim().toLowerCase();
+        final existingEn =
+            (company['nameEn'] ?? '').toString().trim().toLowerCase();
+        if (existingAr == normalizedAr || existingEn == normalizedEn) return true;
+      }
+    }
+
+    final userDoc =
+        await FirebaseFirestore.instance.collection('users').doc(userId).get();
+    final companyIds = List<String>.from(userDoc.data()?['companyIds'] ?? []);
+
+    if (companyIds.isEmpty) return false;
+
+    for (var i = 0; i < companyIds.length; i += 10) {
+      final batchIds = companyIds.sublist(
+          i, i + 10 > companyIds.length ? companyIds.length : i + 10);
+      final snapshot = await FirebaseFirestore.instance
+          .collection('companies')
+          .where(FieldPath.documentId, whereIn: batchIds)
+          .get();
+
+      final normalizedAr = nameAr.trim().toLowerCase();
+      final normalizedEn = nameEn.trim().toLowerCase();
+
+      for (var doc in snapshot.docs) {
+        final existingAr = (doc['nameAr'] ?? '').toString().trim().toLowerCase();
+        final existingEn = (doc['nameEn'] ?? '').toString().trim().toLowerCase();
+        if (existingAr == normalizedAr || existingEn == normalizedEn) return true;
+      }
+    }
+    return false;
+  }
+
+  Future<void> _saveToHive(
+      String companyId, Map<String, dynamic> companyData, String userId) async {
+    try {
+      await _companiesBox.put(companyId, {
+        ...companyData,
+        'cachedAt': DateTime.now().millisecondsSinceEpoch,
+      });
+
+      final userCompaniesKey = 'user_companies_$userId';
+      final existingCompanies = _companiesBox.get(userCompaniesKey) ?? [];
+      final updatedCompanies = List<Map<String, dynamic>>.from(existingCompanies);
+
+      updatedCompanies.add({
+        'id': companyId,
+        'nameAr': companyData['nameAr'],
+        'nameEn': companyData['nameEn'],
+        'logoBase64': companyData['logoBase64'],
+        'cachedAt': DateTime.now().millisecondsSinceEpoch,
+      });
+
+      await _companiesBox.put(userCompaniesKey, updatedCompanies);
+      safeDebugPrint('[HIVE] تم حفظ بيانات الشركة في التخزين المحلي');
+    } catch (e) {
+      safeDebugPrint('[HIVE ERROR] فشل في حفظ البيانات المحلية: $e');
+    }
+  }
+
+  Future<bool> _verifyUserPermissions() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return false;
+      await user.getIdToken(true);
+
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+      if (!userDoc.exists) return false;
+
+      final isActive = userDoc.data()?['isActive'] ?? false;
+      final isAdmin = userDoc.data()?['isAdmin'] ?? false;
+
+      safeDebugPrint('🔐 حالة المستخدم - نشط: $isActive, أدمن: $isAdmin');
+
+      return isActive == true || isAdmin == true;
+    } catch (e) {
+      safeDebugPrint('❌ خطأ في التحقق من صلاحيات المستخدم: $e');
+      return false;
+    }
+  }
+
+  Future<void> _addCompany() async {
+    if (!_validateInputs()) return;
+
+    final userId = _currentUser?.uid;
+    if (userId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(tr('user_not_logged_in'))),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      final hasPermission = await _verifyUserPermissions();
+      if (!hasPermission) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(tr('user_not_active_or_no_permission'))),
+        );
+        return;
+      }
+
+      final isDuplicate = await _isCompanyDuplicate(
+          _nameArController.text, _nameEnController.text);
+      if (isDuplicate) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(tr('company_already_exists'))),
+        );
+        return;
+      }
+
+      final companyData = {
+        'nameAr': _nameArController.text.trim(),
+        'nameEn': _nameEnController.text.trim(),
+        'address': _addressController.text.trim(),
+        'managerName': _managerNameController.text.trim(),
+        'managerPhone': _managerPhoneController.text.trim(),
+        'logoBase64': _base64Logo,
+        'userId': userId,
+        'createdAt': FieldValue.serverTimestamp(),
+      };
+
+      final docRef = await FirebaseFirestore.instance
+          .collection('companies')
+          .add(companyData);
+      final companyId = docRef.id;
+
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
+          .update({'companyIds': FieldValue.arrayUnion([companyId])});
+
+      await _saveToHive(companyId, companyData, userId);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(tr('company_added_successfully'))),
+        );
+        context.pop({
+          'success': true,
+          'company': {
+            'id': companyId,
+            ...companyData,
+            'createdAt': Timestamp.now(),
+          }
+        });
+      }
+    } catch (e) {
+      safeDebugPrint('❌ خطأ أثناء إضافة الشركة: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(tr('error_while_adding_company'))),
+        );
+        context.pop({'success': false, 'error': e.toString()});
+      }
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(tr('add_company')),
+        elevation: 0,
+        backgroundColor: Theme.of(context).primaryColor,
+        foregroundColor: Colors.white,
+      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // اسم الشركة بالعربية
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade50,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: TextFormField(
+                      controller: _nameArController,
+                      decoration: InputDecoration(
+                        labelText: tr('company_nameArabic'),
+                        labelStyle: TextStyle(color: Colors.grey.shade700),
+                        prefixIcon: const Icon(Icons.text_fields),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: Colors.grey.shade300),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: Colors.grey.shade300),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: Theme.of(context).primaryColor, width: 2),
+                        ),
+                      ),
+                      textInputAction: TextInputAction.next,
+                      // إزالة inputFormatters للسماح بالكتابة العربية
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // اسم الشركة بالإنجليزية
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade50,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: TextFormField(
+                      controller: _nameEnController,
+                      decoration: InputDecoration(
+                        labelText: tr('company_nameEnglish'),
+                        labelStyle: TextStyle(color: Colors.grey.shade700),
+                        prefixIcon: const Icon(Icons.translate),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: Colors.grey.shade300),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: Colors.grey.shade300),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: Theme.of(context).primaryColor, width: 2),
+                        ),
+                      ),
+                      textInputAction: TextInputAction.next,
+                      // إزالة inputFormatters للسماح بالكتابة الإنجليزية
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // عنوان الشركة
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade50,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: TextFormField(
+                      controller: _addressController,
+                      decoration: InputDecoration(
+                        labelText: tr('company_address'),
+                        labelStyle: TextStyle(color: Colors.grey.shade700),
+                        prefixIcon: const Icon(Icons.location_on),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: Colors.grey.shade300),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: Colors.grey.shade300),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: Theme.of(context).primaryColor, width: 2),
+                        ),
+                      ),
+                      textInputAction: TextInputAction.next,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // اسم المدير
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade50,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: TextFormField(
+                      controller: _managerNameController,
+                      decoration: InputDecoration(
+                        labelText: tr('company_managerName'),
+                        labelStyle: TextStyle(color: Colors.grey.shade700),
+                        prefixIcon: const Icon(Icons.person),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: Colors.grey.shade300),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: Colors.grey.shade300),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: Theme.of(context).primaryColor, width: 2),
+                        ),
+                      ),
+                      textInputAction: TextInputAction.next,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // رقم هاتف المدير
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade50,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: TextFormField(
+                      controller: _managerPhoneController,
+                      decoration: InputDecoration(
+                        labelText: tr('company_managerPhone'),
+                        labelStyle: TextStyle(color: Colors.grey.shade700),
+                        prefixIcon: const Icon(Icons.phone),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: Colors.grey.shade300),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: Colors.grey.shade300),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: Theme.of(context).primaryColor, width: 2),
+                        ),
+                      ),
+                      keyboardType: TextInputType.phone,
+                      textInputAction: TextInputAction.done,
+                      // إزالة inputFormatters للسماح بالكتابة
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+
+                  // زر اختيار الشعار
+                  ElevatedButton.icon(
+                    onPressed: _pickLogo,
+                    icon: const Icon(Icons.image),
+                    label: Text(tr('please_select_logo')),
+                    style: ElevatedButton.styleFrom(
+                      minimumSize: const Size.fromHeight(50),
+                      backgroundColor: Colors.grey.shade200,
+                      foregroundColor: Colors.grey.shade800,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                  
+                  // عرض الصورة المختارة
+                  if (_imageBytes != null) ...[
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade50,
+                        border: Border.all(color: Colors.grey.shade300),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Column(
+                        children: [
+                          kIsWeb
+                              ? Image.memory(_imageBytes!, height: 150, fit: BoxFit.contain)
+                              : Image.file(_logoImage!, height: 150, fit: BoxFit.contain),
+                          const SizedBox(height: 8),
+                          TextButton.icon(
+                            onPressed: () {
+                              setState(() {
+                                _imageBytes = null;
+                                _logoImage = null;
+                                _base64Logo = null;
+                              });
+                            },
+                            icon: const Icon(Icons.delete, size: 16),
+                            label: Text(tr('remove_logo')),
+                            style: TextButton.styleFrom(
+                              foregroundColor: Colors.red,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                  
+                  const SizedBox(height: 32),
+                  
+                  // زر الإضافة
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: _addCompany,
+                      style: ElevatedButton.styleFrom(
+                        minimumSize: const Size.fromHeight(50),
+                        backgroundColor: Theme.of(context).primaryColor,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        elevation: 2,
+                      ),
+                      child: _isLoading
+                          ? const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                              ),
+                            )
+                          : Text(
+                              tr('add_company'),
+                              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                            ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+    );
+  }
+} */
+/* import 'dart:convert';
+import 'dart:io';
 import 'package:puresip_purchasing/debug_helper.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/foundation.dart';
@@ -474,7 +1574,7 @@ Future<void> _addCompany() async {
             ),
     );
   }
-}
+} */
 
 /* import 'dart:convert';
 import 'dart:io';

@@ -1,4 +1,4 @@
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+/* import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 //import 'package:firebase_messaging/firebase_messaging.dart';
 
 class NotificationService {
@@ -62,6 +62,77 @@ class NotificationService {
       title,
       body,
       details,
+      payload: 'item_x',
+    );
+  }
+} */
+
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+
+class NotificationService {
+  static final FlutterLocalNotificationsPlugin _notificationsPlugin =
+      FlutterLocalNotificationsPlugin();
+
+  static Future<void> initialize() async {
+    const AndroidInitializationSettings androidSettings =
+        AndroidInitializationSettings('@mipmap/ic_launcher');
+
+    const DarwinInitializationSettings iosSettings =
+        DarwinInitializationSettings(
+      requestAlertPermission: true,
+      requestBadgePermission: true,
+      requestSoundPermission: true,
+    );
+
+    const InitializationSettings settings = InitializationSettings(
+      android: androidSettings,
+      iOS: iosSettings,
+    );
+
+    // ✅ يجب تمرير settings كمعامل مسمّى
+    await _notificationsPlugin.initialize(
+      settings: settings,
+    );
+  }
+
+  static Future<void> showNotification({
+    required String title,
+    required String body,
+    int id = 0,
+    String? channelId = 'high_importance_channel',
+    String? channelName = 'High Importance Notifications',
+    bool playSound = true,
+    bool vibrate = true,
+  }) async {
+    final androidDetails = AndroidNotificationDetails(
+      channelId ?? 'high_importance_channel',
+      channelName ?? 'High Importance Notifications',
+      channelDescription: 'This channel is used for important notifications',
+      importance: Importance.max,
+      priority: Priority.high,
+      playSound: playSound,
+      enableVibration: vibrate,
+      sound: const RawResourceAndroidNotificationSound('notification'),
+    );
+
+    const iosDetails = DarwinNotificationDetails(
+      presentAlert: true,
+      presentBadge: true,
+      presentSound: true,
+      sound: 'default',
+    );
+
+    final details = NotificationDetails(
+      android: androidDetails,
+      iOS: iosDetails,
+    );
+
+    // ✅ تمرير notificationDetails كمعامل مسمّى + id كمعامل مسمّى
+    await _notificationsPlugin.show(
+      id: id,
+      title: title,
+      body: body,
+      notificationDetails: details,
       payload: 'item_x',
     );
   }

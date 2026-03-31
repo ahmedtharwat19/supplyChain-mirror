@@ -286,10 +286,15 @@ class _EditCompanyPageState extends State<EditCompanyPage> {
   bool _isSaving = false;
   User? _currentUser;
 
-  final arabicOnlyFormatter =
+/*   final arabicOnlyFormatter =
       FilteringTextInputFormatter.allow(RegExp(r'[\u0600-\u06FF\s]'));
   final englishOnlyFormatter =
       FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z\s]'));
+  final numbersOnlyFormatter = FilteringTextInputFormatter.digitsOnly; */
+
+  final arabicOnlyFormatter =
+      FilteringTextInputFormatter.allow(r'[\u0600-\u06FF\s]');
+  final englishOnlyFormatter = FilteringTextInputFormatter.allow(r'[a-zA-Z\s]');
   final numbersOnlyFormatter = FilteringTextInputFormatter.digitsOnly;
 
   @override
@@ -585,7 +590,8 @@ class _EditCompanyPageState extends State<EditCompanyPage> {
                           ? Image.memory(_webImageBytes!, height: 150)
                           : (_logoImage != null
                               ? Image.file(_logoImage!, height: 150)
-                              : Image.memory(base64Decode(_base64Logo!), height: 150)),
+                              : Image.memory(base64Decode(_base64Logo!),
+                                  height: 150)),
                     ),
                   const SizedBox(height: 32),
                   ElevatedButton(

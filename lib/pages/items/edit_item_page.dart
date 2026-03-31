@@ -188,7 +188,7 @@ class _EditItemPageState extends State<EditItemPage> {
                       keyboardType: TextInputType.number,
                       inputFormatters: [
                         FilteringTextInputFormatter.allow(
-                            RegExp(r'^\d+\.?\d{0,2}'))
+                            r'^\d+\.?\d{0,2}')
                       ],
                       validator: (value) {
                         if (value == null || value.trim().isEmpty) {

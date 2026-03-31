@@ -87,6 +87,7 @@ class _EditSupplierPageState extends State<EditSupplierPage> {
 
   String? _validatePhone(String? value) {
     if (value == null || value.trim().isEmpty) return null; // هاتف اختياري
+    // ignore: deprecated_member_use
     final phoneRegex = RegExp(r'^\+?\d{7,15}$');
     if (!phoneRegex.hasMatch(value.trim())) {
       return tr('invalid_phone');
@@ -96,6 +97,7 @@ class _EditSupplierPageState extends State<EditSupplierPage> {
 
   String? _validateEmail(String? value) {
     if (value == null || value.trim().isEmpty) return null; // إيميل اختياري
+    // ignore: deprecated_member_use
     final emailRegex = RegExp(
       r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$',
     );
@@ -257,7 +259,8 @@ class _EditSupplierPageState extends State<EditSupplierPage> {
               TextFormField(
                 controller: _nameController,
                 focusNode: _nameFocus,
-                decoration: InputDecoration(labelText: tr('supplier_nameArabic')),
+                decoration:
+                    InputDecoration(labelText: tr('supplier_nameArabic')),
                 validator: _validateName,
                 onFieldSubmitted: (_) {
                   FocusScope.of(context).requestFocus(_companyFocus);
@@ -267,7 +270,8 @@ class _EditSupplierPageState extends State<EditSupplierPage> {
               TextFormField(
                 controller: _companyController,
                 focusNode: _companyFocus,
-                decoration: InputDecoration(labelText: tr('supplier_nameEnglish')),
+                decoration:
+                    InputDecoration(labelText: tr('supplier_nameEnglish')),
                 onFieldSubmitted: (_) {
                   FocusScope.of(context).requestFocus(_phoneFocus);
                 },

@@ -89,6 +89,7 @@ class _AddSupplierPageState extends State<AddSupplierPage> {
 
   String? _validatePhone(String? value) {
     if (value == null || value.trim().isEmpty) return null;
+    // ignore: deprecated_member_use
     final phoneRegex = RegExp(r'^\+?\d{7,15}$');
     if (!phoneRegex.hasMatch(value.trim())) {
       return tr('invalid_phone');
@@ -98,6 +99,7 @@ class _AddSupplierPageState extends State<AddSupplierPage> {
 
   String? _validateEmail(String? value) {
     if (value == null || value.trim().isEmpty) return null;
+    // ignore: deprecated_member_use
     final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
     if (!emailRegex.hasMatch(value.trim())) {
       return tr('invalid_email');
