@@ -52,7 +52,13 @@ flutter run -d chrome --web-port=4999
 flutter run -d CPH2235 -v
 flutter run -d windows -v
 
- 
+flutter build apk --release
+build/app/outputs/flutter-apk/app-release.apk
+
+flutter build apk --split-per-abi
+flutter build apk --release --split-per-abi
+
+
 dart increment_build_number.dart
 
 

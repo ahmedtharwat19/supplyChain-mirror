@@ -430,16 +430,18 @@ import 'package:crypto/crypto.dart';
 import 'dart:convert';
 import 'dart:io' as io;
 import 'package:flutter/foundation.dart';
+import 'package:puresip_purchasing/debug_helper.dart';
 import 'package:universal_html/html.dart' as html;
 
 
 
-// ✅ إضافة دالة safeDebugPrint
+/* // ✅ إضافة دالة safeDebugPrint
 void safeDebugPrint(String message) {
   if (kDebugMode) {
     print(message);
   }
 }
+ */
 
 class DeviceFingerprint {
   static final DeviceInfoPlugin deviceInfo = DeviceInfoPlugin();

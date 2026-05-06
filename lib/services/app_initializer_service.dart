@@ -1,5 +1,6 @@
 // services/app_initializer_service.dart
 import 'package:easy_localization/easy_localization.dart';
+import 'package:hive/hive.dart';
 import 'package:puresip_purchasing/services/firestore_date_services.dart';
 import 'package:puresip_purchasing/services/hive_service.dart';
 import 'package:puresip_purchasing/services/user_subscription_service.dart';
@@ -95,7 +96,7 @@ class AppInitializerService {
     }
   }
 
-  Future<void> _fetchUserDataInBackground() async {
+/*   Future<void> _fetchUserDataInBackground() async {
     try {
       safeDebugPrint('🔄 Fetching user data in background...');
       await _firestoreService.fetchAllUserData();
@@ -103,7 +104,92 @@ class AppInitializerService {
     } catch (e) {
       safeDebugPrint('⚠️ Background data fetch failed: $e');
     }
+  } */
+
+/* Future<void> _fetchUserDataInBackground() async {
+  try {
+    safeDebugPrint('🔄 Fetching user data in background...');
+    
+    // ✅ حفظ الاسم الحالي قبل جلب البيانات
+    final currentName = await HiveService.getUserName();
+    safeDebugPrint('📝 Current name before fetch: $currentName');
+    
+    await _firestoreService.fetchAllUserData();
+    
+        // ✅ استعادة الاسم إذا تم مسحه
+    await Future.delayed(const Duration(milliseconds: 500));
+
+    // ✅ إذا تم مسح الاسم، استرجاعه
+    final newName = await HiveService.getUserName();
+    if ((newName == null || newName.isEmpty || newName == 'User') && 
+        currentName != null && currentName.isNotEmpty && currentName != 'User') {
+      safeDebugPrint('⚠️ Name was cleared during fetch, restoring to: $currentName');
+      await HiveService.saveUserName(currentName);
+    }
+    
+    safeDebugPrint('✅ Background data fetch completed');
+  } catch (e) {
+    safeDebugPrint('⚠️ Background data fetch failed: $e');
   }
+} 
+ */
+
+Future<void> _fetchUserDataInBackground() async {
+  try {
+    safeDebugPrint('🔄 Fetching user data in background...');
+    
+       // ✅ تشخيص قبل الجلب
+    await HiveService.debugUserName();
+
+    // ✅ حفظ الاسم الحالي قبل جلب البيانات
+    final currentName = await HiveService.getUserName();
+    safeDebugPrint('📝 Current name before fetch: "$currentName"');
+    
+    // ✅ حفظ جميع بيانات المستخدم الحالية كنسخة احتياطية
+    final userBox = Hive.box('userBox');
+    final backupData = Map<String, dynamic>.from(userBox.toMap());
+    safeDebugPrint('📦 Created backup of userBox with ${backupData.keys.length} keys');
+    
+    await _firestoreService.fetchAllUserData();
+    
+    // ✅ انتظار حتى تكتمل الكتابة
+    await Future.delayed(const Duration(milliseconds: 500));
+    
+        
+    // ✅ تشخيص بعد الجلب
+    await HiveService.debugUserName();
+    
+    // ✅ التحقق من الاسم بعد الجلب
+    final newName = await HiveService.getUserName();
+    safeDebugPrint('📝 Name after fetch: "$newName"');
+    
+    // ✅ إذا تم مسح الاسم، استرجاعه من النسخة الاحتياطية
+    if ((newName == null || newName.isEmpty || newName == 'User' || newName == 'null') && 
+        currentName != null && currentName.isNotEmpty && currentName != 'User' && currentName != 'null') {
+      safeDebugPrint('⚠️ Name was cleared during fetch!');
+      safeDebugPrint('   - Old name: "$currentName"');
+      safeDebugPrint('   - New name: "$newName"');
+      safeDebugPrint('🔄 Restoring name to: "$currentName"');
+      await HiveService.saveUserName(currentName);
+      
+      // ✅ التحقق من نجاح الاستعادة
+      final restoredName = await HiveService.getUserName();
+      safeDebugPrint('✅ Name after restore: "$restoredName"');
+    } else if (newName == 'Ahmed') {
+      safeDebugPrint('✅ Name is correct: "$newName"');
+    } else {
+      safeDebugPrint('⚠️ Unexpected name value: "$newName"');
+    }
+    
+    // ✅ طباعة جميع مفاتيح userBox للتشخيص
+    final allKeys = userBox.keys.toList();
+    safeDebugPrint('📦 userBox keys after fetch: $allKeys');
+    
+    safeDebugPrint('✅ Background data fetch completed');
+  } catch (e) {
+    safeDebugPrint('⚠️ Background data fetch failed: $e');
+  }
+}
 
   Future<bool> _checkInternetConnection() async {
     try {

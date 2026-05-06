@@ -2233,7 +2233,21 @@ void _updateBackgroundData() {
         setState(() {
           userData = data;
           isAdmin = data['isAdmin'] == true;
-          userName = data['displayName'] ?? data['email'] ?? '';
+          // userName = data['displayName'] ?? data['email'] ?? '';
+           // ✅ إصلاح: استخدام displayName أولاً، ثم name، ثم email
+        String displayName = data['displayName'] ?? '';
+        String name = data['name'] ?? '';
+        String email = data['email'] ?? '';
+        
+        if (displayName.isNotEmpty) {
+          userName = displayName;
+        } else if (name.isNotEmpty && name != 'User') {
+          userName = name;
+        } else if (email.isNotEmpty) {
+          userName = email.split('@').first;
+        } else {
+          userName = 'User';
+        }
           userId = data['userId'];
           userCompanyIds = (data['companyIds'] as List?)?.cast<String>() ?? [];
           _stats.totalCompanies = userCompanyIds.length; // هذا موجود
@@ -2479,6 +2493,7 @@ void _updateBackgroundData() {
           'userId': firebaseUser.uid,
           'email': firebaseUser.email ?? '',
           'displayName': displayName,
+          'name': displayName,  // ✅ أضف هذا السطر أيضاً
           'companyIds': (data['companyIds'] as List?)?.cast<String>() ?? [],
           'factoryIds': (data['factoryIds'] as List?)?.cast<String>() ?? [],
           'supplierIds': (data['supplierIds'] as List?)?.cast<String>() ?? [],

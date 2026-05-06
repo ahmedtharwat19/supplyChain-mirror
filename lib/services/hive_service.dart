@@ -513,6 +513,79 @@ class HiveService {
     }
     return {};
   }
+
+// في hive_service.dart - أضف هذه الدوال في نهاية الكلاس
+
+// ══════════════ User Name Protection Methods ══════════════
+static Future<String?> getUserName() async {
+  try {
+    final box = await _getUserBox();
+    return box.get('name');
+  } catch (e) {
+    safeDebugPrint('❌ Error getting user name: $e');
+    return null;
+  }
+}
+
+static Future<void> saveUserName(String name) async {
+  try {
+    final box = await _getUserBox();
+    await box.put('name', name);
+    safeDebugPrint('💾 User name saved: $name');
+  } catch (e) {
+    safeDebugPrint('❌ Error saving user name: $e');
+  }
+}
+
+static Future<void> protectUserName() async {
+  try {
+    final box = await _getUserBox();
+    final currentName = box.get('name');
+    
+    // ✅ إذا كان الاسم غير صحيح، حاول استرداده
+    if (currentName == null || currentName == 'User' || currentName.toString().isEmpty) {
+      // محاولة جلب الاسم من userData
+      final userData = await getUserData();
+      if (userData != null && userData['name'] != null) {
+        final correctName = userData['name'];
+        if (correctName != null && correctName != 'User') {
+          await box.put('name', correctName);
+          safeDebugPrint('🛡️ User name protected and restored to: $correctName');
+        }
+      }
+    }
+  } catch (e) {
+    safeDebugPrint('❌ Error protecting user name: $e');
+  }
+}
+
+static Future<Box> _getUserBox() async {
+  if (_userHive == null || !_userHive!.isOpen) {
+    _userHive = await Hive.openBox(_userBox);
+  }
+  return _userHive!;
+}
+
+// في hive_service.dart
+static Future<void> debugUserName() async {
+  try {
+    final box = await _getUserBox();
+    final name = box.get('name');
+    final allKeys = box.keys.toList();
+    safeDebugPrint('🔍 USERBOX DEBUG:');
+    safeDebugPrint('   - Keys: $allKeys');
+    safeDebugPrint('   - Name value: "$name"');
+    safeDebugPrint('   - Name type: ${name.runtimeType}');
+    
+    // التحقق من وجود قيم أخرى
+    for (var key in allKeys) {
+      safeDebugPrint('   - $key: ${box.get(key)}');
+    }
+  } catch (e) {
+    safeDebugPrint('❌ Debug error: $e');
+  }
+}
+
 }
 
 /*   static Future<T?> getSetting<T>(String key, {T? defaultValue}) async {

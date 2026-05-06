@@ -1,5 +1,259 @@
 // splash_screen.dart
+
+// splash_screen.dart
 import 'package:easy_localization/easy_localization.dart';
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:puresip_purchasing/services/app_initializer_service.dart';
+import 'package:puresip_purchasing/services/license_service.dart';
+import 'package:puresip_purchasing/debug_helper.dart';
+import 'package:package_info_plus/package_info_plus.dart';
+
+class SplashScreen extends StatefulWidget {
+  const SplashScreen({super.key});
+
+  @override
+  State<SplashScreen> createState() => _SplashScreenState();
+}
+
+class _SplashScreenState extends State<SplashScreen> {
+  final AppInitializerService _initializer = AppInitializerService();
+  final LicenseService _licenseService = LicenseService();
+  String _loadingMessage = "initializing".tr();
+  bool _showError = false;
+  String _appVersion = "";
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAppVersion();
+    _initializeApp();
+  }
+
+  Future<void> _loadAppVersion() async {
+    final info = await PackageInfo.fromPlatform();
+    setState(() {
+      _appVersion = info.version;
+    });
+  }
+
+  Future<void> _initializeApp() async {
+    try {
+      _updateLoadingMessage("preparing_storage".tr());
+      await Future.delayed(const Duration(milliseconds: 500));
+
+      _updateLoadingMessage("checking_auth".tr());
+      await Future.delayed(const Duration(milliseconds: 300));
+
+      _updateLoadingMessage("checking_connection".tr());
+      await Future.delayed(const Duration(milliseconds: 300));
+
+      // تنفيذ التهيئة الفعلية
+      final result = await _initializer.initializeApp();
+
+      if (!mounted) return;
+
+      // ✅ محاولة ترقية التراخيص القديمة (للمستخدم الأدمن فقط)
+      await _tryMigrateLicenses();
+
+      // معالجة الرسائل إذا وجدت
+      if (result.showMessage != null) {
+        await _showMessageDialog(result.showMessage!);
+      }
+
+      // التنقل إلى الصفحة المناسبة
+      _safeNavigate(() {
+        if (result.extraData != null) {
+          context.go(result.shouldNavigateTo, extra: result.extraData);
+        } else {
+          context.go(result.shouldNavigateTo);
+        }
+      });
+    } catch (e) {
+      safeDebugPrint('❌ Splash screen initialization error: $e');
+
+      if (mounted) {
+        setState(() {
+          _loadingMessage = "initialization_failed".tr();
+          _showError = true;
+        });
+
+        await Future.delayed(const Duration(seconds: 2));
+        if (mounted) {
+          _safeNavigate(() => context.go('/login'));
+        }
+      }
+    }
+  }
+
+  /// ✅ محاولة ترقية التراخيص القديمة (للمستخدم الأدمن فقط)
+  Future<void> _tryMigrateLicenses() async {
+    try {
+      _updateLoadingMessage("checking_licenses".tr());
+      await Future.delayed(const Duration(milliseconds: 200));
+      
+      // هذه الدالة ستقوم بالترقية فقط إذا كان المستخدم أدمن
+      await _licenseService.migrateLicensesWithNewFields();
+    } catch (e) {
+      safeDebugPrint('⚠️ License migration skipped or failed: $e');
+      // لا نعرض خطأ للمستخدم لأن هذه عملية خلفية
+    }
+  }
+
+  void _updateLoadingMessage(String message) {
+    if (mounted) {
+      setState(() => _loadingMessage = message);
+    }
+  }
+
+  Future<void> _showMessageDialog(String message) async {
+    return showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: Text("notice".tr()),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text("ok".tr()),
+          )
+        ],
+      ),
+    );
+  }
+
+  void _safeNavigate(VoidCallback navigation) {
+    if (!mounted) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) navigation();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final currentYear = DateTime.now().year;
+
+    return Scaffold(
+      backgroundColor: Colors.white,
+      body: Stack(
+        children: [
+          Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _buildAppLogo(),
+                const SizedBox(height: 32),
+                _buildLoadingIndicator(),
+                const SizedBox(height: 24),
+                _buildLoadingMessage(),
+                if (_showError) _buildErrorWidget(),
+              ],
+            ),
+          ),
+          Positioned(
+            bottom: 12,
+            left: 0,
+            right: 0,
+            child: _buildFooterInfo(currentYear),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAppLogo() {
+    return CircleAvatar(
+      radius: 60,
+      backgroundColor: Colors.green[50],
+      child: Padding(
+        padding: const EdgeInsets.all(12.0),
+        child: Image.asset(
+          'assets/logo.png',
+          fit: BoxFit.contain,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLoadingIndicator() {
+    return SizedBox(
+      width: 40,
+      height: 40,
+      child: CircularProgressIndicator(
+        valueColor: AlwaysStoppedAnimation<Color>(
+          _showError ? Colors.red : Colors.green,
+        ),
+        strokeWidth: 3,
+      ),
+    );
+  }
+
+  Widget _buildLoadingMessage() {
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 300),
+      child: Text(
+        _loadingMessage,
+        key: ValueKey<String>(_loadingMessage),
+        style: TextStyle(
+          fontSize: 16,
+          color: _showError ? Colors.red : Colors.grey[700],
+          fontWeight: FontWeight.w500,
+        ),
+        textAlign: TextAlign.center,
+      ),
+    );
+  }
+
+  Widget _buildErrorWidget() {
+    return Padding(
+      padding: const EdgeInsets.only(top: 16),
+      child: Text(
+        "splash_error_message".tr(),
+        style: const TextStyle(
+          fontSize: 14,
+          color: Colors.red,
+          fontStyle: FontStyle.italic,
+        ),
+        textAlign: TextAlign.center,
+      ),
+    );
+  }
+
+  Widget _buildFooterInfo(int currentYear) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12.0),
+      child: Column(
+        children: [
+          const Text(
+            'Ahmed Tharwat tech.',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '© $currentYear ALL RIGHTS ARE RESERVED',
+            style: const TextStyle(
+              fontSize: 12,
+              letterSpacing: 1.2,
+              color: Colors.grey,
+            ),
+          ),
+          if (_appVersion.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              "v$_appVersion",
+              style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+
+
+/* import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:puresip_purchasing/services/app_initializer_service.dart';
@@ -258,7 +512,7 @@ class _SplashScreenState extends State<SplashScreen> {
     );
   }
 }
-
+ */
 /* // splash_screen.dart
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
