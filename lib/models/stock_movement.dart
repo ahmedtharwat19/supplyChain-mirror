@@ -1,4 +1,4 @@
-/* import 'package:cloud_firestore/cloud_firestore.dart';
+/* /* import 'package:cloud_firestore/cloud_firestore.dart';
 
 class StockMovement {
   // ➤ ثابتات أسماء الحقول
@@ -264,5 +264,200 @@ class StockMovement {
   @override
   String toString() {
     return 'StockMovement(id: $id, itemId: $itemId, quantity: $quantity, type: $type, date: $date)';
+  }
+} */
+
+// lib/models/stock_movement.dart - بدون Hive
+import 'package:cloud_firestore/cloud_firestore.dart';
+
+class StockMovement {
+  // ➤ ثابتات أسماء الحقول
+  static const fieldItemId = 'itemId';
+  static const fieldQuantity = 'quantity';
+  static const fieldUnit = 'unit';
+  static const fieldType = 'type'; // 'in' or 'out'
+  static const fieldDate = 'date';
+  static const fieldCompanyId = 'companyId';
+  static const fieldFactoryId = 'factoryId';
+  static const fieldUserId = 'userId';
+  static const fieldReferenceId = 'referenceId';
+
+  // ➤ الخصائص
+  final String? id;
+  final String itemId;
+  final double quantity;
+  final String unit;
+  final String type;
+  final Timestamp date;
+  final String companyId;
+  final String factoryId;
+  final String userId;
+  final String referenceId;
+  final bool isSynced;
+  final DateTime lastUpdated;
+
+  StockMovement({
+    this.id,
+    required this.itemId,
+    required this.quantity,
+    required this.unit,
+    required this.type,
+    required this.date,
+    required this.companyId,
+    required this.factoryId,
+    required this.userId,
+    required this.referenceId,
+    this.isSynced = true,
+    required this.lastUpdated,
+  });
+
+  factory StockMovement.fromMap(Map<String, dynamic> data, String documentId) {
+    return StockMovement(
+      id: documentId,
+      itemId: data[fieldItemId] ?? '',
+      quantity: (data[fieldQuantity] as num?)?.toDouble() ?? 0.0,
+      unit: data[fieldUnit] ?? '',
+      type: data[fieldType] ?? '',
+      date: data[fieldDate] ?? Timestamp.now(),
+      companyId: data[fieldCompanyId] ?? '',
+      factoryId: data[fieldFactoryId] ?? '',
+      userId: data[fieldUserId] ?? '',
+      referenceId: data[fieldReferenceId] ?? '',
+      isSynced: true,
+      lastUpdated: DateTime.now(),
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      fieldItemId: itemId,
+      fieldQuantity: quantity,
+      fieldUnit: unit,
+      fieldType: type,
+      fieldDate: date,
+      fieldCompanyId: companyId,
+      fieldFactoryId: factoryId,
+      fieldUserId: userId,
+      fieldReferenceId: referenceId,
+    };
+  }
+
+  factory StockMovement.fromFirestore(DocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>;
+    return StockMovement(
+      id: doc.id,
+      itemId: data[fieldItemId] ?? '',
+      quantity: (data[fieldQuantity] as num?)?.toDouble() ?? 0.0,
+      unit: data[fieldUnit] ?? '',
+      type: data[fieldType] ?? '',
+      date: data[fieldDate] ?? Timestamp.now(),
+      companyId: data[fieldCompanyId] ?? '',
+      factoryId: data[fieldFactoryId] ?? '',
+      userId: data[fieldUserId] ?? '',
+      referenceId: data[fieldReferenceId] ?? '',
+      isSynced: true,
+      lastUpdated: DateTime.now(),
+    );
+  }
+
+  // دالة لتحويل Timestamp إلى DateTime
+  DateTime get dateAsDateTime => date.toDate();
+
+  // دالة لإنشاء نسخة محدثة
+  StockMovement copyWith({
+    String? id,
+    String? itemId,
+    double? quantity,
+    String? unit,
+    String? type,
+    Timestamp? date,
+    String? companyId,
+    String? factoryId,
+    String? userId,
+    String? referenceId,
+    bool? isSynced,
+    DateTime? lastUpdated,
+  }) {
+    return StockMovement(
+      id: id ?? this.id,
+      itemId: itemId ?? this.itemId,
+      quantity: quantity ?? this.quantity,
+      unit: unit ?? this.unit,
+      type: type ?? this.type,
+      date: date ?? this.date,
+      companyId: companyId ?? this.companyId,
+      factoryId: factoryId ?? this.factoryId,
+      userId: userId ?? this.userId,
+      referenceId: referenceId ?? this.referenceId,
+      isSynced: isSynced ?? this.isSynced,
+      lastUpdated: lastUpdated ?? this.lastUpdated,
+    );
+  }
+
+  // دالة للتحقق من المساواة
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is StockMovement &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          itemId == other.itemId &&
+          quantity == other.quantity &&
+          type == other.type &&
+          date == other.date &&
+          companyId == other.companyId &&
+          factoryId == other.factoryId;
+
+  @override
+  int get hashCode =>
+      id.hashCode ^
+      itemId.hashCode ^
+      quantity.hashCode ^
+      type.hashCode ^
+      date.hashCode ^
+      companyId.hashCode ^
+      factoryId.hashCode;
+
+  @override
+  String toString() {
+    return 'StockMovement(id: $id, itemId: $itemId, quantity: $quantity, type: $type, date: $date)';
+  }
+  
+  // ✅ دالة لتحويل الكائن إلى JSON للتخزين في SharedPreferences
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'itemId': itemId,
+      'quantity': quantity,
+      'unit': unit,
+      'type': type,
+      'date': date.millisecondsSinceEpoch,
+      'companyId': companyId,
+      'factoryId': factoryId,
+      'userId': userId,
+      'referenceId': referenceId,
+      'isSynced': isSynced,
+      'lastUpdated': lastUpdated.toIso8601String(),
+    };
+  }
+  
+  // ✅ دالة لإنشاء كائن من JSON
+  factory StockMovement.fromJson(Map<String, dynamic> json) {
+    return StockMovement(
+      id: json['id'],
+      itemId: json['itemId'] ?? '',
+      quantity: (json['quantity'] as num?)?.toDouble() ?? 0.0,
+      unit: json['unit'] ?? '',
+      type: json['type'] ?? '',
+      date: Timestamp.fromMillisecondsSinceEpoch(json['date'] ?? 0),
+      companyId: json['companyId'] ?? '',
+      factoryId: json['factoryId'] ?? '',
+      userId: json['userId'] ?? '',
+      referenceId: json['referenceId'] ?? '',
+      isSynced: json['isSynced'] ?? true,
+      lastUpdated: json['lastUpdated'] != null 
+          ? DateTime.parse(json['lastUpdated']) 
+          : DateTime.now(),
+    );
   }
 }

@@ -167,7 +167,7 @@ Future<void> _calculateInventoryNeeds() async {
     if (totalRunsQuantity <= 0) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('manufacturing.invalid_total_quantity'.tr())));
+          SnackBar(content: Text('manufacture.invalid_total_quantity'.tr())));
       setState(() {
         _checkingInventory = false;
       });
@@ -185,7 +185,7 @@ Future<void> _calculateInventoryNeeds() async {
     if (!compositionDoc.exists) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('manufacturing.composition_not_found'.tr())));
+          SnackBar(content: Text('manufacture.composition_not_found'.tr())));
       setState(() {
         _checkingInventory = false;
       });
@@ -323,7 +323,7 @@ Future<void> _calculateInventoryNeeds() async {
     if (checkItems.isEmpty) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('manufacturing.no_materials_found'.tr())));
+          SnackBar(content: Text('manufacture.no_materials_found'.tr())));
     }
 
   } catch (e) {
@@ -356,7 +356,7 @@ Future<void> _calculateInventoryNeeds() async {
     if (totalRunsQuantity <= 0) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('manufacturing.invalid_total_quantity'.tr())));
+          SnackBar(content: Text('manufacture.invalid_total_quantity'.tr())));
       setState(() {
         _checkingInventory = false;
       });
@@ -374,7 +374,7 @@ Future<void> _calculateInventoryNeeds() async {
     if (!compositionDoc.exists) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('manufacturing.composition_not_found'.tr())));
+          SnackBar(content: Text('manufacture.composition_not_found'.tr())));
       setState(() {
         _checkingInventory = false;
       });
@@ -505,7 +505,7 @@ Future<void> _calculateInventoryNeeds() async {
     if (checkItems.isEmpty) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('manufacturing.no_materials_found'.tr())));
+          SnackBar(content: Text('manufacture.no_materials_found'.tr())));
     }
 
   } catch (e) {
@@ -536,7 +536,7 @@ Future<void> _calculateInventoryNeeds() async {
       if (totalRunsQuantity <= 0) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text('manufacturing.invalid_total_quantity'.tr())));
+            content: Text('manufacture.invalid_total_quantity'.tr())));
         setState(() {
           _checkingInventory = false;
         });
@@ -552,7 +552,7 @@ Future<void> _calculateInventoryNeeds() async {
       if (!productDoc.exists) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('manufacturing.product_not_found'.tr())));
+            SnackBar(content: Text('manufacture.product_not_found'.tr())));
         setState(() {
           _checkingInventory = false;
         });
@@ -673,7 +673,7 @@ Future<void> _calculateInventoryNeeds() async {
       if (checkItems.isEmpty) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('manufacturing.no_materials_found'.tr())));
+            SnackBar(content: Text('manufacture.no_materials_found'.tr())));
       }
     } catch (e) {
       safeDebugPrint('Error calculating inventory needs: $e');
@@ -702,7 +702,7 @@ Future<void> _calculateInventoryNeeds() async {
       if (totalRunsQuantity <= 0) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text('manufacturing.invalid_total_quantity'.tr())));
+            content: Text('manufacture.invalid_total_quantity'.tr())));
         setState(() {
           _checkingInventory = false;
         });
@@ -718,7 +718,7 @@ Future<void> _calculateInventoryNeeds() async {
       if (!productDoc.exists) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('manufacturing.product_not_found'.tr())));
+            SnackBar(content: Text('manufacture.product_not_found'.tr())));
         setState(() {
           _checkingInventory = false;
         });
@@ -811,8 +811,8 @@ Future<void> _calculateInventoryNeeds() async {
       final result = await showDialog<bool>(
         context: context,
         builder: (context) => AlertDialog(
-          title: Text('manufacturing.insufficient_inventory'.tr()),
-          content: Text('manufacturing.confirm_save_with_shortage'.tr()),
+          title: Text('manufacture.insufficient_inventory'.tr()),
+          content: Text('manufacture.confirm_save_with_shortage'.tr()),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, false),
@@ -878,7 +878,7 @@ Future<void> _calculateInventoryNeeds() async {
       await manufacturingService.createManufacturingOrder(order);
       if (!mounted) return;
       ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('manufacturing.order_created'.tr())));
+          .showSnackBar(SnackBar(content: Text('manufacture.order_created'.tr())));
 
       if (!mounted) return;
       Navigator.of(context).pop();
@@ -909,8 +909,8 @@ Future<void> _calculateInventoryNeeds() async {
       final result = await showDialog<bool>(
         context: context,
         builder: (context) => AlertDialog(
-          title: Text('manufacturing.insufficient_inventory'.tr()),
-          content: Text('manufacturing.confirm_save_with_shortage'.tr()),
+          title: Text('manufacture.insufficient_inventory'.tr()),
+          content: Text('manufacture.confirm_save_with_shortage'.tr()),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, false),
@@ -979,7 +979,7 @@ Future<void> _calculateInventoryNeeds() async {
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('manufacturing.order_created'.tr())));
+          SnackBar(content: Text('manufacture.order_created'.tr())));
 
       if (!mounted) return;
       Navigator.of(context).pop();
@@ -1011,8 +1011,8 @@ Future<void> _calculateInventoryNeeds() async {
     final result = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('manufacturing.insufficient_inventory'.tr()),
-        content: Text('manufacturing.confirm_save_with_shortage'.tr()),
+        title: Text('manufacture.insufficient_inventory'.tr()),
+        content: Text('manufacture.confirm_save_with_shortage'.tr()),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -1085,7 +1085,7 @@ Future<void> _calculateInventoryNeeds() async {
 
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('manufacturing.order_created'.tr())));
+        SnackBar(content: Text('manufacture.order_created'.tr())));
 
     if (!mounted) return;
     Navigator.of(context).pop();
@@ -1118,8 +1118,8 @@ Future<void> _calculateInventoryNeeds() async {
     final result = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('manufacturing.insufficient_inventory'.tr()),
-        content: Text('manufacturing.confirm_save_with_shortage'.tr()),
+        title: Text('manufacture.insufficient_inventory'.tr()),
+        content: Text('manufacture.confirm_save_with_shortage'.tr()),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -1210,7 +1210,7 @@ Future<void> _calculateInventoryNeeds() async {
 
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('manufacturing.order_created'.tr())));
+        SnackBar(content: Text('manufacture.order_created'.tr())));
 
     if (!mounted) return;
     Navigator.of(context).pop();
@@ -1227,7 +1227,7 @@ Future<void> _calculateInventoryNeeds() async {
     final isArabic = context.locale.languageCode == 'ar';
 
     return Scaffold(
-      appBar: AppBar(title: Text('manufacturing.add_order'.tr())),
+      appBar: AppBar(title: Text('manufacture.add_order'.tr())),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Form(
@@ -1305,7 +1305,7 @@ Future<void> _calculateInventoryNeeds() async {
                     : DropdownButtonFormField<FinishedProduct>(
                         initialValue: _selectedProduct,
                         decoration: InputDecoration(
-                          labelText: 'manufacturing.select_product'.tr(),
+                          labelText: 'manufacture.select_product'.tr(),
                           border: const OutlineInputBorder(),
                         ),
                         items: _companyProducts.map((product) {
@@ -1333,7 +1333,7 @@ Future<void> _calculateInventoryNeeds() async {
                   controller: _runsController,
                   keyboardType: TextInputType.number,
                   decoration: InputDecoration(
-                    labelText: 'manufacturing.number_of_runs'.tr(),
+                    labelText: 'manufacture.number_of_runs'.tr(),
                     border: const OutlineInputBorder(),
                   ),
                   onChanged: (value) {
@@ -1367,7 +1367,7 @@ Future<void> _calculateInventoryNeeds() async {
                             controller: _batchControllers[index],
                             decoration: InputDecoration(
                               labelText:
-                                  '${'manufacturing.batch_number'.tr()} #${index + 1}',
+                                  '${'manufacture.batch_number'.tr()} #${index + 1}',
                               border: const OutlineInputBorder(),
                             ),
                             validator: (v) => v == null || v.isEmpty
@@ -1381,7 +1381,7 @@ Future<void> _calculateInventoryNeeds() async {
                             controller: _quantityControllers[index],
                             keyboardType: TextInputType.number,
                             decoration: InputDecoration(
-                              labelText: 'manufacturing.run_quantity'.tr(),
+                              labelText: 'manufacture.run_quantity'.tr(),
                               border: const OutlineInputBorder(),
                             ),
                             validator: (v) {
@@ -1414,7 +1414,7 @@ Future<void> _calculateInventoryNeeds() async {
                                 child:
                                     CircularProgressIndicator(strokeWidth: 2),
                               )
-                            : Text('manufacturing.show_inventory'.tr()),
+                            : Text('manufacture.show_inventory'.tr()),
                       ),
                     ),
                     const SizedBox(width: 16),
@@ -1423,7 +1423,7 @@ Future<void> _calculateInventoryNeeds() async {
                         onPressed: _showInventoryTable
                             ? _saveManufacturingOrder
                             : null,
-                        child: Text('manufacturing.save_order'.tr()),
+                        child: Text('manufacture.save_order'.tr()),
                       ),
                     ),
                   ],

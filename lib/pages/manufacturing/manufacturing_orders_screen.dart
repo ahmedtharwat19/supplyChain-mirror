@@ -24,11 +24,11 @@ class _ManufacturingOrdersScreenState extends State<ManufacturingOrdersScreen> {
     final manufacturingService = Provider.of<ManufacturingService>(context);
 
     return AppScaffold(
-      title: 'manufacturing.orders'.tr(),
+      title: 'manufacture.orders'.tr(),
       actions: [
         IconButton(
           icon: const Icon(Icons.add),
-          tooltip: 'manufacturing.add_order'.tr(),
+          tooltip: 'manufacture.add_order'.tr(),
           onPressed: () {
             Navigator.push(
               context,
@@ -79,10 +79,10 @@ class _ManufacturingOrdersScreenState extends State<ManufacturingOrdersScreen> {
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('${'manufacturing.batch_number'.tr()}: ${run?.batchNumber ?? '-'}'),
-            Text('${'manufacturing.quantity'.tr()}: ${run?.quantity ?? 0} ${order.productUnit}'),
-            Text('${'manufacturing.status'.tr()}: ${order.statusText}'),
-            Text('${'manufacturing.expiry_date'.tr()}: ${_formatDate(order.expiryDate)}'),
+            Text('${'manufacture.batch_number'.tr()}: ${run?.batchNumber ?? '-'}'),
+            Text('${'manufacture.quantity'.tr()}: ${run?.quantity ?? 0} ${order.productUnit}'),
+            Text('${'manufacture.status'.tr()}: ${order.statusText}'),
+            Text('${'manufacture.expiry_date'.tr()}: ${_formatDate(order.expiryDate)}'),
           ],
         ),
         trailing: Row(
@@ -91,13 +91,13 @@ class _ManufacturingOrdersScreenState extends State<ManufacturingOrdersScreen> {
             if (order.status == ManufacturingStatus.pending)
               IconButton(
                 icon: const Icon(Icons.play_arrow, color: Colors.green),
-                tooltip: 'manufacturing.start_manufacturing'.tr(),
+                tooltip: 'manufacture.start_manufacturing'.tr(),
                 onPressed: () => _startManufacturing(order, service),
               ),
             if (order.status == ManufacturingStatus.inProgress)
               IconButton(
                 icon: const Icon(Icons.check, color: Colors.blue),
-                tooltip: 'manufacturing.complete_manufacturing'.tr(),
+                tooltip: 'manufacture.complete_manufacturing'.tr(),
                 onPressed: () => _completeManufacturing(order, service, run),
               ),
             // يمكنك إضافة أزرار أخرى إذا لزم الأمر
@@ -118,7 +118,7 @@ class _ManufacturingOrdersScreenState extends State<ManufacturingOrdersScreen> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('manufacturing.manufacturing_started'.tr())),
+          SnackBar(content: Text('manufacture.manufacturing_started'.tr())),
         );
       }
     } catch (e) {
@@ -157,7 +157,7 @@ class _ManufacturingOrdersScreenState extends State<ManufacturingOrdersScreen> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('manufacturing.manufacturing_completed'.tr())),
+          SnackBar(content: Text('manufacture.manufacturing_completed'.tr())),
         );
       }
     } catch (e) {

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+/* import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'dashboard_metrics.dart';
@@ -166,6 +166,114 @@ class DashboardTileWidget extends StatelessWidget {
                   backgroundColor: _withOpacity(Colors.grey, 0.2),
                   color: metric.color,
                   minHeight: 8,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+ */
+
+// dashboard_tile_widget.dart - نسخة سريعة
+
+import 'package:flutter/material.dart';
+import 'package:easy_localization/easy_localization.dart';
+import 'package:puresip_purchasing/services/navigation_service.dart';
+import 'dashboard_metrics.dart';
+
+class DashboardTileWidget extends StatelessWidget {
+  final DashboardMetric metric;
+  final Map<String, dynamic> data;
+  final bool highlight;
+
+  const DashboardTileWidget({
+    super.key,
+    required this.metric,
+    required this.data,
+    this.highlight = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final value = metric.valueBuilder(data);
+    final progress = metric.progressBuilder(data).clamp(0.0, 1.0);
+    final isMobile = MediaQuery.of(context).size.width < 600;
+
+    return Card(
+      elevation: highlight ? 6 : 2,
+      margin: const EdgeInsets.all(8),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(15),
+        side: highlight
+            ? BorderSide(color: Colors.orange.withAlpha(204), width: 2)
+            : BorderSide.none,
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(15),
+        onTap: () {
+          // ✅ تنقل فوري بدون تأخير
+          NavigationService().navigateTo(context, metric.route);
+        },
+        child: Container(
+          width: isMobile ? 120 : 160,
+          padding: const EdgeInsets.all(8),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: metric.color.withAlpha(26),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      metric.icon,
+                      size: isMobile ? 24 : 28,
+                      color: metric.color,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      value.isNotEmpty ? value : 'no_data'.tr(),
+                      style: TextStyle(
+                        fontSize: isMobile ? 18 : 22,
+                        fontWeight: FontWeight.bold,
+                        color: metric.color,
+                      ),
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      tr(metric.titleKey),
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontSize: isMobile ? 14 : 16,
+                        height: 1.1,
+                      ),
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                    ),
+                  ),
+                ],
+              ),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: LinearProgressIndicator(
+                  value: progress,
+                  backgroundColor: Colors.grey.withAlpha(51),
+                  color: metric.color,
+                  minHeight: 6,
                 ),
               ),
             ],

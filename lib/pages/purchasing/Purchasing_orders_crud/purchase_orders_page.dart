@@ -1,4 +1,5 @@
 //import 'dart:convert';
+import 'dart:convert';
 import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:easy_localization/easy_localization.dart';
@@ -36,7 +37,6 @@ class _PurchaseOrdersPageState extends State<PurchaseOrdersPage> {
   List<Map<String, dynamic>> _userCompanies = [];
   String? _selectedCompanyId;
   final FirestoreService _firestoreService = FirestoreService();
-
 
   //bool get isArabic => Localizations.localeOf(context).languageCode == 'ar';
   late bool _isArabic;
@@ -90,7 +90,200 @@ class _PurchaseOrdersPageState extends State<PurchaseOrdersPage> {
     }
   }
 
+// ── كاش في الذاكرة لأسماء الشركات والموردين ──
+  final Map<String, String> _companyNameCache = {};
+  final Map<String, String> _supplierNameCache = {};
+
+  Future<void> _loadUserCompaniesCount() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    // ✅ اقرأ من SharedPreferences أولاً
+    final prefs = await SharedPreferences.getInstance();
+    final cachedCount = prefs.getInt('userCompaniesCount');
+    if (cachedCount != null) {
+      setState(() => _userCompaniesCount = cachedCount);
+      return;
+    }
+
+    final userDoc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .get();
+    final data = userDoc.data() ?? {};
+    final companyIds = List<String>.from(data['companyIds'] ?? []);
+
+    await prefs.setInt('userCompaniesCount', companyIds.length);
+    setState(() => _userCompaniesCount = companyIds.length);
+
+    // ✅ نفس الطلب يخدم _loadUserCompanies أيضاً — لا طلب ثانٍ
+    await _loadUserCompaniesFromIds(companyIds);
+  }
+
   Future<void> _loadUserCompanies() async {
+    // ✅ إذا تم التحميل من _loadUserCompaniesCount لا تكرر
+    if (_userCompanies.isNotEmpty) return;
+
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    final userDoc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .get();
+    final companyIds = List<String>.from(userDoc.data()?['companyIds'] ?? []);
+    await _loadUserCompaniesFromIds(companyIds);
+  }
+
+  Future<void> _loadUserCompaniesFromIds(List<String> companyIds) async {
+    if (companyIds.isEmpty) return;
+
+    // ✅ طلب واحد whereIn بدل N طلبات
+    final snapshot = await FirebaseFirestore.instance
+        .collection('companies')
+        .where(FieldPath.documentId, whereIn: companyIds)
+        .get();
+
+    _userCompanies = snapshot.docs.map((doc) {
+      final name = _isArabic
+          ? doc.data()['nameAr'] ?? doc.id
+          : doc.data()['nameEn'] ?? doc.id;
+      // ✅ حفظ في كاش الذاكرة
+      _companyNameCache[doc.id] = name;
+      return {'id': doc.id, 'name': name};
+    }).toList();
+  }
+
+  Future<void> _loadAllOrders() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    if (mounted) setState(() => isLoading = true);
+
+    try {
+      // ── 1. اقرأ من SharedPreferences أولاً ──
+      final prefs = await SharedPreferences.getInstance();
+      final cachedJson = prefs.getString('cachedOrders');
+      final cacheTime = prefs.getInt('cachedOrdersTime') ?? 0;
+      final cacheAge = DateTime.now().millisecondsSinceEpoch - cacheTime;
+
+      if (cachedJson != null && cacheAge < 300000) {
+        // أقل من 5 دقائق
+
+        final List decoded = json.decode(cachedJson);
+        _allOrders
+          ..clear()
+          ..addAll(decoded.cast<Map<String, dynamic>>());
+        _filterOrders(searchQuery);
+        if (mounted) setState(() => isLoading = false);
+        // ✅ حدّث في الخلفية
+        _fetchOrdersFromFirestore(user.uid, prefs, background: true);
+        return;
+      }
+
+      // ── 2. Firestore إذا الكاش قديم أو غير موجود ──
+      await _fetchOrdersFromFirestore(user.uid, prefs, background: false);
+    } catch (e) {
+      safeDebugPrint('Error loading orders: $e');
+      if (mounted) setState(() => isLoading = false);
+    }
+  }
+
+  Future<void> _fetchOrdersFromFirestore(String userId, SharedPreferences prefs,
+      {required bool background}) async {
+    try {
+      final querySnapshot = await FirebaseFirestore.instance
+          .collection('purchase_orders')
+          .where('userId', isEqualTo: userId)
+          .orderBy('orderDate', descending: true)
+          .get();
+
+      // ── جمع كل companyIds و supplierIds الفريدة ──
+      final companyIds = <String>{};
+      final supplierIds = <String>{};
+      for (final doc in querySnapshot.docs) {
+        final data = doc.data();
+        if (data['companyId'] != null) companyIds.add(data['companyId']);
+        if (data['supplierId'] != null) supplierIds.add(data['supplierId']);
+      }
+
+      // ── جلب الأسماء غير الموجودة في الكاش بطلبين فقط ──
+      final missingCompanies =
+          companyIds.where((id) => !_companyNameCache.containsKey(id)).toList();
+      final missingSuppliers = supplierIds
+          .where((id) => !_supplierNameCache.containsKey(id))
+          .toList();
+
+      await Future.wait([
+        if (missingCompanies.isNotEmpty)
+          FirebaseFirestore.instance
+              .collection('companies')
+              .where(FieldPath.documentId, whereIn: missingCompanies)
+              .get()
+              .then((snap) {
+            for (final doc in snap.docs) {
+              _companyNameCache[doc.id] = _isArabic
+                  ? doc.data()['nameAr'] ?? doc.id
+                  : doc.data()['nameEn'] ?? doc.id;
+            }
+          }),
+        if (missingSuppliers.isNotEmpty)
+          FirebaseFirestore.instance
+              .collection('vendors')
+              .where(FieldPath.documentId, whereIn: missingSuppliers)
+              .get()
+              .then((snap) {
+            for (final doc in snap.docs) {
+              _supplierNameCache[doc.id] = _isArabic
+                  ? doc.data()['nameAr'] ?? doc.id
+                  : doc.data()['nameEn'] ?? doc.id;
+            }
+          }),
+      ]);
+
+// ── بناء القائمة النهائية ──
+      final orders = querySnapshot.docs.map((doc) {
+        final data = doc.data();
+
+        // ✅ تحويل Timestamps لـ String قبل JSON
+        final serializable = data.map((key, value) {
+          if (value is Timestamp) {
+            return MapEntry(key, value.toDate().toIso8601String());
+          }
+          return MapEntry(key, value);
+        });
+
+        return {
+          ...serializable,
+          'id': doc.id,
+          'companyName': _companyNameCache[data['companyId']] ?? '',
+          'supplierName': _supplierNameCache[data['supplierId']] ?? '',
+        };
+      }).toList();
+
+// ── حفظ في الكاش ──
+      try {
+        await prefs.setString('cachedOrders', json.encode(orders));
+        await prefs.setInt(
+            'cachedOrdersTime', DateTime.now().millisecondsSinceEpoch);
+      } catch (e) {
+        safeDebugPrint('Cache save error: $e');
+      }
+
+      if (mounted) {
+        _allOrders
+          ..clear()
+          ..addAll(orders);
+        _filterOrders(searchQuery);
+        setState(() => isLoading = false);
+      }
+    } catch (e) {
+      safeDebugPrint('Firestore fetch error: $e');
+      if (mounted) setState(() => isLoading = false);
+    }
+  }
+
+/*   Future<void> _loadUserCompanies() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
@@ -137,8 +330,9 @@ class _PurchaseOrdersPageState extends State<PurchaseOrdersPage> {
     setState(() => _userCompaniesCount = companyIds);
     //safeDebugPrint('User companies count: $_userCompaniesCount');
   }
+ */
 
-  Future<String> _getCompanyName(String companyId, bool isArabic) async {
+/*   Future<String> _getCompanyName(String companyId, bool isArabic) async {
     try {
       final doc = await FirebaseFirestore.instance
           .collection('companies')
@@ -170,6 +364,7 @@ class _PurchaseOrdersPageState extends State<PurchaseOrdersPage> {
       return supplierId;
     }
   }
+ */
 
   Color _getStatusColor(String? status) {
     switch (status?.toLowerCase()) {
@@ -184,8 +379,7 @@ class _PurchaseOrdersPageState extends State<PurchaseOrdersPage> {
     }
   }
 
-
-  Future<void> _loadAllOrders() async {
+/*   Future<void> _loadAllOrders() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
       if (mounted) context.go('/login');
@@ -240,6 +434,7 @@ class _PurchaseOrdersPageState extends State<PurchaseOrdersPage> {
       if (mounted) setState(() => isLoading = false);
     }
   }
+ */
 
   Future<void> _refreshAfterUpdate() async {
     if (mounted) {
@@ -412,8 +607,38 @@ class _PurchaseOrdersPageState extends State<PurchaseOrdersPage> {
     );
   }
 
-  void _editOrder(Map<String, dynamic> order) {
+/*   void _editOrder(Map<String, dynamic> order) {
     context.push('/purchase/${order['id']}');
+  } */
+
+  void _editOrder(Map<String, dynamic> order) async {
+    safeDebugPrint('✏️ Editing order: ${order['poNumber']}');
+
+    final result = await context.push(
+      '/purchase/${order['id']}',
+      extra: order,
+    );
+
+    safeDebugPrint('🔍 Result from edit page: $result');
+
+    if (result == true && mounted) {
+      safeDebugPrint('🔄 Order was updated, refreshing list...');
+      setState(() => isLoading = true);
+      await _loadAllOrders();
+      _filterOrders(searchQuery);
+      setState(() => isLoading = false);
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('order_updated_successfully'.tr()),
+          backgroundColor: Colors.green,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    } else {
+      safeDebugPrint('ℹ️ Order was not updated or result is false');
+    }
   }
 
   Future<void> _exportOrder(Map<String, dynamic> order) async {
@@ -499,7 +724,8 @@ class _PurchaseOrdersPageState extends State<PurchaseOrdersPage> {
           TextButton(
             onPressed: () {
               Navigator.pop(context);
-              safeDebugPrint('🧪 Trying to delete order with ID: ${order['id']}');
+              safeDebugPrint(
+                  '🧪 Trying to delete order with ID: ${order['id']}');
 
               _deleteOrder(order);
             },
@@ -517,7 +743,7 @@ class _PurchaseOrdersPageState extends State<PurchaseOrdersPage> {
           .collection('purchase_orders')
           .doc(order['id'])
           .delete();
-              safeDebugPrint('🧪 Trying to delete order with ID: ${order['id']}');
+      safeDebugPrint('🧪 Trying to delete order with ID: ${order['id']}');
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -534,57 +760,54 @@ class _PurchaseOrdersPageState extends State<PurchaseOrdersPage> {
     }
   }
 
+  Future<void> _updateOrderStatus(
+    String orderId,
+    String companyId,
+    String newStatus,
+    List<dynamic> items,
+    String factoryId,
+  ) async {
+    try {
+      safeDebugPrint('=== STARTING ORDER STATUS UPDATE ===');
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
 
-Future<void> _updateOrderStatus(
-  String orderId,
-  String companyId,
-  String newStatus,
-  List<dynamic> items,
-  String factoryId,
-) async {
-  try {
-    safeDebugPrint('=== STARTING ORDER STATUS UPDATE ===');
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
+      final orderRef =
+          FirebaseFirestore.instance.collection('purchase_orders').doc(orderId);
 
-    final orderRef =
-        FirebaseFirestore.instance.collection('purchase_orders').doc(orderId);
+      // تحديث الحالة
+      safeDebugPrint('📝 Updating order status to: $newStatus');
+      await orderRef.update({
+        'status': newStatus,
+        'isDelivered': newStatus == 'completed',
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
 
-    // تحديث الحالة
-    safeDebugPrint('📝 Updating order status to: $newStatus');
-    await orderRef.update({
-      'status': newStatus,
-      'isDelivered': newStatus == 'completed',
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
+      // ✅ استخدم الدالة المشتركة لتحديث المخزون
+      if (newStatus == 'completed') {
+        safeDebugPrint('📦 Processing inventory via FirestoreService...');
+        await _firestoreService.processStockDelivery(
+          companyId: companyId,
+          factoryId: factoryId,
+          orderId: orderId,
+          userId: user.uid,
+          items: items,
+        );
+      }
 
-    // ✅ استخدم الدالة المشتركة لتحديث المخزون
-    if (newStatus == 'completed') {
-      safeDebugPrint('📦 Processing inventory via FirestoreService...');
-      await _firestoreService.processStockDelivery(
-        companyId: companyId,
-        factoryId: factoryId,
-        orderId: orderId,
-        userId: user.uid,
-        items: items,
-      );
-    }
+      safeDebugPrint('🎉 Order status updated successfully');
 
-    safeDebugPrint('🎉 Order status updated successfully');
-
-    await _refreshAfterUpdate();
-  } catch (e, stackTrace) {
-    safeDebugPrint('❌ ERROR updating order status: $e');
-    safeDebugPrint('🔍 Stack trace: $stackTrace');
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('update_error'.tr())),
-      );
+      await _refreshAfterUpdate();
+    } catch (e, stackTrace) {
+      safeDebugPrint('❌ ERROR updating order status: $e');
+      safeDebugPrint('🔍 Stack trace: $stackTrace');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('update_error'.tr())),
+        );
+      }
     }
   }
-}
-
-
 
 /*   Future<void> _updateOrderStatus(
     String orderId,
@@ -678,10 +901,10 @@ Future<void> _updateOrderStatus(
  */
 
   Widget _buildOrderCard(Map<String, dynamic> order) {
-    final totalAmount = NumberFormat.currency(
+    final netPayable = NumberFormat.currency(
       symbol: '',
       decimalDigits: 2,
-    ).format(order['totalAmountAfterTax'] ?? 0);
+    ).format(order['netPayable'] ?? 0);
 
     //  bool isDelivered = order['status'] == 'completed';
     DateTime orderDate;
@@ -803,7 +1026,7 @@ Future<void> _updateOrderStatus(
                   ),
                   Expanded(
                     child: Text(
-                      '$totalAmount ${'currency'.tr()}',
+                      '$netPayable ${'currency'.tr()}',
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
                         color: Colors.blue,
@@ -853,7 +1076,6 @@ Future<void> _updateOrderStatus(
                     }
                   },
                 ),
-
               const SizedBox(height: 8),
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
@@ -976,4 +1198,3 @@ Future<void> _updateOrderStatus(
     );
   }
 }
-

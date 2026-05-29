@@ -1,13 +1,23 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../models/purchase_order.dart';
+import 'package:puresip_purchasing/models/purchase_order.dart';
 
 class OrderService {
-  static Future<PurchaseOrder> getOrderById(String id) async {
+  static Future<PurchaseOrder?> getOrderById(String orderId) async {
     final doc = await FirebaseFirestore.instance
         .collection('purchase_orders')
-        .doc(id)
+        .doc(orderId)
         .get();
     
-    return PurchaseOrder.fromFirestore(doc);
+    if (doc.exists) {
+      return PurchaseOrder.fromMap(doc);
+    }
+    return null;
+  }
+
+  static Future<void> updateOrder(PurchaseOrder order) async {
+    await FirebaseFirestore.instance
+        .collection('purchase_orders')
+        .doc(order.id)
+        .update(order.toMap());
   }
 }

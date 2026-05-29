@@ -38,7 +38,7 @@ class _ProductCompositionScreenState extends State<ProductCompositionScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('manufacturing.product_composition'.tr()),
+        title: Text('manufacture.product_composition'.tr()),
       ),
       body: StreamBuilder<FinishedProduct?>(
         stream: finishedProductService.getFinishedProductByIdStream(widget.productId),
@@ -61,7 +61,7 @@ class _ProductCompositionScreenState extends State<ProductCompositionScreen> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Text('manufacturing.error_loading_composition'.tr()),
+                      Text('manufacture.error_loading_composition'.tr()),
                       const SizedBox(height: 16),
                       Text(
                         compositionSnapshot.error.toString(),
@@ -84,7 +84,7 @@ class _ProductCompositionScreenState extends State<ProductCompositionScreen> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Text('manufacturing.no_composition_found'.tr()),
+                      Text('manufacture.no_composition_found'.tr()),
                       const SizedBox(height: 16),
                       ElevatedButton(
                         onPressed: () {
@@ -99,7 +99,7 @@ class _ProductCompositionScreenState extends State<ProductCompositionScreen> {
                             ),
                           );
                         },
-                        child: Text('manufacturing.add_composition'.tr()),
+                        child: Text('manufacture.add_composition'.tr()),
                       ),
                     ],
                   ),

@@ -1,8 +1,9 @@
+// pages/purchasing/purchase_orders_analysis_page.dart - بدون UserLocalStorage
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:fl_chart/fl_chart.dart';
-import 'package:puresip_purchasing/utils/user_local_storage.dart';
 import 'package:puresip_purchasing/widgets/app_scaffold.dart';
 import 'package:puresip_purchasing/debug_helper.dart';
 
@@ -18,6 +19,7 @@ class _PurchaseOrdersAnalysisPageState extends State<PurchaseOrdersAnalysisPage>
   String selectedPeriod = 'monthly';
   String selectedCompany = 'all';
   String? userId;
+  bool _isLoading = true;
   bool get _isArabic => context.locale.languageCode == 'ar';
   List<Map<String, String>> userCompanies = [];
   final NumberFormat _currencyFormat = NumberFormat.currency(symbol: '');
@@ -29,14 +31,24 @@ class _PurchaseOrdersAnalysisPageState extends State<PurchaseOrdersAnalysisPage>
   }
 
   Future<void> _loadUserInfo() async {
+    setState(() => _isLoading = true);
+    
     try {
-      final uid = await UserLocalStorage.getUserId();
-      if (uid == null) return;
+      // ✅ الحصول على userId من FirebaseAuth مباشرة
+      final user = FirebaseAuth.instance.currentUser;
+      final uid = user?.uid;
+      
+      if (uid == null) {
+        safeDebugPrint('No user logged in');
+        setState(() => _isLoading = false);
+        return;
+      }
 
       final userDoc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
       
       if (!userDoc.exists) {
         safeDebugPrint('User document does not exist');
+        setState(() => _isLoading = false);
         return;
       }
 
@@ -65,9 +77,11 @@ class _PurchaseOrdersAnalysisPageState extends State<PurchaseOrdersAnalysisPage>
         userId = uid;
         userCompanies = companies;
         selectedCompany = 'all';
+        _isLoading = false;
       });
     } catch (e) {
       safeDebugPrint('Error loading user info: $e');
+      setState(() => _isLoading = false);
     }
   }
 
@@ -135,7 +149,7 @@ class _PurchaseOrdersAnalysisPageState extends State<PurchaseOrdersAnalysisPage>
   Widget build(BuildContext context) {
     return AppScaffold(
       title: 'purchase_orders_analysis'.tr(),
-      body: userId == null
+      body: _isLoading || userId == null
           ? const Center(child: CircularProgressIndicator())
           : Column(
               children: [
@@ -409,9 +423,8 @@ class _PurchaseOrdersAnalysisPageState extends State<PurchaseOrdersAnalysisPage>
                                             ),
                                       ),
                                       const SizedBox(height: 16),
-                                      Container(
+                                      SizedBox(
                                         height: 200,
-                                        padding: const EdgeInsets.all(8),
                                         child: PieChart(
                                           PieChartData(
                                             sectionsSpace: 2,
@@ -419,7 +432,9 @@ class _PurchaseOrdersAnalysisPageState extends State<PurchaseOrdersAnalysisPage>
                                             sections: [
                                               PieChartSectionData(
                                                 value: completedOrders.toDouble(),
-                                                title: '${((completedOrders / totalOrders) * 100).toStringAsFixed(1)}%',
+                                                title: completedOrders > 0 
+                                                    ? '${((completedOrders / totalOrders) * 100).toStringAsFixed(1)}%'
+                                                    : '0%',
                                                 color: Colors.green,
                                                 radius: 60,
                                                 titleStyle: const TextStyle(
@@ -430,7 +445,9 @@ class _PurchaseOrdersAnalysisPageState extends State<PurchaseOrdersAnalysisPage>
                                               ),
                                               PieChartSectionData(
                                                 value: openOrders.toDouble(),
-                                                title: '${((openOrders / totalOrders) * 100).toStringAsFixed(1)}%',
+                                                title: openOrders > 0
+                                                    ? '${((openOrders / totalOrders) * 100).toStringAsFixed(1)}%'
+                                                    : '0%',
                                                 color: Colors.blue,
                                                 radius: 60,
                                                 titleStyle: const TextStyle(
@@ -441,7 +458,9 @@ class _PurchaseOrdersAnalysisPageState extends State<PurchaseOrdersAnalysisPage>
                                               ),
                                               PieChartSectionData(
                                                 value: cancelledOrders.toDouble(),
-                                                title: '${((cancelledOrders / totalOrders) * 100).toStringAsFixed(1)}%',
+                                                title: cancelledOrders > 0
+                                                    ? '${((cancelledOrders / totalOrders) * 100).toStringAsFixed(1)}%'
+                                                    : '0%',
                                                 color: Colors.red,
                                                 radius: 60,
                                                 titleStyle: const TextStyle(
@@ -486,7 +505,9 @@ class _PurchaseOrdersAnalysisPageState extends State<PurchaseOrdersAnalysisPage>
                                       const SizedBox(height: 16),
                                       ...supplierTotals.entries.map((entry) {
                                         final name = supplierNames[entry.key] ?? entry.key;
-                                        final percentage = (entry.value / totalValue * 100).toStringAsFixed(1);
+                                        final percentage = totalValue > 0 
+                                            ? (entry.value / totalValue * 100).toStringAsFixed(1)
+                                            : '0';
                                         return _buildSupplierCard(
                                           context,
                                           name,
@@ -542,7 +563,7 @@ class _PurchaseOrdersAnalysisPageState extends State<PurchaseOrdersAnalysisPage>
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     fontSize: 12,
                   ),
-              maxLines: 1,
+              maxLines: 2,
               overflow: TextOverflow.ellipsis,
             ),
           ],
@@ -620,7 +641,7 @@ class _PurchaseOrdersAnalysisPageState extends State<PurchaseOrdersAnalysisPage>
             ),
             const SizedBox(height: 8),
             LinearProgressIndicator(
-              value: value / totalValue,
+              value: totalValue > 0 ? value / totalValue : 0,
               backgroundColor: Colors.grey[200],
               valueColor: AlwaysStoppedAnimation<Color>(
                 Theme.of(context).primaryColor,

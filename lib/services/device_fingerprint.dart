@@ -571,7 +571,7 @@ class DeviceFingerprint {
     return _cachedFingerprint!;
   }
 
-  static Future<String> _getDeviceFingerprint() async {
+/*   static Future<String> _getDeviceFingerprint() async {
     try {
       String rawId = "";
 
@@ -603,7 +603,90 @@ class DeviceFingerprint {
       return "fallback-${io.Platform.operatingSystem}-${io.Platform.localHostname}";
     }
   }
+ */
+  
+/*     static Future<String> _getDeviceFingerprint() async {
+    try {
+      String rawId = "";
 
+      if (io.Platform.isAndroid) {
+        final info = await deviceInfo.androidInfo;
+        // 🚀 استخدام حقول بديلة مضمونة في حال كانت بعض قيم السيرفر القديم فارغة
+        final String id = info.id;
+        final String manufacturer = info.manufacturer;
+        final String model = info.model;
+        final String hardware = info.hardware;
+        rawId = "$id-$manufacturer-$model-$hardware";
+      } else if (io.Platform.isIOS) {
+        final info = await deviceInfo.iosInfo;
+        rawId = "${info.identifierForVendor ?? 'unknown_ios'}-${info.name}-${info.systemName}";
+      } else if (io.Platform.isWindows) {
+        final info = await deviceInfo.windowsInfo;
+        // 🛡️ حماية الحقول ضد الـ Null لمنع انهيار تطبيق الهاتف
+        rawId = "${info.deviceId}-${info.computerName}";
+      } else if (io.Platform.isLinux) {
+        final info = await deviceInfo.linuxInfo;
+        rawId = "${info.machineId ?? 'linux_id'}-${info.prettyName}";
+      } else if (io.Platform.isMacOS) {
+        final info = await deviceInfo.macOsInfo;
+        rawId = "${info.systemGUID ?? 'mac_id'}-${info.computerName}";
+      } else {
+        rawId = "fallback-${io.Platform.operatingSystem}-${io.Platform.localHostname}";
+      }
+
+      return rawId;
+    } catch (e) {
+      safeDebugPrint('⚠️ Error building raw device info: $e');
+      return "fallback-${io.Platform.operatingSystem}-${io.Platform.localHostname}";
+    }
+  }
+ */
+  
+    static Future<String> _getDeviceFingerprint() async {
+    try {
+      String rawId = "";
+
+      if (io.Platform.isAndroid) {
+        final info = await deviceInfo.androidInfo;
+        
+        // 1. جلب المعرف الأساسي وحمايته من الـ Null
+        String id = info.id;
+        if (id.isEmpty || id == 'null') {
+          id = info.hardware.hashCode.toString();
+        }
+        
+        // 2. جلب الشركة والموديل وتحويلهم لحروف كبيرة
+        final String manufacturer = (info.manufacturer).toUpperCase().trim();
+        final String model = (info.model).toUpperCase().trim();
+        final String hardware = (info.hardware).toUpperCase().trim();
+        
+        // 3. الدمج الاحترافي ليكون مطابقاً 100% لنظام قراءة الأجهزة الجديد
+        rawId = "$manufacturer-$model-$id-$hardware";
+        
+      } else if (io.Platform.isIOS) {
+        final info = await deviceInfo.iosInfo;
+        rawId = "${info.identifierForVendor}-${info.name}-${info.systemName}";
+      } else if (io.Platform.isWindows) {
+        final info = await deviceInfo.windowsInfo;
+        rawId = "${info.deviceId}-${info.computerName}";
+      } else if (io.Platform.isLinux) {
+        final info = await deviceInfo.linuxInfo;
+        rawId = "${info.machineId}-${info.prettyName}";
+      } else if (io.Platform.isMacOS) {
+        final info = await deviceInfo.macOsInfo;
+        rawId = "${info.systemGUID}-${info.computerName}";
+      } else {
+        rawId = "fallback-${io.Platform.operatingSystem}-${io.Platform.localHostname}";
+      }
+
+      return rawId;
+    } catch (e) {
+      safeDebugPrint('⚠️ Error building raw device info: $e');
+      return "fallback-android-device-${DateTime.now().millisecondsSinceEpoch}";
+    }
+  }
+
+  
   static Future<String> _getWebFingerprint() async {
     try {
       final userAgent = _getWebUserAgent();

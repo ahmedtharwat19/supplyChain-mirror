@@ -38,7 +38,7 @@ git add .
 git commit -m "Updated feature X or fixed bug Y"
 3. Push
 
-git push -u origin main
+git commit -m "Updated feature X or fixed bug Y"
 
 
 

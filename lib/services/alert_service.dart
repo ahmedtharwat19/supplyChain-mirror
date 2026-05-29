@@ -61,8 +61,8 @@ void _showExpiryAlert(ManufacturingOrder order) async {
 
   await _notifications.show(
     0,
-    'manufacturing.alerts.expiry_alert'.tr(),
-    'manufacturing.alerts.expiry_message'.tr(
+    'manufacture.alerts.expiry_alert'.tr(),
+    'manufacture.alerts.expiry_message'.tr(
       args: [
         order.productName,
         order.runs.isNotEmpty ? order.runs.first.batchNumber : 'N/A',
@@ -89,8 +89,8 @@ void _showExpiryAlert(ManufacturingOrder order) async {
 
     await _notifications.show(
       1,
-      'manufacturing.alerts.low_stock'.tr(),
-      'manufacturing.alerts.low_stock_message'.tr(args: [material.materialName]),
+      'manufacture.alerts.low_stock'.tr(),
+      'manufacture.alerts.low_stock_message'.tr(args: [material.materialName]),
       platformChannelSpecifics,
     );
   }
@@ -193,8 +193,8 @@ class AlertService {
     // ✅ تمرير notificationDetails كمعامل مسمّى + id كمعامل مسمّى
     await _notifications.show(
       id: 0,
-      title: 'manufacturing.alerts.expiry_alert'.tr(),
-      body: 'manufacturing.alerts.expiry_message'.tr(
+      title: 'manufacture.alerts.expiry_alert'.tr(),
+      body: 'manufacture.alerts.expiry_message'.tr(
         args: [
           order.productName,
           order.runs.isNotEmpty ? order.runs.first.batchNumber : 'N/A',
@@ -222,8 +222,8 @@ class AlertService {
 
     await _notifications.show(
       id: 1,
-      title: 'manufacturing.alerts.low_stock'.tr(),
-      body: 'manufacturing.alerts.low_stock_message'.tr(
+      title: 'manufacture.alerts.low_stock'.tr(),
+      body: 'manufacture.alerts.low_stock_message'.tr(
         args: [material.materialName],
       ),
       notificationDetails: notificationDetails,

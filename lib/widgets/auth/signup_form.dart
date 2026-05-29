@@ -4,8 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:go_router/go_router.dart';
+import 'package:puresip_purchasing/debug_helper.dart';
 import 'package:puresip_purchasing/services/license_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class SignupForm extends StatefulWidget {
   const SignupForm({super.key});
@@ -101,7 +104,7 @@ class _SignupFormState extends State<SignupForm> {
   }
  */
 
-  void _signup() async {
+/*   void _signup() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
 
     setState(() => _isLoading = true);
@@ -134,6 +137,10 @@ class _SignupFormState extends State<SignupForm> {
           'isActive': true,
           'createdAt': FieldValue.serverTimestamp(),
         });
+
+        // ✅ تهيئة الشروط الافتراضية للمستخدم الجديد
+        final termsService = UserTermsService();
+        await termsService.initializeDefaultTerms(user.uid);
 
         final licenseService = LicenseService();
         await licenseService.initialize();
@@ -194,7 +201,216 @@ class _SignupFormState extends State<SignupForm> {
       if (mounted) setState(() => _isLoading = false);
     }
   }
+ */
+ 
+ // signup_form.dart - الجزء المعدل من دالة _signup
 
+/* void _signup() async {
+  if (!(_formKey.currentState?.validate() ?? false)) return;
+
+  setState(() => _isLoading = true);
+
+  try {
+    final credential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
+      email: _emailController.text.trim(),
+      password: _passwordController.text.trim(),
+    );
+
+    final user = credential.user;
+    if (user != null) {
+      // ✅ إرسال تأكيد البريد الإلكتروني
+      await user.sendEmailVerification();
+
+      final displayName = _displayNameController.text.trim().isEmpty
+          ? _emailController.text.trim().split('@')[0]
+          : _displayNameController.text.trim();
+
+      final phone = _phoneController.text.trim();
+
+      // ✅ حساب تاريخ انتهاء الترخيص (شهر واحد)
+      final expiryDate = DateTime.now().add(const Duration(days: 30));
+      
+      // ✅ إنشاء ترخيص تجريبي
+      final licenseService = LicenseService();
+      final licenseKey = await licenseService.createLicense(
+        userId: user.uid,
+        durationMonths: 1,      // شهر واحد تجريبي
+        maxDevices: 1,          // جهاز واحد
+        requestId: 'signup_${DateTime.now().millisecondsSinceEpoch}',
+      );
+
+      // ✅ إنشاء وثيقة المستخدم في Firestore
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+        'userId': user.uid,
+        'email': user.email,
+        'displayName': displayName,
+        'phoneNumber': phone,
+        'companyIds': [],
+        'supplierIds': [],
+        'factoryIds': [],
+        'isActive': true,           // ✅ نشط
+        'isAdmin': false,           // ✅ مستخدم عادي
+        'createdAt': FieldValue.serverTimestamp(),
+        'licenseKey': licenseKey,   // ✅ ربط الترخيص
+        'license_expiry': Timestamp.fromDate(expiryDate),  // ✅ تاريخ الانتهاء
+        'maxDevices': 1,
+        'trialUsed': true,          // ✅ تم استخدام النسخة التجريبية
+        'trialExpiryDate': Timestamp.fromDate(expiryDate),
+      });
+
+      // ✅ حفظ الترخيص في SecureStorage
+      final secureStorage = const FlutterSecureStorage();
+      await secureStorage.write(key: 'licenseKey', value: licenseKey);
+      await secureStorage.write(key: 'license_expiry', value: expiryDate.toIso8601String());
+
+      // ✅ حفظ اسم المستخدم
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('user_name', displayName);
+      await secureStorage.write(key: 'user_name', value: displayName);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('account_created_successfully'.tr()),
+            backgroundColor: Colors.green,
+          ),
+        );
+        // ✅ التوجيه إلى Dashboard مباشرة (بدون login)
+        context.go('/dashboard');
+      }
+    }
+  } on FirebaseAuthException catch (e) {
+    String message = 'signup_error'.tr();
+    if (e.code == 'email-already-in-use') {
+      message = 'email_already_in_use'.tr();
+    } else if (e.code == 'weak-password') {
+      message = 'weak_password'.tr();
+    } else if (e.code == 'invalid-email') {
+      message = 'invalid_email'.tr();
+    }
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message), backgroundColor: Colors.red),
+      );
+    }
+  } catch (e) {
+    safeDebugPrint('Signup error: $e');
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('unexpected_error'.tr()), backgroundColor: Colors.red),
+      );
+    }
+  } finally {
+    if (mounted) setState(() => _isLoading = false);
+  }
+}
+  */
+  
+// signup_form.dart - الجزء المعدل من دالة _signup
+
+void _signup() async {
+  if (!(_formKey.currentState?.validate() ?? false)) return;
+
+  setState(() => _isLoading = true);
+
+  try {
+    final credential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
+      email: _emailController.text.trim(),
+      password: _passwordController.text.trim(),
+    );
+
+    final user = credential.user;
+    if (user != null) {
+      // ✅ إرسال تأكيد البريد الإلكتروني
+      await user.sendEmailVerification();
+
+      final displayName = _displayNameController.text.trim().isEmpty
+          ? _emailController.text.trim().split('@')[0]
+          : _displayNameController.text.trim();
+
+      final phone = _phoneController.text.trim();
+
+      // ✅ حساب تاريخ انتهاء الترخيص (شهر واحد)
+      final expiryDate = DateTime.now().add(const Duration(days: 30));
+      
+      // ✅ إنشاء ترخيص تجريبي
+      final licenseService = LicenseService();
+      final licenseKey = await licenseService.createLicense(
+        userId: user.uid,
+        durationMonths: 1,      // شهر واحد تجريبي
+        maxDevices: 1,          // جهاز واحد
+        requestId: 'signup_${DateTime.now().millisecondsSinceEpoch}',
+      );
+
+      // ✅ إنشاء وثيقة المستخدم في Firestore
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+        'userId': user.uid,
+        'email': user.email,
+        'displayName': displayName,
+        'phoneNumber': phone,
+        'companyIds': [],
+        'supplierIds': [],
+        'factoryIds': [],
+        'isActive': true,           // ✅ نشط
+        'isAdmin': false,           // ✅ مستخدم عادي
+        'createdAt': FieldValue.serverTimestamp(),
+        'licenseKey': licenseKey,   // ✅ ربط الترخيص
+        'license_expiry': Timestamp.fromDate(expiryDate),  // ✅ تاريخ الانتهاء
+        'maxDevices': 1,
+        'trialUsed': true,          // ✅ تم استخدام النسخة التجريبية
+        'trialExpiryDate': Timestamp.fromDate(expiryDate),
+      });
+
+      // ✅ حفظ الترخيص في SecureStorage
+      final secureStorage = const FlutterSecureStorage();
+      await secureStorage.write(key: 'licenseKey', value: licenseKey);
+      await secureStorage.write(key: 'license_expiry', value: expiryDate.toIso8601String());
+
+      // ✅ حفظ اسم المستخدم
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('user_name', displayName);
+      await secureStorage.write(key: 'user_name', value: displayName);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('account_created_successfully'.tr()),
+            backgroundColor: Colors.green,
+          ),
+        );
+        // ✅ التوجيه إلى Dashboard مباشرة (بدون login)
+        context.go('/dashboard');
+      }
+    }
+  } on FirebaseAuthException catch (e) {
+    String message = 'signup_error'.tr();
+    if (e.code == 'email-already-in-use') {
+      message = 'email_already_in_use'.tr();
+    } else if (e.code == 'weak-password') {
+      message = 'weak_password'.tr();
+    } else if (e.code == 'invalid-email') {
+      message = 'invalid_email'.tr();
+    }
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message), backgroundColor: Colors.red),
+      );
+    }
+  } catch (e) {
+    safeDebugPrint('Signup error: $e');
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('unexpected_error'.tr()), backgroundColor: Colors.red),
+      );
+    }
+  } finally {
+    if (mounted) setState(() => _isLoading = false);
+  }
+}  
+  
+  
   @override
   void dispose() {
     _emailController.dispose();

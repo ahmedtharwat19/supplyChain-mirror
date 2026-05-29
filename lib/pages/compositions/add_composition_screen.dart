@@ -98,6 +98,7 @@ class _AddCompositionScreenState extends State<AddCompositionScreen> {
       builder: (_) => ItemSelectionDialog(
         allItems: itemsToShow,
         preSelectedItems: _getSelectedItemIds(itemCategory),
+        isArabic: context.locale.languageCode == 'ar', // ✅ تمرير اللغة
       ),
     );
 

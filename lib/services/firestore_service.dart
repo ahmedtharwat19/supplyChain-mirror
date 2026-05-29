@@ -426,7 +426,8 @@ class FirestoreService {
           .orderBy('createdAt', descending: true) // تأكد من اسم الحقل هنا
           .get();
 
-      safeDebugPrint('✅ getUserItems: returned ${querySnapshot.docs.length} items');
+      safeDebugPrint(
+          '✅ getUserItems: returned ${querySnapshot.docs.length} items');
       return querySnapshot.docs
           .map((doc) => Item.fromFirestore(doc.data(), doc.id))
           .toList();
@@ -594,6 +595,24 @@ class FirestoreService {
   Future<void> addFactory(Factory factory) async {
     await _firestore.collection('factories').add(factory.toMap());
   }
+
+  /// جلب المصانع المرتبطة بشركة معينة (مرة واحدة، بدون Stream)
+/// جلب المصانع المرتبطة بشركة معينة (مرة واحدة، بدون Stream)
+Future<List<Factory>> getFactoriesByCompanyId(String companyId) async {
+  try {
+    final snapshot = await _firestore
+        .collection('factories')
+        .where('companyIds', arrayContains: companyId)
+        .get();
+    
+    return snapshot.docs
+        .map((doc) => Factory.fromMap(doc.data(), doc.id))
+        .toList();
+  } catch (e) {
+    safeDebugPrint('Error loading factories for company $companyId: $e');
+    return [];
+  }
+}
 
   /// ─────────────── عمليات عامة ───────────────
   Future<void> updateDocument({
@@ -890,6 +909,4 @@ class FirestoreService {
 
     await batch.commit();
   }
-
-
 }

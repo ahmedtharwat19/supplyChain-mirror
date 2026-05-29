@@ -5879,7 +5879,7 @@ class _AdminLicenseManagementPageState
             const Divider(),
             Text('Original Request: $requestId'),
             Text(
-                'Submitted: ${_formatDate((requestData['createdAt'] as Timestamp?)?.toDate())}'),
+                'Submitted: ${_formatDate(requestData['createdAt'] is Timestamp ? (requestData['createdAt'] as Timestamp).toDate() : DateTime.tryParse(requestData['createdAt']?.toString() ?? ''))}'),
           ],
         );
       },

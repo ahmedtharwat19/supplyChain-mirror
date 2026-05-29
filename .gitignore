@@ -165,3 +165,8 @@ pnpm-lock.yaml
 
 
 .vscode/workspaceStorage/
+
+
+# Android signing
+/android/key.properties
+/android/app/*.jks

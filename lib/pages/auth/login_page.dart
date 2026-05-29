@@ -17,18 +17,54 @@ class LoginPage extends StatelessWidget {
           actions: [
             PopupMenuButton<Locale>(
               icon: const Icon(Icons.language),
-              onSelected: (locale) {
-                context.setLocale(locale);
+              // جلب اللغة الحالية للتطبيق لتحديد العنصر المختار تلقائياً
+              initialValue: context.locale,
+              onSelected: (locale) async {
+                await context.setLocale(locale);
               },
               itemBuilder: (context) => [
-                PopupMenuItem(
-                  value: const Locale('en'),
-                  child: Text('language_en'.tr()),
-                ),
-                PopupMenuItem(
-                  value: const Locale('ar'),
-                  child: Text('language_ar'.tr()),
-                ),
+                const PopupMenuItem(
+                    value: Locale('en'),
+                    child: Row(children: [
+                      Text('🇬🇧'),
+                      SizedBox(width: 8),
+                      Text('English')
+                    ])),
+                const PopupMenuItem(
+                    value: Locale('ar'),
+                    child: Row(children: [
+                      Text('🇸🇦'),
+                      SizedBox(width: 8),
+                      Text('العربية')
+                    ])),
+                const PopupMenuItem(
+                    value: Locale('fr'),
+                    child: Row(children: [
+                      Text('🇫🇷'),
+                      SizedBox(width: 8),
+                      Text('Français')
+                    ])),
+                const PopupMenuItem(
+                    value: Locale('es'),
+                    child: Row(children: [
+                      Text('🇪🇸'),
+                      SizedBox(width: 8),
+                      Text('Español')
+                    ])),
+                const PopupMenuItem(
+                    value: Locale('de'),
+                    child: Row(children: [
+                      Text('🇩🇪'),
+                      SizedBox(width: 8),
+                      Text('Deutsch')
+                    ])),
+                const PopupMenuItem(
+                    value: Locale('tr'),
+                    child: Row(children: [
+                      Text('🇹🇷'),
+                      SizedBox(width: 8),
+                      Text('Türkçe')
+                    ])),
               ],
             ),
           ],

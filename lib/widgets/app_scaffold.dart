@@ -1,505 +1,16 @@
-/* import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
-import 'package:puresip_purchasing/pages/dashboard/dashboard_metrics.dart';
-import 'package:puresip_purchasing/pages/dashboard/dashboard_page.dart';
-import 'package:puresip_purchasing/pages/settings_page.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:easy_localization/easy_localization.dart';
+// widgets/app_scaffold.dart - استخدام universal_html بدلاً من dart:html
 
-class AppScaffold extends StatefulWidget {
-  final Widget body;
-  final String? userName;
-  final String? title;
-  final bool isDashboard;
-  final FloatingActionButton? floatingActionButton;
-  final List<Widget>? actions;
-  final bool isSubscriptionExpiringSoon;
-  final bool isSubscriptionExpired;
-
-  const AppScaffold({
-    super.key,
-    required this.body,
-    this.userName,
-    this.title,
-    this.isDashboard = false,
-    this.floatingActionButton,
-    this.actions,
-    this.isSubscriptionExpiringSoon = false,
-     this.isSubscriptionExpired= false,
-  });
-
-  @override
-  State<AppScaffold> createState() => _AppScaffoldState();
-}
-
-class _AppScaffoldState extends State<AppScaffold> {
-  
-  Future<void> _logout() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.clear();
-    await FirebaseAuth.instance.signOut();
-    if (!mounted) return;
-
-    // Safe to use context after mounted check
-    context.go('/login');
-  }
-
-  Future<void> _handleLanguageChange(Locale locale) async {
-    // Capture context before async operation
-    final currentContext = context;
-    await currentContext.setLocale(locale);
-
-    if (mounted) {
-      setState(() {});
-    }
-  }
-
-  void _handleBackNavigation(BuildContext context) {
-    final router = GoRouter.of(context);
-    if (Navigator.of(context).canPop()) {
-      Navigator.of(context).pop();
-    } else if (router.canPop()) {
-      context.pop();
-    } else {
-      context.go('/dashboard');
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final currentPath =
-        GoRouter.of(context).routeInformationProvider.value.uri.toString();
-    final canGoBack = currentPath != '/dashboard';
-
-    return Scaffold(
-      appBar: AppBar(
-        backgroundColor:widget.isSubscriptionExpiringSoon
-            ? Colors.red
-            : const Color.fromARGB(255, 69, 200, 218), // const Color.fromARGB(255, 69, 200, 218),
-        title: Text(widget.title ?? tr('dashboard_title')),
-        leading: canGoBack
-            ? IconButton(
-                icon: const Icon(Icons.arrow_back, color: Colors.white),
-                onPressed: () => _handleBackNavigation(context),
-              )
-            : null,
-        actions: [
-          ..._buildAppBarActions(context),
-          if (widget.actions != null) ...widget.actions!,
-        ],
-//_buildAppBarActions(context),
-      ),
-      drawer: _buildDrawer(context),
-      body: SafeArea(child: widget.body),
-      floatingActionButton: widget.floatingActionButton,
-    );
-  }
-
-/*   List<Widget> _buildAppBarActions(BuildContext context) {
-    return [
-      if (widget.userName != null)
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          child: Center(
-            child: Text(
-              '${tr('hello')}, ${widget.userName}',
-              style: const TextStyle(fontSize: 16, color: Colors.white),
-            ),
-          ),
-        ),
-      PopupMenuButton<Locale>(
-        icon: const Icon(Icons.language, color: Colors.white),
-        tooltip: tr('change_language'),
-        onSelected: _handleLanguageChange,
-        itemBuilder: (context) => [
-          PopupMenuItem(
-            value: const Locale('en'),
-            child:
-                Text('English', style: Theme.of(context).textTheme.bodyMedium),
-          ),
-          PopupMenuItem(
-            value: const Locale('ar'),
-            child:
-                Text('العربية', style: Theme.of(context).textTheme.bodyMedium),
-          ),
-        ],
-      ),
-    ];
-  }
- */
-
-  List<Widget> _buildAppBarActions(BuildContext context) {
-    if (!widget.isDashboard) return [];
-
-    return [
-      if (widget.userName != null)
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          child: Center(
-            child: Text(
-              '${tr('hello')}, ${widget.userName}',
-              style: const TextStyle(fontSize: 16, color: Colors.white),
-            ),
-          ),
-        ),
-      PopupMenuButton<Locale>(
-        icon: const Icon(Icons.language, color: Colors.white),
-        tooltip: tr('change_language'),
-        onSelected: _handleLanguageChange,
-        itemBuilder: (context) => [
-          PopupMenuItem(
-            value: const Locale('en'),
-            child:
-                Text('English', style: Theme.of(context).textTheme.bodyMedium),
-          ),
-          PopupMenuItem(
-            value: const Locale('ar'),
-            child:
-                Text('العربية', style: Theme.of(context).textTheme.bodyMedium),
-          ),
-        ],
-      ),
-    ];
-  }
-
-  Widget _buildDrawer(BuildContext context) {
-    return Drawer(
-      child: ListView(
-        padding: EdgeInsets.zero,
-        children: [
-          _buildDrawerHeader(),
-          _buildDrawerItem(
-            icon: Icons.dashboard,
-            title: tr('dashboard_title'),
-            onTap: () => context.go('/dashboard'),
-          ),
-          _buildDrawerItem(
-            icon: Icons.business,
-            title: tr('manage_companies'),
-            onTap: () => context.go('/companies'),
-          ),
-          _buildDrawerItem(
-            icon: Icons.group,
-            title: tr('manage_suppliers'),
-            onTap: () => context.go('/suppliers'),
-          ),
-          _buildDrawerItem(
-            icon: Icons.category,
-            title: tr('manage_items'),
-            onTap: () => context.go('/items'),
-          ),
-          _buildDrawerItem(
-            icon: Icons.shopping_cart,
-            title: tr('view_purchase_orders'),
-            onTap: () => context.go('/purchase-orders'),
-          ),
-          const Divider(),
-          _buildDrawerItem(
-            icon: Icons.settings,
-            title: tr('settings.title'),
-            onTap: () async {
-              Navigator.of(context).pop(); // إغلاق Drawer
-
-              final result = await Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => SettingsPage(
-                    allCards: dashboardMetrics.map((e) => e.titleKey).toList(),
-                  ),
-                ),
-              );
-
-              if (!context.mounted) return;
-
-              if (result == true) {
-                final dashboardState =
-                    context.findAncestorStateOfType<DashboardPageState>();
-                dashboardState?.loadSettings();
-              }
-            },
-          ),
-          const Divider(),
-          _buildDrawerItem(
-            icon: Icons.logout,
-            title: tr('logout'),
-            onTap: _logout,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDrawerHeader() {
-    return DrawerHeader(
-      decoration: const BoxDecoration(color: Color.fromARGB(255, 69, 200, 218)),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Icon(Icons.person, size: 40, color: Colors.white),
-          const SizedBox(height: 8),
-          Text(
-            widget.userName != null
-                ? '${tr('hello')}, ${widget.userName}'
-                : tr('welcome'),
-            style: const TextStyle(fontSize: 18, color: Colors.white),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDrawerItem({
-    required IconData icon,
-    required String title,
-    required VoidCallback onTap,
-  }) {
-    return ListTile(
-      leading: Icon(icon),
-      title: Text(title),
-      onTap: onTap,
-    );
-  }
-}
- */
-/* 
+import 'dart:convert';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:puresip_purchasing/pages/dashboard/dashboard_metrics.dart';
-import 'package:puresip_purchasing/pages/dashboard/dashboard_page.dart';
-import 'package:puresip_purchasing/pages/settings_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:easy_localization/easy_localization.dart';
-
-class AppScaffold extends StatefulWidget {
-  final Widget body;
-  final String? userName;
-  final String? title;
-  final bool isDashboard;
-  final FloatingActionButton? floatingActionButton;
-  final List<Widget>? actions;
-  final bool isSubscriptionExpiringSoon;
-  final bool isSubscriptionExpired;
-
-  const AppScaffold({
-    super.key,
-    required this.body,
-    this.userName,
-    this.title,
-    this.isDashboard = false,
-    this.floatingActionButton,
-    this.actions,
-    this.isSubscriptionExpiringSoon = false,
-    this.isSubscriptionExpired = false,
-  });
-
-  @override
-  State<AppScaffold> createState() => _AppScaffoldState();
-}
-
-class _AppScaffoldState extends State<AppScaffold> {
-  Future<void> _logout() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.clear();
-    await FirebaseAuth.instance.signOut();
-    if (!mounted) return;
-    context.go('/login');
-  }
-
-  Future<void> _handleLanguageChange(Locale locale) async {
-    await context.setLocale(locale);
-    if (mounted) setState(() {});
-  }
-
-  void _handleBackNavigation(BuildContext context) {
-    final router = GoRouter.of(context);
-    if (Navigator.of(context).canPop()) {
-      Navigator.of(context).pop();
-    } else if (router.canPop()) {
-      context.pop();
-    } else {
-      context.go('/dashboard');
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final currentPath = GoRouter.of(context).routeInformationProvider.value.uri.toString();
-    final canGoBack = currentPath != '/dashboard';
-
-    return Scaffold(
-      appBar: AppBar(
-        backgroundColor: widget.isSubscriptionExpiringSoon
-            ? Colors.red
-            : const Color.fromARGB(255, 69, 200, 218),
-        title: Text(widget.title ?? tr('dashboard_title')),
-        leading: canGoBack
-            ? IconButton(
-                icon: const Icon(Icons.arrow_back, color: Colors.white),
-                onPressed: () => _handleBackNavigation(context),
-              )
-            : null,
-        actions: [
-          ..._buildAppBarActions(context),
-          if (widget.actions != null) ...widget.actions!,
-        ],
-      ),
-      drawer: _buildDrawer(context),
-      body: SafeArea(child: widget.body),
-      floatingActionButton: widget.floatingActionButton,
-    );
-  }
-
-  List<Widget> _buildAppBarActions(BuildContext context) {
-    if (!widget.isDashboard) return [];
-
-    return [
-      if (widget.userName != null)
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          child: Center(
-            child: Text(
-              '${tr('hello')}, ${widget.userName}',
-              style: const TextStyle(fontSize: 16, color: Colors.white),
-            ),
-          ),
-        ),
-      PopupMenuButton<Locale>(
-        icon: const Icon(Icons.language, color: Colors.white),
-        tooltip: tr('change_language'),
-        onSelected: _handleLanguageChange,
-        itemBuilder: (context) => [
-          PopupMenuItem(
-            value: const Locale('en'),
-            child: Text('English', style: Theme.of(context).textTheme.bodyMedium),
-          ),
-          PopupMenuItem(
-            value: const Locale('ar'),
-            child: Text('العربية', style: Theme.of(context).textTheme.bodyMedium),
-          ),
-        ],
-      ),
-    ];
-  }
-
-  Widget _buildDrawer(BuildContext context) {
-    return Drawer(
-      child: ListView(
-        padding: EdgeInsets.zero,
-        children: [
-          _buildDrawerHeader(),
-          _buildDrawerItem(
-            icon: Icons.dashboard,
-            title: tr('dashboard_title'),
-            onTap: () => context.go('/dashboard'),
-          ),
-          _buildDrawerItem(
-            icon: Icons.business,
-            title: tr('manage_companies'),
-            onTap: () => context.go('/companies'),
-          ),
-          _buildDrawerItem(
-            icon: Icons.group,
-            title: tr('manage_suppliers'),
-            onTap: () => context.go('/suppliers'),
-          ),
-          _buildDrawerItem(
-            icon: Icons.category,
-            title: tr('manage_items'),
-            onTap: () => context.go('/items'),
-          ),
-          _buildDrawerItem(
-            icon: Icons.shopping_cart,
-            title: tr('view_purchase_orders'),
-            onTap: () => context.go('/purchase-orders'),
-          ),
-          const Divider(),
-          _buildDrawerItem(
-            icon: Icons.settings,
-            title: tr('settings.title'),
-            onTap: () async {
-              Navigator.of(context).pop(); // إغلاق Drawer
-              final result = await Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => SettingsPage(
-                    allCards: dashboardMetrics.map((e) => e.titleKey).toList(),
-                  ),
-                ),
-              );
-              if (!context.mounted) return;
-              if (result == true) {
-                final dashboardState = context.findAncestorStateOfType<DashboardPageState>();
-                dashboardState?.loadSettings();
-              }
-            },
-          ),
-          const Divider(),
-          _buildDrawerItem(
-            icon: Icons.logout,
-            title: tr('logout'),
-            onTap: _logout,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDrawerHeader() {
-    return DrawerHeader(
-      decoration: const BoxDecoration(color: Color.fromARGB(255, 69, 200, 218)),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Icon(Icons.person, size: 40, color: Colors.white),
-          const SizedBox(height: 8),
-          Text(
-            widget.userName != null ? '${tr('hello')}, ${widget.userName}' : tr('welcome'),
-            style: const TextStyle(fontSize: 18, color: Colors.white),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDrawerItem({
-    required IconData icon,
-    required String title,
-    required VoidCallback onTap,
-  }) {
-    return ListTile(
-      leading: Icon(icon),
-      title: Text(title),
-      onTap: onTap,
-    );
-  }
-}
- */
-
-// نفترض وجود خدمة للتراخيص مع دالة للتحقق من وجود طلبات ترخيص معلقة
-/* class LicenseService {
-  Future<bool> hasPendingLicenseRequests() async {
-    final snapshot = await FirebaseFirestore.instance
-        .collection('license_requests')
-        .where('status', isEqualTo: 'pending')
-        .get();
-    return snapshot.docs.isNotEmpty;
-  }
-} */
-
-
-import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
-import 'package:puresip_purchasing/pages/dashboard/dashboard_metrics.dart';
-import 'package:puresip_purchasing/pages/dashboard/dashboard_page.dart';
-import 'package:puresip_purchasing/services/hive_service.dart';
-//import 'package:puresip_purchasing/pages/settings_page.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:easy_localization/easy_localization.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:puresip_purchasing/services/license_service.dart';
-
-//  late final LicenseService _licenseService;
+import 'package:universal_html/html.dart' as html; // ✅ استخدام universal_html
 
 class AppScaffold extends StatefulWidget {
   final Widget body;
@@ -510,7 +21,7 @@ class AppScaffold extends StatefulWidget {
   final List<Widget>? actions;
   final bool isSubscriptionExpiringSoon;
   final bool isSubscriptionExpired;
-final VoidCallback? onSettingsPressed; 
+  final VoidCallback? onSettingsPressed;
 
   const AppScaffold({
     super.key,
@@ -530,178 +41,367 @@ final VoidCallback? onSettingsPressed;
 }
 
 class _AppScaffoldState extends State<AppScaffold> {
-  bool _hasPendingRequests = false; // هل هناك طلبات ترخيص معلقة؟
-  bool _isAdmin = false; // هل المستخدم إدمن؟
+  bool _hasPendingRequests = false;
+  bool _isAdmin = false;
   String? _userName;
+  final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
+
+  static const String _keyUserData = 'user_data';
+  static const String _keyUserName = 'user_name';
+  // ✅ ثابت واحد في أعلى الـ State
+  static const List<String> _mainPages = [
+    '/dashboard',
+    '/companies',
+    '/suppliers',
+    '/items',
+    '/purchase-orders',
+    '/factories',
+    '/reports',
+    '/stock_movements',
+    '/manufacturing_orders',
+    '/finished_products',
+  ];
+
+// ✅ احسبه مرة في initState
+late final String _todayDate;
 
   @override
   void initState() {
     super.initState();
+      final now = DateTime.now();
+  _todayDate = '${now.day}/${now.month}/${now.year}';
     _checkAdminNotifications();
-     _loadUserNameFromHive();
+    _loadUserNameFromStorage();
+
+    // ✅ للويب: منع أزرار الرجوع/التقدم في المتصفح
+    if (kIsWeb) {
+      _disableWebNavigation();
+    }
   }
 
-Future<void> _loadUserNameFromHive() async {
-  try {
-    final userData = await HiveService.getUserData();
-    debugPrint('Loaded user data from Hive: $userData');
-    
-    // فحص هيكل البيانات
-    _debugUserData(userData);
-    
-    String? userName;
-    
-    if (userData != null) {
-      // المحاولة 1: displayName من المستوى العلوي
-      userName = userData['displayName'];
-      debugPrint('Top level displayName: $userName');
-      
-      // المحاولة 2: displayName من كائن user المتداخل
-      if ((userName == null || userName.isEmpty) && userData['user'] is Map) {
-        final user = userData['user'] as Map<String, dynamic>;
-        userName = user['displayName'];
-        debugPrint('Nested user displayName: $userName');
-      }
-      
-      // المحاولة 3: email من المستوى العلوي
-      if ((userName == null || userName.isEmpty)) {
-        final email = userData['email'];
-        debugPrint('Top level email: $email');
-        
-        if (email != null && email is String && email.contains('@')) {
-          userName = email.split('@').first;
-          debugPrint('Extracted username from top level email: $userName');
-        }
-      }
-      
-      // المحاولة 4: email من كائن user المتداخل
-      if ((userName == null || userName.isEmpty) && userData['user'] is Map) {
-        final user = userData['user'] as Map<String, dynamic>;
-        final email = user['email'];
-        debugPrint('Nested user email: $email');
-        
-        if (email != null && email is String && email.contains('@')) {
-          userName = email.split('@').first;
-          debugPrint('Extracted username from nested email: $userName');
-        }
-      }
-    }
-    
-    // القيمة الافتراضية
-    userName ??= 'User';
-    
-    if (mounted) {
-      setState(() {
-        _userName = userName;
-      });
-    }
-    
-    debugPrint('Final username: $_userName');
-    
-  } catch (e) {
-    debugPrint('Error in _loadUserNameFromHive: $e');
-    if (mounted) {
-      setState(() {
-        _userName = 'User';
-      });
-    }
-  }
+bool _webNavDisabled = false;
+
+void _disableWebNavigation() {
+  if (_webNavDisabled) return;
+  _webNavDisabled = true;
+  html.window.onPopState.listen((_) {
+    html.window.history.pushState(null, '', html.window.location.href);
+  });
+  html.window.history.pushState(null, '', html.window.location.href);
 }
 
-// دالة مساعدة لفحص هيكل البيانات
-void _debugUserData(Map<String, dynamic>? userData) {
-  if (userData == null) {
-    debugPrint('User data is null');
-    return;
+/*   void _disableWebNavigation() {
+    // استخدام universal_html بدلاً من dart:html
+    html.window.onPopState.listen((event) {
+      // إضافة حالة جديدة لمنع الرجوع
+      html.window.history.pushState(null, '', html.window.location.href);
+    });
+    // إضافة حالة أولية
+    html.window.history.pushState(null, '', html.window.location.href);
   }
-  
-  debugPrint('=== DEBUG USER DATA STRUCTURE ===');
-  debugPrint('All keys: ${userData.keys.toList()}');
-  
-  for (var key in userData.keys) {
-    final value = userData[key];
-    debugPrint('$key: $value (type: ${value?.runtimeType})');
-    
-    // إذا كان الكائن متداخلاً، اطبع مفاتيحه أيضاً
-    if (value is Map) {
-      debugPrint('  $key subkeys: ${value.keys.toList()}');
+ */
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    //   _loadUserNameFromStorage();
+  }
+
+  // ✅ أضف هذه الدالة لإعادة تحميل اسم المستخدم
+  void refreshUserName() {
+    _loadUserNameFromStorage();
+  }
+
+  Future<void> _loadUserNameFromStorage() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      String? userName = prefs.getString(_keyUserName);
+
+      if (userName == null || userName.isEmpty || userName == 'User') {
+        final userDataJson = await _secureStorage.read(key: _keyUserData);
+        if (userDataJson != null) {
+          final userData = json.decode(userDataJson) as Map<String, dynamic>;
+          userName = userData['displayName']?.toString() ??
+              userData['name']?.toString() ??
+              userData['email']?.toString().split('@').first;
+        }
+      }
+
+      userName ??= 'User';
+
+      if (mounted && _userName != userName) {
+        setState(() {
+          _userName = userName;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading user name: $e');
     }
   }
-  debugPrint('=== END DEBUG ===');
-}
 
-  Future<void> _checkAdminNotifications() async {
+/*   Future<void> _checkAdminNotifications() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
-    final doc = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(user.uid)
-        .get();
-    final isAdmin = doc.data()?['isAdmin'] == true;
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+      final isAdmin = doc.data()?['isAdmin'] == true;
 
-    if (isAdmin) {
-      final licenseService = LicenseService();
-      final hasPending = await licenseService.hasPendingLicenseRequests();
-      if (mounted) {
-        setState(() {
-          _isAdmin = true;
-          _hasPendingRequests = hasPending;
-        });
+      if (isAdmin) {
+        final licenseService = LicenseService();
+        final hasPending = await licenseService.hasPendingLicenseRequests();
+        if (mounted) {
+          setState(() {
+            _isAdmin = true;
+            _hasPendingRequests = hasPending;
+          });
+        }
       }
+    } catch (e) {
+      debugPrint('Error checking admin: $e');
+    }
+  }
+ */
+
+  Future<void> _checkAdminNotifications() async {
+    final isAdminStr = await _secureStorage.read(key: 'isAdmin');
+    if (isAdminStr != 'true') return;
+
+    final licenseService = LicenseService();
+    final hasPending = await licenseService.hasPendingLicenseRequests();
+    if (mounted) {
+      setState(() {
+        _isAdmin = true;
+        _hasPendingRequests = hasPending;
+      });
     }
   }
 
   Future<void> _logout() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.clear();
-    await FirebaseAuth.instance.signOut();
-    if (!mounted) return;
-    context.go('/login');
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.clear();
+      await _secureStorage.deleteAll();
+      await FirebaseAuth.instance.signOut();
+      if (!mounted) return;
+      context.go('/login');
+    } catch (e) {
+      debugPrint('Logout error: $e');
+    }
   }
 
   Future<void> _handleLanguageChange(Locale locale) async {
     await context.setLocale(locale);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('selected_language', locale.languageCode);
     if (mounted) setState(() {});
   }
 
-void _handleBackNavigation(BuildContext context) {
-  if (context.canPop()) {
-    context.pop(); // رجوع من خلال go_router stack
-  } else {
-    context.go('/dashboard'); // fallback عند الوصول للجذر
+  /// ✅ دالة الرجوع للخلف
+/*   Future<void> _onPopInvokedWithResult(bool didPop, Object? result) async {
+    if (didPop) return;
+    
+    final currentPath = GoRouterState.of(context).uri.path;
+    
+    // ✅ قائمة الصفحات الرئيسية (التي لا نسمح بالرجوع منها)
+    final List<String> mainPages = [
+      '/dashboard',
+      '/companies',
+      '/suppliers',
+      '/items',
+      '/purchase-orders',
+      '/factories',
+      '/reports',
+    ];
+    
+    // ✅ إذا كنا في صفحة رئيسية
+    if (mainPages.contains(currentPath)) {
+      // نطلب تأكيد الخروج من التطبيق
+      final shouldExit = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text(tr('exit_title')),
+          content: Text(tr('exit_message')),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: Text(tr('cancel')),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: Text(tr('exit')),
+            ),
+          ],
+        ),
+      );
+      
+      if (shouldExit == true && mounted) {
+        // ✅ إغلاق التطبيق
+        if (kIsWeb) {
+          html.window.close();
+        } else {
+          Navigator.of(context).pop();
+        }
+      }
+      return;
+    }
+    
+    // ✅ إذا كنا في صفحة فرعية، نرجع للصفحة السابقة
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      context.go('/dashboard');
+    }
   }
-}
+ */
 
+// widgets/app_scaffold.dart - تعديل دالة _onPopInvokedWithResult
+
+  /// ✅ دالة الرجوع للخلف (معدلة حسب متطلباتك)
+  Future<void> _onPopInvokedWithResult(bool didPop, Object? result) async {
+    if (didPop) return;
+
+    final currentPath = GoRouterState.of(context).uri.path;
+
+    // ✅ قائمة الصفحات الرئيسية (التي تعتبر "الصفحة الرئيسية")
+/*   final List<String> mainPages = [
+    '/dashboard',
+    '/companies',
+    '/suppliers',
+    '/items',
+    '/purchase-orders',
+    '/factories',
+    '/reports',
+    '/stock_movements',
+    '/manufacturing_orders',
+    '/finished_products',
+  ];
+   */
+    // ✅ إذا كنا في صفحة رئيسية (Dashboard أو ما يعادلها)
+    if (_mainPages.contains(currentPath)) {
+      // ✅ إذا كنا في Dashboard تحديداً
+      if (currentPath == '/dashboard') {
+        // نطلب تأكيد الخروج من التطبيق
+        final shouldExit = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: Text(tr('exit_title')),
+            content: Text(tr('exit_message')),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: Text(tr('cancel')),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                style: TextButton.styleFrom(foregroundColor: Colors.red),
+                child: Text(tr('exit')),
+              ),
+            ],
+          ),
+        );
+
+        if (shouldExit == true && mounted) {
+          // ✅ إغلاق التطبيق حسب المنصة
+          if (kIsWeb) {
+            try {
+              html.window.close();
+            } catch (e) {
+              debugPrint('Error closing window: $e');
+            }
+          } else {
+            // ✅ على Android/iOS، إغلاق التطبيق
+            Navigator.of(context).pop();
+          }
+        }
+      } else {
+        // ✅ إذا كان في صفحة رئيسية أخرى (غير Dashboard)، نرجع إلى Dashboard
+        if (mounted) {
+          context.go('/dashboard');
+        }
+      }
+      return;
+    }
+
+    // ✅ إذا كنا في صفحة فرعية، نرجع للصفحة السابقة
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      context.go('/dashboard');
+    }
+  }
+
+  void _handleBackNavigation() {
+    final currentPath = GoRouterState.of(context).uri.path;
+
+    // قائمة الصفحات الرئيسية
+/*     final List<String> mainPages = [
+      '/dashboard',
+      '/companies', 
+      '/suppliers',
+      '/items',
+      '/purchase-orders',
+      '/factories',
+      '/reports',
+    ];
+     */
+    // ✅ إذا كانت صفحة رئيسية، لا تفعل شيئاً
+    if (_mainPages.contains(currentPath)) {
+      return;
+    }
+
+    // ✅ إذا كانت صفحة فرعية، ارجع للخلف
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      context.go('/dashboard');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    // final currentPath =
-    //     GoRouter.of(context).routeInformationProvider.value.uri.toString();
-
     final currentPath = GoRouterState.of(context).uri.path;
-    final canGoBack = currentPath != '/dashboard';
 
-    return Scaffold(
-      appBar: AppBar(
-        backgroundColor: widget.isSubscriptionExpiringSoon
-            ? Colors.red
-            : const Color.fromARGB(255, 69, 200, 218),
-        title: Text(widget.title ?? tr('dashboard_title')),
-        leading: canGoBack
-            ? IconButton(
-                icon: const Icon(Icons.arrow_back, color: Colors.white),
-                onPressed: () => _handleBackNavigation(context),
-              )
-            : null,
-        actions: [
-          ..._buildAppBarActions(context),
-          if (widget.actions != null) ...widget.actions!,
-        ],
+    // ✅ قائمة الصفحات الرئيسية
+/*     final List<String> mainPages = [
+      '/dashboard',
+      '/companies',
+      '/suppliers', 
+      '/items',
+      '/purchase-orders',
+      '/factories',
+      '/reports',
+    ];
+     */
+    // ✅ إظهار زر الرجوع فقط إذا كنا في صفحة فرعية
+    final canGoBack = !_mainPages.contains(currentPath);
+
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: _onPopInvokedWithResult,
+      child: Scaffold(
+        appBar: AppBar(
+          backgroundColor: widget.isSubscriptionExpiringSoon
+              ? Colors.red
+              : const Color.fromARGB(255, 69, 200, 218),
+          title: Text(widget.title ?? tr('dashboard_title')),
+          leading: canGoBack
+              ? IconButton(
+                  icon: const Icon(Icons.arrow_back, color: Colors.white),
+                  onPressed: _handleBackNavigation,
+                )
+              : null,
+          actions: [
+            ..._buildAppBarActions(context),
+            if (widget.actions != null) ...widget.actions!,
+          ],
+        ),
+        drawer: _buildDrawer(context),
+        body: SafeArea(child: widget.body),
+        floatingActionButton: widget.floatingActionButton,
       ),
-      drawer: _buildDrawer(context),
-      body: SafeArea(child: widget.body),
-      floatingActionButton: widget.floatingActionButton,
     );
   }
 
@@ -718,7 +418,6 @@ void _handleBackNavigation(BuildContext context) {
                 '${tr('hello')}, $_userName',
                 style: const TextStyle(fontSize: 16, color: Colors.white),
               ),
-              // هنا نضيف الدائرة الحمراء إذا المستخدم إدمن وهناك طلبات معلقة
               if (_isAdmin && _hasPendingRequests)
                 Padding(
                   padding: const EdgeInsets.only(left: 6),
@@ -739,333 +438,186 @@ void _handleBackNavigation(BuildContext context) {
         tooltip: tr('change_language'),
         onSelected: _handleLanguageChange,
         itemBuilder: (context) => [
-          PopupMenuItem(
-            value: const Locale('en'),
-            child:
-                Text('English', style: Theme.of(context).textTheme.bodyMedium),
-          ),
-          PopupMenuItem(
-            value: const Locale('ar'),
-            child:
-                Text('العربية', style: Theme.of(context).textTheme.bodyMedium),
-          ),
+          const PopupMenuItem(
+              value: Locale('en'),
+              child: Row(children: [
+                Text('🇬🇧'),
+                SizedBox(width: 8),
+                Text('English')
+              ])),
+          const PopupMenuItem(
+              value: Locale('ar'),
+              child: Row(children: [
+                Text('🇸🇦'),
+                SizedBox(width: 8),
+                Text('العربية')
+              ])),
+          const PopupMenuItem(
+              value: Locale('fr'),
+              child: Row(children: [
+                Text('🇫🇷'),
+                SizedBox(width: 8),
+                Text('Français')
+              ])),
+          const PopupMenuItem(
+              value: Locale('es'),
+              child: Row(children: [
+                Text('🇪🇸'),
+                SizedBox(width: 8),
+                Text('Español')
+              ])),
+          const PopupMenuItem(
+              value: Locale('de'),
+              child: Row(children: [
+                Text('🇩🇪'),
+                SizedBox(width: 8),
+                Text('Deutsch')
+              ])),
+          const PopupMenuItem(
+              value: Locale('tr'),
+              child: Row(children: [
+                Text('🇹🇷'),
+                SizedBox(width: 8),
+                Text('Türkçe')
+              ])),
         ],
       ),
     ];
   }
 
-/*   Widget _buildDrawer(BuildContext context) {
+  Widget _buildDrawer(BuildContext context) {
     return Drawer(
       child: ListView(
         padding: EdgeInsets.zero,
         children: [
           _buildDrawerHeader(),
           _buildDrawerItem(
-            icon: Icons.dashboard,
-            title: tr('dashboard_title'),
-            onTap: () => context.go('/dashboard'),
-          ),
+              icon: Icons.dashboard,
+              title: tr('dashboard_title'),
+              onTap: () => context.go('/dashboard')),
           _buildDrawerItem(
-            icon: Icons.business,
-            title: tr('manage_companies'),
-            onTap: () => context.go('/companies'),
-          ),
+              icon: Icons.business,
+              title: tr('manage_companies'),
+              onTap: () => context.go('/companies')),
           _buildDrawerItem(
-            icon: Icons.group,
-            title: tr('manage_suppliers'),
-            onTap: () => context.go('/suppliers'),
-          ),
+              icon: Icons.group,
+              title: tr('manage_suppliers'),
+              onTap: () => context.go('/suppliers')),
           _buildDrawerItem(
-            icon: Icons.category,
-            title: tr('manage_items'),
-            onTap: () => context.go('/items'),
-          ),
+              icon: Icons.category,
+              title: tr('manage_items'),
+              onTap: () => context.go('/items')),
           _buildDrawerItem(
-            icon: Icons.shopping_cart,
-            title: tr('view_purchase_orders'),
-            onTap: () => context.go('/purchase-orders'),
-          ),
-
-          // إضافة عنصر خاص بالإدمن في Drawer إذا كان المستخدم إدمن
-/*           if (_isAdmin)
-            _buildDrawerItem(
-              icon: Icons.security,
-              title: tr('manage_licenses'),
-              onTap: () => context.go('/admin/licenses'),
-            ), */
+              icon: Icons.shopping_cart,
+              title: tr('view_purchase_orders'),
+              onTap: () => context.go('/purchase-orders')),
           if (_isAdmin)
             _buildDrawerItem(
-              icon: Icons.security,
-              title: tr('manage_licenses'),
-              onTap: () {
-                Navigator.of(context).pop(); // إغلاق الـ Drawer
-                context.go('/admin/licenses'); // توجيه
-              },
-            ),
-
+                icon: Icons.security,
+                title: tr('manage_licenses'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  context.go('/admin/licenses');
+                }),
           const Divider(),
           _buildDrawerItem(
-             icon: Icons.settings,
+            icon: Icons.settings,
             title: tr('settings.title'),
-         /*   onTap: () async {
-              Navigator.of(context).pop(); // إغلاق Drawer
-              final result = await Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => SettingsPage(
-                    allCards: dashboardMetrics.map((e) => e.titleKey).toList(),
-                  ),
-                ),
-              );
-              if (!context.mounted) return;
-              if (result == true) {
-                final dashboardState =
-                    context.findAncestorStateOfType<DashboardPageState>();
-                dashboardState?.loadSettings();
-              }
-            }, */
             onTap: () async {
-  Navigator.of(context).pop(); // إغلاق Drawer
-
-  final result = await context.push<bool>(
-    '/settings',
-    extra: dashboardMetrics.map((e) => e.titleKey).toList(),
-  );
-
-  if (!context.mounted) return;
-  if (result == true) {
-    final dashboardState = context.findAncestorStateOfType<DashboardPageState>();
-    dashboardState?.loadSettings();
-  }
-},
-
+              Navigator.of(context).pop();
+              final result = await context.push<bool>(
+                '/settings',
+                extra: dashboardMetrics.map((e) => e.titleKey).toList(),
+              );
+              if (mounted && result == true && context.mounted) {
+                context.go('/dashboard');
+              }
+            },
           ),
           const Divider(),
           _buildDrawerItem(
-            icon: Icons.logout,
-            title: tr('logout'),
-            onTap: _logout,
-          ),
+              icon: Icons.logout, title: tr('logout'), onTap: _logout),
         ],
       ),
     );
   }
- */
 
-// في ملف app_scaffold.dart - تحديث الدالة _buildDrawer
-Widget _buildDrawer(BuildContext context) {
-  return Drawer(
-    child: ListView(
-      padding: EdgeInsets.zero,
-      children: [
-        _buildDrawerHeader(),
-        _buildDrawerItem(
-          icon: Icons.dashboard,
-          title: tr('dashboard_title'),
-          onTap: () => context.go('/dashboard'),
-        ),
-        _buildDrawerItem(
-          icon: Icons.business,
-          title: tr('manage_companies'),
-          onTap: () => context.go('/companies'),
-        ),
-        _buildDrawerItem(
-          icon: Icons.group,
-          title: tr('manage_suppliers'),
-          onTap: () => context.go('/suppliers'),
-        ),
-        _buildDrawerItem(
-          icon: Icons.category,
-          title: tr('manage_items'),
-          onTap: () => context.go('/items'),
-        ),
-        _buildDrawerItem(
-          icon: Icons.shopping_cart,
-          title: tr('view_purchase_orders'),
-          onTap: () => context.go('/purchase-orders'),
-        ),
-
-        if (_isAdmin)
-          _buildDrawerItem(
-            icon: Icons.security,
-            title: tr('manage_licenses'),
-            onTap: () {
-              Navigator.of(context).pop();
-              context.go('/admin/licenses');
-            },
-          ),
-
-        const Divider(),
-        
-        // 🟢 إضافة عنصر Hive Settings هنا
-        _buildDrawerItem(
-          icon: Icons.storage,
-          title: tr('hive_settings'),
-          onTap: () {
-            Navigator.of(context).pop();
-            context.push('/hive-settings');
-          },
-        ),
-        
-        _buildDrawerItem(
-          icon: Icons.settings,
-          title: tr('settings.title'),
-          onTap: () async {
-            Navigator.of(context).pop();
-            final result = await context.push<bool>(
-              '/settings',
-              extra: dashboardMetrics.map((e) => e.titleKey).toList(),
-            );
-            if (!context.mounted) return;
-            if (result == true) {
-              final dashboardState = context.findAncestorStateOfType<DashboardPageState>();
-              dashboardState?.loadSettingsFromHive();
-            }
-          },
-        ),
-        
-        const Divider(),
-        _buildDrawerItem(
-          icon: Icons.logout,
-          title: tr('logout'),
-          onTap: _logout,
-        ),
-      ],
-    ),
-  );
-}
-
-/*   Widget _buildDrawerHeader() {
+  Widget _buildDrawerHeader() {
     return DrawerHeader(
-      decoration: const BoxDecoration(color: Color.fromARGB(255, 69, 200, 218)),
+      decoration: const BoxDecoration(
+          color: Color.fromARGB(255, 69, 200, 218),
+          borderRadius: BorderRadius.only(bottomRight: Radius.circular(25))),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.person, size: 40, color: Colors.white),
+          Text(_todayDate,
+        //      '${DateTime.now().day}/${DateTime.now().month}/${DateTime.now().year}',
+              style: const TextStyle(fontSize: 12, color: Colors.white70)),
           const SizedBox(height: 8),
-          Text(
-            _userName != null
-                ? '${tr('hello')}, $_userName'
-                : tr('welcome'),
-            style: const TextStyle(fontSize: 18, color: Colors.white),
+          Expanded(
+            child: Row(
+              children: [
+                Container(
+                    width: 50,
+                    height: 50,
+                    decoration: const BoxDecoration(
+                        color: Colors.white24, shape: BoxShape.circle),
+                    child: const Icon(Icons.person,
+                        size: 30, color: Colors.white)),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(_userName ?? tr('guest_user'),
+                          style: const TextStyle(
+                              fontSize: 18,
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis),
+                      const SizedBox(height: 4),
+                      Text(
+                          _userName != null
+                              ? tr('welcome_message')
+                              : tr('login_to_start'),
+                          style: const TextStyle(
+                              fontSize: 12, color: Colors.white70),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
+          if (widget.isSubscriptionExpiringSoon ||
+              (widget.isSubscriptionExpired && !_isAdmin))
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                  color:
+                      widget.isSubscriptionExpired ? Colors.red : Colors.orange,
+                  borderRadius: BorderRadius.circular(12)),
+              child: Text(
+                  widget.isSubscriptionExpired
+                      ? tr('subscription_expired')
+                      : tr('subscription_expiring_soon'),
+                  style: const TextStyle(
+                      fontSize: 12,
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold)),
+            ),
         ],
       ),
     );
   }
- */
- 
- Widget _buildDrawerHeader() {
-  final currentDate = DateTime.now();
-  final formattedDate = '${currentDate.day}/${currentDate.month}/${currentDate.year}';
-  
-  return DrawerHeader(
-    decoration: const BoxDecoration(
-      color: Color.fromARGB(255, 69, 200, 218),
-      borderRadius: BorderRadius.only(
-        bottomRight: Radius.circular(25),
-      ),
-    ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // التاريخ والوقت
-        Text(
-          formattedDate,
-          style: const TextStyle(
-            fontSize: 12,
-            color: Colors.white70,
-          ),
-        ),
-        
-        const SizedBox(height: 8),
-        
-        // معلومات المستخدم الرئيسية
-        Expanded(
-          child: Row(
-            children: [
-              // صورة/أيقونة المستخدم
-              Container(
-                width: 50,
-                height: 50,
-                decoration: const BoxDecoration(
-                  color: Colors.white24,
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.person,
-                  size: 30,
-                  color: Colors.white,
-                ),
-              ),
-              
-              const SizedBox(width: 16),
-              
-              // معلومات المستخدم
-              Expanded(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      _userName != null ? _userName! : tr('guest_user'),
-                      style: const TextStyle(
-                        fontSize: 18,
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    
-                    const SizedBox(height: 4),
-                    
-                    Text(
-                     _userName != null ? tr('welcome_message') : tr('login_to_start'),
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: Colors.white70,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-        
-        // حالة الاشتراك
-        if (widget.isSubscriptionExpiringSoon || widget.isSubscriptionExpired && !_isAdmin)
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: widget.isSubscriptionExpired ? Colors.red : Colors.orange,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Text(
-              widget.isSubscriptionExpired ? tr('subscription_expired') : tr('subscription_expiring_soon'),
-              style: const TextStyle(
-                fontSize: 12,
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-      ],
-    ),
-  );
-}
- 
-  Widget _buildDrawerItem({
-    required IconData icon,
-    required String title,
-    required VoidCallback onTap,
-  }) {
-    return ListTile(
-      leading: Icon(icon),
-      title: Text(title),
-      onTap: onTap,
-    );
+
+  Widget _buildDrawerItem(
+      {required IconData icon,
+      required String title,
+      required VoidCallback onTap}) {
+    return ListTile(leading: Icon(icon), title: Text(title), onTap: onTap);
   }
 }

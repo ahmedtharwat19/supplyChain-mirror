@@ -83,13 +83,13 @@ class ManufacturingOrder {
   String get statusText {
     switch (status) {
       case ManufacturingStatus.pending:
-        return 'manufacturing.status_pending'.tr();
+        return 'manufacture.status_pending'.tr();
       case ManufacturingStatus.inProgress:
-        return 'manufacturing.status_inProgress'.tr();
+        return 'manufacture.status_inProgress'.tr();
       case ManufacturingStatus.completed:
-        return 'manufacturing.status_completed'.tr();
+        return 'manufacture.status_completed'.tr();
       case ManufacturingStatus.cancelled:
-        return 'manufacturing.status_cancelled'.tr();
+        return 'manufacture.status_cancelled'.tr();
     }
   }
 

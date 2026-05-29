@@ -1,11 +1,11 @@
+// pages/items/edit_item_page.dart - تصحيح الخطأ
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/services.dart';
 import 'package:puresip_purchasing/models/item.dart';
-import 'package:puresip_purchasing/utils/user_local_storage.dart';
 import 'package:puresip_purchasing/debug_helper.dart';
-
 
 class EditItemPage extends StatefulWidget {
   final String itemId;
@@ -28,6 +28,7 @@ class _EditItemPageState extends State<EditItemPage> {
   String _unit = Item.allowedUnits.first;
 
   bool _isLoading = true;
+  bool _isSaving = false;
 
   @override
   void initState() {
@@ -65,10 +66,9 @@ class _EditItemPageState extends State<EditItemPage> {
       _unit = Item.allowedUnits.contains(item.unit)
           ? item.unit
           : Item.allowedUnits.first;
+          
       safeDebugPrint('Fetched category: ${item.category}');
       safeDebugPrint('Fetched unit: ${item.unit}');
-      safeDebugPrint('Allowed categories: ${Item.allowedCategories}');
-      safeDebugPrint('Allowed units: ${Item.allowedUnits}');
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -83,20 +83,32 @@ class _EditItemPageState extends State<EditItemPage> {
   Future<void> _updateItem() async {
     if (!_formKey.currentState!.validate()) return;
 
-    setState(() => _isLoading = true);
-  final userData = await UserLocalStorage.getUser();
+    setState(() => _isSaving = true);
+
     try {
+      final user = FirebaseAuth.instance.currentUser;
+      final userId = user?.uid;
+
+      if (userId == null) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(tr('please_login_first'))),
+        );
+        setState(() => _isSaving = false);
+        return;
+      }
+
       final itemData = {
-        Item.fieldNameAr : _nameArController.text.trim(),
+        Item.fieldNameAr: _nameArController.text.trim(),
         Item.fieldNameEn: _nameEnController.text.trim(),
         Item.fieldDescription: _descriptionController.text.trim(),
         Item.fieldCategory: _category,
         Item.fieldUnit: _unit,
         Item.fieldUnitPrice: double.tryParse(_priceController.text.trim()) ?? 0,
-        Item.fieldIsTaxable: true, // Assuming items are taxable by default
-        Item.fieldCreatedAt: FieldValue.serverTimestamp(),
-        Item.fieldUserId: userData?['userId'], // Assuming user ID is the project ID
-        // You might want to replace this with actual user ID logic
+        Item.fieldIsTaxable: true,
+        Item.fieldUserId: userId,
+        // ✅ استخدام FieldValue.serverTimestamp() مباشرة بدلاً من حقل غير موجود
+        'updatedAt': FieldValue.serverTimestamp(),
       };
 
       await FirebaseFirestore.instance
@@ -109,14 +121,14 @@ class _EditItemPageState extends State<EditItemPage> {
         SnackBar(content: Text(tr('item_updated_successfully'))),
       );
 
-      Navigator.of(context).pop();
+      Navigator.of(context).pop(true);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('${tr('error_occurred')}: $e')),
       );
     } finally {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted) setState(() => _isSaving = false);
     }
   }
 
@@ -147,17 +159,20 @@ class _EditItemPageState extends State<EditItemPage> {
                       validator: (value) => value == null || value.isEmpty
                           ? tr('required_field')
                           : null,
+                      textInputAction: TextInputAction.next,
                     ),
                     const SizedBox(height: 16),
+
                     TextFormField(
                       controller: _nameEnController,
-                      decoration:
-                          InputDecoration(labelText: tr('nameEnglish')),
+                      decoration: InputDecoration(labelText: tr('nameEnglish')),
                       validator: (value) => value == null || value.isEmpty
                           ? tr('required_field')
                           : null,
+                      textInputAction: TextInputAction.next,
                     ),
                     const SizedBox(height: 16),
+
                     DropdownButtonFormField<String>(
                       initialValue: _category,
                       decoration: InputDecoration(labelText: tr('category')),
@@ -170,6 +185,7 @@ class _EditItemPageState extends State<EditItemPage> {
                       onChanged: (val) => setState(() => _category = val!),
                     ),
                     const SizedBox(height: 16),
+
                     DropdownButtonFormField<String>(
                       initialValue: _unit,
                       decoration: InputDecoration(labelText: tr('unit')),
@@ -182,13 +198,13 @@ class _EditItemPageState extends State<EditItemPage> {
                       onChanged: (val) => setState(() => _unit = val!),
                     ),
                     const SizedBox(height: 16),
+
                     TextFormField(
                       controller: _priceController,
                       decoration: InputDecoration(labelText: tr('unit_price')),
                       keyboardType: TextInputType.number,
                       inputFormatters: [
-                        FilteringTextInputFormatter.allow(
-                            r'^\d+\.?\d{0,2}')
+                        FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}'))
                       ],
                       validator: (value) {
                         if (value == null || value.trim().isEmpty) {
@@ -199,17 +215,31 @@ class _EditItemPageState extends State<EditItemPage> {
                         }
                         return null;
                       },
+                      textInputAction: TextInputAction.next,
                     ),
                     const SizedBox(height: 16),
+
                     TextFormField(
                       controller: _descriptionController,
                       decoration: InputDecoration(labelText: tr('description')),
                       maxLines: 3,
+                      textInputAction: TextInputAction.done,
+                      onFieldSubmitted: (_) => _updateItem(),
                     ),
                     const SizedBox(height: 24),
+
                     ElevatedButton(
-                      onPressed: _isLoading ? null : _updateItem,
-                      child: Text(tr('update')),
+                      onPressed: _isSaving ? null : _updateItem,
+                      style: ElevatedButton.styleFrom(
+                        minimumSize: const Size(double.infinity, 45),
+                      ),
+                      child: _isSaving
+                          ? const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : Text(tr('update')),
                     ),
                   ],
                 ),

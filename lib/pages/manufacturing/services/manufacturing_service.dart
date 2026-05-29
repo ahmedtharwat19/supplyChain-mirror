@@ -112,7 +112,7 @@ final bool isArabic = Localizations.localeOf(localContext).languageCode == 'ar';
     if (!compDoc.exists) {
       if (!localContext.mounted) return;
       ScaffoldMessenger.of(localContext).showSnackBar(
-        SnackBar(content: Text('manufacturing.composition_not_found'.tr())),
+        SnackBar(content: Text('manufacture.composition_not_found'.tr())),
       );
       return;
     }
@@ -187,7 +187,7 @@ final bool isArabic = Localizations.localeOf(localContext).languageCode == 'ar';
       context: localContext,
       builder: (ctx) {
         return AlertDialog(
-          title: Text('manufacturing.required_materials'.tr()),
+          title: Text('manufacture.required_materials'.tr()),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -198,8 +198,8 @@ final bool isArabic = Localizations.localeOf(localContext).languageCode == 'ar';
                 return ListTile(
                   title: Text(mat['itemName'] ?? mat['itemId']),
                   subtitle: Text(
-                    '${'manufacturing.required'.tr()}: ${requiredQty.toStringAsFixed(2)} ${mat['unit']} | '
-                    '${'manufacturing.available'.tr()}: ${availQty.toStringAsFixed(2)}'
+                    '${'manufacture.required'.tr()}: ${requiredQty.toStringAsFixed(2)} ${mat['unit']} | '
+                    '${'manufacture.available'.tr()}: ${availQty.toStringAsFixed(2)}'
                   ),
                   trailing: shortage 
                       ? const Icon(Icons.warning, color: Colors.red) 
@@ -215,7 +215,7 @@ final bool isArabic = Localizations.localeOf(localContext).languageCode == 'ar';
             ),
             ElevatedButton(
               onPressed: () => Navigator.pop(ctx, true), 
-              child: Text('manufacturing.confirm'.tr())
+              child: Text('manufacture.confirm'.tr())
             ),
           ],
         );
@@ -345,7 +345,7 @@ final bool isArabic = Localizations.localeOf(localContext).languageCode == 'ar';
 
     if (!localContext.mounted) return;
     ScaffoldMessenger.of(localContext).showSnackBar(
-      SnackBar(content: Text('manufacturing.deduction_success'.tr())),
+      SnackBar(content: Text('manufacture.deduction_success'.tr())),
     );
 
   } catch (e) {
@@ -381,7 +381,7 @@ final bool isArabic = Localizations.localeOf(localContext).languageCode == 'ar';
     if (!compDoc.exists) {
       if (!localContext.mounted) return;
       ScaffoldMessenger.of(localContext).showSnackBar(
-        SnackBar(content: Text('manufacturing.composition_not_found'.tr())),
+        SnackBar(content: Text('manufacture.composition_not_found'.tr())),
       );
       return;
     }
@@ -457,7 +457,7 @@ final bool isArabic = Localizations.localeOf(localContext).languageCode == 'ar';
       context: localContext,
       builder: (ctx) {
         return AlertDialog(
-          title: Text('manufacturing.required_materials'.tr()),
+          title: Text('manufacture.required_materials'.tr()),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -468,8 +468,8 @@ final bool isArabic = Localizations.localeOf(localContext).languageCode == 'ar';
                 return ListTile(
                   title: Text(mat['itemName'] ?? mat['itemId']),
                   subtitle: Text(
-                    '${'manufacturing.required'.tr()}: ${requiredQty.toStringAsFixed(2)} ${mat['unit']} | '
-                    '${'manufacturing.available'.tr()}: ${availQty.toStringAsFixed(2)}'
+                    '${'manufacture.required'.tr()}: ${requiredQty.toStringAsFixed(2)} ${mat['unit']} | '
+                    '${'manufacture.available'.tr()}: ${availQty.toStringAsFixed(2)}'
                   ),
                   trailing: shortage 
                       ? const Icon(Icons.warning, color: Colors.red) 
@@ -485,7 +485,7 @@ final bool isArabic = Localizations.localeOf(localContext).languageCode == 'ar';
             ),
             ElevatedButton(
               onPressed: () => Navigator.pop(ctx, true), 
-              child: Text('manufacturing.confirm'.tr())
+              child: Text('manufacture.confirm'.tr())
             ),
           ],
         );
@@ -560,7 +560,7 @@ final bool isArabic = Localizations.localeOf(localContext).languageCode == 'ar';
 
     if (!localContext.mounted) return;
     ScaffoldMessenger.of(localContext).showSnackBar(
-      SnackBar(content: Text('manufacturing.deduction_success'.tr())),
+      SnackBar(content: Text('manufacture.deduction_success'.tr())),
     );
 
   } catch (e) {

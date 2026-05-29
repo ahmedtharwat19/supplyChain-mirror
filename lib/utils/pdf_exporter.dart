@@ -1,7 +1,4 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_storage/firebase_storage.dart';
-// import 'package:flutter/material.dart';
-// import 'package:flutter/widgets.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:flutter/services.dart';
@@ -12,15 +9,17 @@ import 'package:qr_flutter/qr_flutter.dart';
 import 'dart:convert';
 import 'package:puresip_purchasing/debug_helper.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:number_to_word_arabic/number_to_word_arabic.dart';
+import 'package:number_to_words_english/number_to_words_english.dart';
 
 class PdfExporter {
-  // Constants for styling
-  static const double _headerFontSize = 18;
-  static const double _bodyFontSize = 14;
-  static const double _smallFontSize = 12;
-  static const pw.EdgeInsets _defaultPadding = pw.EdgeInsets.all(8);
+  static const double _headerFontSize = 16;
+  static const double _mediumFontSize = 12;
+  static const double _bodyFontSize = 10;
+  static const double _smallFontSize = 8;
+  static const pw.EdgeInsets _cellPadding =
+      pw.EdgeInsets.symmetric(horizontal: 4, vertical: 3);
 
-  // Cache for fonts
   static pw.Font? _cachedArabicFont;
   static pw.Font? _cachedLatinFont;
 
@@ -37,47 +36,36 @@ class PdfExporter {
     required Map<String, dynamic> itemData,
     String? base64Logo,
     bool isArabic = true,
+    Map<String, List<Map<String, dynamic>>>? additionalItems,
   }) async {
     final userName = await _getUserName();
     final pdf = pw.Document();
     final logoBytes = _decodeBase64Logo(base64Logo);
-    //  final qrInfo = _generateQrData(orderId, orderData, supplierData, companyData);
-    //   final qrImage = await _generateQrImage(qrInfo);
-    // استخراج poNumber من orderData أو استخدام orderId إذا كان فارغًا
+
     final poNumber = orderData['poNumber']?.toString().isNotEmpty == true
         ? orderData['poNumber'].toString()
         : orderId;
-    // إنشاء QR Code مع بيانات الطلب ورابط التنزيل
-    final qrData = _generateQrData(
-        poNumber, orderData, supplierData, companyData, itemData, isArabic);
-    // طباعة البيانات للتأكد من أنها غير فارغة
-    safeDebugPrint('QR Data: $qrData');
 
-    final qrImage = await _generateRealQrImage(qrData, 600);
+    final qrData = _generateDetailedQrData(
+        poNumber, orderData, supplierData, companyData, isArabic);
+    final qrImage = await _generateRealQrImage(qrData, 150);
 
     final arabicFont = await _getArabicFont();
     final latinFont = await _getLatinFont();
-    final arabicAmount = _convertNumberToArabicWords(7);
-    final ctext = getCurrencyText(7, isArabic);
-    safeDebugPrint('المبلغ كتابة: $arabicAmount $ctext فقط لا غير');
-    final arabicAmount1 = _convertNumberToArabicWords(1);
-    final ctext1 = getCurrencyText(1, isArabic);
-    safeDebugPrint('المبلغ كتابة: $arabicAmount1 $ctext1 فقط لا غير');
+
+    final additionalItemsWidget = await _getAdditionalItemsWidget(
+      orderData,
+      additionalItems,
+      isArabic,
+      arabicFont,
+    );
+
     pdf.addPage(
       pw.Page(
-        theme: pw.ThemeData.withFont(
-          base: arabicFont,
-          fontFallback: [latinFont],
-        ),
-        pageFormat: PdfPageFormat.a4.copyWith(
-          marginTop: 30,
-          marginBottom: 30,
-          marginLeft: 30,
-          marginRight: 30,
-        ),
-        margin: const pw.EdgeInsets.symmetric(
-            horizontal: 30,
-            vertical: 20), // تعديل الهوامش// const pw.EdgeInsets.all(30),
+        theme:
+            pw.ThemeData.withFont(base: arabicFont, fontFallback: [latinFont]),
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.all(20),
         build: (pw.Context context) {
           return pw.Directionality(
             textDirection:
@@ -85,17 +73,21 @@ class PdfExporter {
             child: pw.Column(
               crossAxisAlignment: pw.CrossAxisAlignment.stretch,
               children: [
-                // _buildInvoiceTitle(isArabic, arabicFont),
-                // pw.SizedBox(height: 20),
-                _buildHeader(orderId, orderData, companyData, qrImage,
-                    logoBytes, isArabic, arabicFont),
-                pw.SizedBox(height: 20),
+                _buildHeader(orderData, companyData, qrImage, logoBytes,
+                    isArabic, arabicFont),
+                pw.SizedBox(height: 10),
                 _buildSupplierSection(supplierData, isArabic, arabicFont),
-                pw.SizedBox(height: 20),
+                pw.SizedBox(height: 10),
                 _buildOrderItemsTable(orderData, arabicFont, isArabic),
-                pw.SizedBox(height: 20),
-                _buildOrderSummary(orderData, isArabic, arabicFont),
-                pw.Spacer(),
+                pw.SizedBox(height: 8),
+                _buildTaxExemptNote(orderData, isArabic, arabicFont),
+                pw.SizedBox(height: 8),
+                _buildOrderSummary(orderData, arabicFont, isArabic),
+                pw.SizedBox(height: 8),
+                _buildTermsTable(orderData, arabicFont, isArabic),
+                pw.SizedBox(height: 8),
+                additionalItemsWidget,
+                pw.Expanded(child: pw.SizedBox()),
                 _buildFooter(companyData, isArabic, arabicFont, userName),
               ],
             ),
@@ -107,7 +99,221 @@ class PdfExporter {
     return pdf;
   }
 
-  // إنشاء QR Code حقيقي بدلاً من النص البديل
+  // ==================== العناصر الإضافية ====================
+  static Future<pw.Widget> _getAdditionalItemsWidget(
+    Map<String, dynamic> orderData,
+    Map<String, List<Map<String, dynamic>>>? additionalItems,
+    bool isArabic,
+    pw.Font arabicFont,
+  ) async {
+    if (additionalItems != null) {
+      return _buildAdditionalItemsList(additionalItems, isArabic, arabicFont);
+    }
+
+    final conditionsIds = List<String>.from(orderData['conditionsIds'] ?? []);
+    final documentsIds = List<String>.from(orderData['documentsIds'] ?? []);
+    final notesIds = List<String>.from(orderData['notesIds'] ?? []);
+
+    if (conditionsIds.isEmpty && documentsIds.isEmpty && notesIds.isEmpty) {
+      return pw.SizedBox();
+    }
+
+    final firestore = FirebaseFirestore.instance;
+    final Map<String, List<Map<String, dynamic>>> loadedItems = {
+      'conditions': [],
+      'documents': [],
+      'notes': [],
+    };
+
+    final allIds = [...conditionsIds, ...documentsIds, ...notesIds];
+
+    if (allIds.isNotEmpty) {
+      List<Map<String, dynamic>> allItems = [];
+
+      for (int i = 0; i < allIds.length; i += 10) {
+        final end = (i + 10 < allIds.length) ? i + 10 : allIds.length;
+        final batchIds = allIds.sublist(i, end);
+
+        final snapshot = await firestore
+            .collection('additional_items')
+            .where(FieldPath.documentId, whereIn: batchIds)
+            .get();
+
+        for (var doc in snapshot.docs) {
+          final data = doc.data();
+          allItems.add({
+            'id': doc.id,
+            'titleAr': data['titleAr'] ?? '',
+            'titleEn': data['titleEn'] ?? '',
+          });
+        }
+      }
+
+      for (var item in allItems) {
+        final id = item['id'] as String;
+        if (conditionsIds.contains(id)) {
+          loadedItems['conditions']!.add(item);
+        } else if (documentsIds.contains(id)) {
+          loadedItems['documents']!.add(item);
+        } else if (notesIds.contains(id)) {
+          loadedItems['notes']!.add(item);
+        }
+      }
+    }
+
+    return _buildAdditionalItemsList(loadedItems, isArabic, arabicFont);
+  }
+
+  static pw.Widget _buildAdditionalItemsList(
+    Map<String, List<Map<String, dynamic>>> additionalItems,
+    bool isArabic,
+    pw.Font arabicFont,
+  ) {
+    final conditions = additionalItems['conditions'] ?? [];
+    final documents = additionalItems['documents'] ?? [];
+    final notes = additionalItems['notes'] ?? [];
+
+    if (conditions.isEmpty && documents.isEmpty && notes.isEmpty) {
+      return pw.SizedBox();
+    }
+
+    return pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      mainAxisSize: pw.MainAxisSize.min,
+      children: [
+        if (conditions.isNotEmpty) ...[
+          pw.SizedBox(height: 6),
+          pw.Container(
+            decoration: const pw.BoxDecoration(
+              border:
+                  pw.Border(bottom: pw.BorderSide(color: PdfColors.grey400)),
+            ),
+            child: pw.Text(
+              isArabic ? 'الشروط الإضافية' : 'Additional Conditions',
+              style: pw.TextStyle(
+                fontSize: _bodyFontSize,
+                fontWeight: pw.FontWeight.bold,
+                font: arabicFont,
+              ),
+            ),
+          ),
+          pw.SizedBox(height: 4),
+          ...conditions.map((c) => pw.Padding(
+                padding: const pw.EdgeInsets.only(left: 12, bottom: 2),
+                child: pw.Row(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Text('• ', style: pw.TextStyle(font: arabicFont)),
+                    pw.Expanded(
+                      child: pw.Text(
+                        isArabic ? c['titleAr'] : c['titleEn'],
+                        style: pw.TextStyle(
+                          fontSize: _smallFontSize,
+                          font: arabicFont,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              )),
+        ],
+        if (documents.isNotEmpty) ...[
+          pw.SizedBox(height: 6),
+          pw.Container(
+            decoration: const pw.BoxDecoration(
+              border:
+                  pw.Border(bottom: pw.BorderSide(color: PdfColors.grey400)),
+            ),
+            child: pw.Text(
+              isArabic ? 'المستندات المطلوبة' : 'Required Documents',
+              style: pw.TextStyle(
+                fontSize: _bodyFontSize,
+                fontWeight: pw.FontWeight.bold,
+                font: arabicFont,
+              ),
+            ),
+          ),
+          pw.SizedBox(height: 4),
+          ...documents.map((d) => pw.Padding(
+                padding: const pw.EdgeInsets.only(left: 12, bottom: 2),
+                child: pw.Row(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Text('• ', style: pw.TextStyle(font: arabicFont)),
+                    pw.Expanded(
+                      child: pw.Text(
+                        isArabic ? d['titleAr'] : d['titleEn'],
+                        style: pw.TextStyle(
+                          fontSize: _smallFontSize,
+                          font: arabicFont,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              )),
+        ],
+        if (notes.isNotEmpty) ...[
+          pw.SizedBox(height: 6),
+          pw.Container(
+            decoration: const pw.BoxDecoration(
+              border:
+                  pw.Border(bottom: pw.BorderSide(color: PdfColors.grey400)),
+            ),
+            child: pw.Text(
+              isArabic ? 'ملاحظات' : 'Notes',
+              style: pw.TextStyle(
+                fontSize: _bodyFontSize,
+                fontWeight: pw.FontWeight.bold,
+                font: arabicFont,
+              ),
+            ),
+          ),
+          pw.SizedBox(height: 4),
+          ...notes.map((n) => pw.Padding(
+                padding: const pw.EdgeInsets.only(left: 12, bottom: 2),
+                child: pw.Row(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Text('• ', style: pw.TextStyle(font: arabicFont)),
+                    pw.Expanded(
+                      child: pw.Text(
+                        isArabic ? n['titleAr'] : n['titleEn'],
+                        style: pw.TextStyle(
+                          fontSize: _smallFontSize,
+                          font: arabicFont,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              )),
+        ],
+      ],
+    );
+  }
+
+  // ==================== QR Code ====================
+  static String _generateDetailedQrData(
+    String poNumber,
+    Map<String, dynamic> orderData,
+    Map<String, dynamic> supplierData,
+    Map<String, dynamic> companyData,
+    bool isArabic,
+  ) {
+    final total = (orderData['netPayable'] ?? 0.0).toDouble();
+
+    final qrContent = {
+      'po': poNumber,
+      'date': _formatOrderDate(orderData['orderDate']),
+      'company': isArabic ? companyData['nameAr'] : companyData['nameEn'],
+      'supplier': isArabic ? supplierData['nameAr'] : supplierData['nameEn'],
+      'total': total,
+    };
+
+    return jsonEncode(qrContent);
+  }
+
   static Future<pw.Widget> _generateRealQrImage(
       String data, double size) async {
     try {
@@ -117,210 +323,510 @@ class PdfExporter {
         errorCorrectionLevel: QrErrorCorrectLevel.H,
         gapless: false,
       );
-
-      final image = await qrPainter.toImageData(size);
-
-      if (image == null) {
-        throw Exception('Failed to generate QR image');
-      }
-      final qrImage = pw.MemoryImage(image.buffer.asUint8List());
-
+      final image = await qrPainter.toImageData(size.toDouble());
+      if (image == null) throw Exception('Failed to generate QR image');
       return pw.Container(
         width: size,
         height: size,
-        child: pw.Image(qrImage),
+        child: pw.Image(pw.MemoryImage(image.buffer.asUint8List())),
       );
     } catch (e) {
       safeDebugPrint('Error generating QR: $e');
-      return _generateQrPlaceholder();
-    }
-  }
-
-  static pw.Widget _generateQrPlaceholder() {
-    return pw.Container(
-      width: 100,
-      height: 100,
-      decoration: pw.BoxDecoration(
-        border: pw.Border.all(),
-      ),
-      child: pw.Center(
-        child: pw.Text(
-          'QR Code\nPlaceholder',
-          textAlign: pw.TextAlign.center,
+      return pw.Container(
+        width: size,
+        height: size,
+        decoration: pw.BoxDecoration(
+          border: pw.Border.all(),
+          borderRadius: pw.BorderRadius.circular(4),
         ),
+        child: pw.Center(
+          child: pw.Text(
+            'QR',
+            style: pw.TextStyle(
+                fontSize: size * 0.2, fontWeight: pw.FontWeight.bold),
+          ),
+        ),
+      );
+    }
+  }
+
+  // ==================== جدول الأصناف ====================
+  static pw.Widget _buildOrderItemsTable(
+      Map<String, dynamic> orderData, pw.Font arabicFont, bool isArabic) {
+    final items = orderData['items'] ?? [];
+
+    final columnWidths = {
+      0: isArabic ? const pw.FlexColumnWidth(1) : const pw.FlexColumnWidth(3),
+      1: const pw.FlexColumnWidth(1),
+      2: const pw.FlexColumnWidth(1),
+      3: const pw.FlexColumnWidth(1),
+      4: isArabic ? const pw.FlexColumnWidth(3) : const pw.FlexColumnWidth(1),
+    };
+
+    final headers = isArabic
+        ? ['الإجمالي', 'الضريبة', 'السعر', 'الكمية', 'الصنف']
+        : ['Item', 'Qty', 'Price', 'Tax', 'Total'];
+
+    return pw.Directionality(
+      textDirection: isArabic ? pw.TextDirection.rtl : pw.TextDirection.ltr,
+      child: pw.Table(
+        border: pw.TableBorder.all(width: 0.5),
+        columnWidths: columnWidths,
+        defaultVerticalAlignment: pw.TableCellVerticalAlignment.middle,
+        children: [
+          pw.TableRow(
+            decoration: const pw.BoxDecoration(color: PdfColors.grey200),
+            children: headers
+                .map((header) => _buildHeaderCell(header, arabicFont, isArabic))
+                .toList(),
+          ),
+          ...items.map((item) {
+            final itemName =
+                isArabic ? (item['nameAr'] ?? '') : (item['nameEn'] ?? '');
+            final isTaxable = item['isTaxable'] ?? true;
+            final displayName = isTaxable ? itemName : '* $itemName';
+            final taxText = isTaxable
+                ? _formatCurrency(item['taxAmount'])
+                : (isArabic ? 'معفى' : 'Exempt');
+
+            final cells = isArabic
+                ? [
+                    _buildCell(_formatCurrency(item['totalAfterTaxAmount']),
+                        arabicFont, isArabic,
+                        align: pw.TextAlign.center),
+                    _buildCell(taxText, arabicFont, isArabic,
+                        align: pw.TextAlign.center),
+                    _buildCell(_formatCurrency(item['unitPrice']), arabicFont,
+                        isArabic,
+                        align: pw.TextAlign.center),
+                    _buildCell(item['quantity']?.toString() ?? '', arabicFont,
+                        isArabic,
+                        align: pw.TextAlign.center),
+                    _buildCell(displayName, arabicFont, isArabic,
+                        align: pw.TextAlign.right),
+                  ]
+                : [
+                    _buildCell(displayName, arabicFont, isArabic,
+                        align: pw.TextAlign.left),
+                    _buildCell(item['quantity']?.toString() ?? '', arabicFont,
+                        isArabic,
+                        align: pw.TextAlign.center),
+                    _buildCell(_formatCurrency(item['unitPrice']), arabicFont,
+                        isArabic,
+                        align: pw.TextAlign.center),
+                    _buildCell(taxText, arabicFont, isArabic,
+                        align: pw.TextAlign.center),
+                    _buildCell(_formatCurrency(item['totalAfterTaxAmount']),
+                        arabicFont, isArabic,
+                        align: pw.TextAlign.center),
+                  ];
+
+            return pw.TableRow(children: cells);
+          }),
+        ],
       ),
     );
   }
 
-  static String _generateQrData(
-    String orderId,
-    Map<String, dynamic> orderData,
-    Map<String, dynamic> supplierData,
-    Map<String, dynamic> companyData,
-    Map<String, dynamic> itemData,
-    bool isArabic,
-  ) {
-    safeDebugPrint('itemData structure: ${itemData.toString()}');
-    final poNumber = orderData['poNumber']?.toString().isNotEmpty == true
-        ? orderData['poNumber'].toString()
-        : orderId;
+  // ==================== جدول الملخص ====================
+  static pw.Widget _buildOrderSummary(
+      Map<String, dynamic> orderData, pw.Font arabicFont, bool isArabic) {
+    final subtotal = (orderData['totalAmount'] ?? 0.0).toDouble();
+    final tax = (orderData['totalTax'] ?? 0.0).toDouble();
+    final withholdingAmount =
+        (orderData['withholdingTaxAmount'] ?? 0.0).toDouble();
+    final total = subtotal + tax - withholdingAmount;
+    final currency = orderData['currency'] ?? 'EGP';
 
-    final invoiceContent = '''
-=== ${isArabic ? 'فاتورة شراء' : 'Purchase Order'} ===
-${isArabic ? 'رقم الفاتورة' : 'Invoice No'}: $poNumber
-${isArabic ? 'التاريخ' : 'Date'}: ${_formatOrderDate(orderData['orderDate'])}
-${isArabic ? 'الشركة' : 'Company'}: ${isArabic ? companyData['nameAr'] : companyData['nameEn']}
-${isArabic ? 'المورد' : 'Supplier'}: ${isArabic ? supplierData['nameAr'] : supplierData['nameEn']}
+    final columnWidths = isArabic
+        ? {0: const pw.FlexColumnWidth(1), 1: const pw.FlexColumnWidth(2)}
+        : {0: const pw.FlexColumnWidth(2), 1: const pw.FlexColumnWidth(1)};
 
-${isArabic ? 'المجموع النهائي' : 'Total'}: ${_formatCurrency(orderData['totalAmountAfterTax'])} ${orderData['currency'] ?? 'EGP'}
-    =====xxx===xxx=====
-
-''';
-
-    return invoiceContent;
-  }
-
-// ${isArabic ? 'المجموع الفرعي' : 'Subtotal'}: ${_formatCurrency(orderData['totalAmount'])}
-// ${isArabic ? 'الضريبة' : 'Tax'}: ${_formatCurrency(orderData['totalTax'])}
-
-//       ----------------------------
-// ${isArabic ? 'العناصر' : 'Items'}:
-// ${items.map((item) => '• ${item['name']} - (${item['quantity']} x ${_formatCurrency(item['price'])}) = ${_formatCurrency(item['total'])}').join('\n')}
-//     ----------------------------
-
-  // دالة لإنشاء رابط تنزيل PDF
-  static Future<String> generatePdfDownloadUrl(
-    String orderId,
-    Map<String, dynamic> orderData,
-    Map<String, dynamic> supplierData,
-    Map<String, dynamic> companyData,
-    Map<String, dynamic> itemData,
-    String? base64Logo,
-    bool isArabic,
-  ) async {
-    final poNumber = orderData['poNumber']?.toString().isNotEmpty == true
-        ? orderData['poNumber'].toString()
-        : orderId;
-    final pdf = await generatePurchaseOrderPdf(
-      orderId: orderId,
-      orderData: orderData,
-      supplierData: supplierData,
-      companyData: companyData,
-      itemData: itemData,
-      base64Logo: base64Logo,
-      isArabic: isArabic,
-    );
-
-    final bytes = await pdf.save();
-    final ref = FirebaseStorage.instance.ref('purchase_orders/$poNumber.pdf');
-    await ref.putData(bytes);
-    return await ref.getDownloadURL();
-  }
-
-  static Uint8List? _decodeBase64Logo(String? base64Logo) {
-    if (base64Logo == null || base64Logo.isEmpty) return null;
-    try {
-      return base64.decode(base64Logo.split(',').last);
-    } catch (e) {
-      safeDebugPrint('Error decoding logo: $e');
-      return null;
-    }
-  }
-
-  static pw.Widget _buildHeader(
-    String orderId,
-    Map<String, dynamic> orderData,
-    Map<String, dynamic> companyData,
-    pw.Widget qrImage,
-    Uint8List? logoBytes,
-    bool isArabic,
-    pw.Font arabicFont,
-  ) {
-    // استخراج poNumber من orderData أو استخدام orderId إذا كان فارغًا
-    final poNumber = orderData['poNumber']?.toString().isNotEmpty == true
-        ? orderData['poNumber'].toString()
-        : orderId;
-    return pw.Column(
-      crossAxisAlignment:
-          isArabic ? pw.CrossAxisAlignment.end : pw.CrossAxisAlignment.start,
-      children: [
-        // الصف العلوي: الشعار وبيانات الشركة
-        pw.Row(
-          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-          crossAxisAlignment: pw.CrossAxisAlignment.start,
-          children: [
-            if (logoBytes != null)
-              pw.Image(
-                pw.MemoryImage(logoBytes),
-                height: 200,
-                width: 200,
+    return pw.Directionality(
+      textDirection: isArabic ? pw.TextDirection.rtl : pw.TextDirection.ltr,
+      child: pw.Column(
+        children: [
+          pw.Table(
+            border: pw.TableBorder.all(width: 0.5),
+            columnWidths: columnWidths,
+            children: [
+              _buildSummaryRow(
+                label: isArabic ? 'الإجمالي الفرعي' : 'Subtotal',
+                value: _formatCurrency(subtotal),
+                isArabic: isArabic,
+                arabicFont: arabicFont,
               ),
-            pw.Column(
-              crossAxisAlignment: isArabic
-                  ? pw.CrossAxisAlignment.end
-                  : pw.CrossAxisAlignment.start,
-              children: [
-                pw.Text(
-                  isArabic ? companyData['nameAr'] : companyData['nameEn'],
-                  style: pw.TextStyle(
-                    fontSize: _headerFontSize + 2,
-                    fontWeight: pw.FontWeight.bold,
-                    font: arabicFont,
-                  ),
-                  textAlign: isArabic ? pw.TextAlign.right : pw.TextAlign.left,
+              _buildSummaryRow(
+                label: isArabic ? 'الضريبة' : 'Tax',
+                value: _formatCurrency(tax),
+                isArabic: isArabic,
+                arabicFont: arabicFont,
+              ),
+              if (withholdingAmount > 0)
+                _buildSummaryRow(
+                  label: isArabic ? 'ضريبة الخصم من المنبع' : 'Withholding Tax',
+                  value: '-${_formatCurrency(withholdingAmount)}',
+                  isArabic: isArabic,
+                  arabicFont: arabicFont,
                 ),
-                pw.Text(
-                  '${'invoice'.tr()} #$poNumber',
-                  style: pw.TextStyle(
-                    fontSize: _bodyFontSize,
-                    font: arabicFont,
-                  ),
-                  textAlign: isArabic ? pw.TextAlign.right : pw.TextAlign.left,
-                ),
-                pw.Text(
-                  '${'date'.tr()}: ${_formatOrderDate(orderData['orderDate'])}',
-                  style: pw.TextStyle(
-                    fontSize: _smallFontSize,
-                    font: arabicFont,
-                  ),
-                  textAlign: isArabic ? pw.TextAlign.right : pw.TextAlign.left,
-                ),
-              ],
-            ),
-          ],
-        ),
+              _buildSummaryRow(
+                label: isArabic ? 'الإجمالي' : 'Total',
+                value: _formatCurrency(total),
+                isArabic: isArabic,
+                arabicFont: arabicFont,
+                isTotal: true,
+              ),
+            ],
+          ),
+          pw.SizedBox(height: 4),
+          _buildAmountInWordsRow(total, currency, isArabic, arabicFont),
+        ],
+      ),
+    );
+  }
 
-        // صف جديد يحتوي على عنوان الفاتورة وQR Code
-        pw.Row(
-          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+  static pw.TableRow _buildSummaryRow({
+    required String label,
+    required String value,
+    required bool isArabic,
+    required pw.Font arabicFont,
+    bool isTotal = false,
+  }) {
+    return pw.TableRow(
+      decoration:
+          isTotal ? const pw.BoxDecoration(color: PdfColors.grey100) : null,
+      children: isArabic
+          ? [
+              _buildCell(value, arabicFont, isArabic,
+                  align: pw.TextAlign.right, isBold: isTotal),
+              _buildCell(label, arabicFont, isArabic,
+                  align: pw.TextAlign.right, isBold: isTotal),
+            ]
+          : [
+              _buildCell(label, arabicFont, isArabic,
+                  align: pw.TextAlign.left, isBold: isTotal),
+              _buildCell(value, arabicFont, isArabic,
+                  align: pw.TextAlign.right, isBold: isTotal),
+            ],
+    );
+  }
+
+  // ==================== شروط الدفع والتسليم ====================
+  static pw.Widget _buildTermsTable(
+      Map<String, dynamic> orderData, pw.Font arabicFont, bool isArabic) {
+    final paymentTermText = orderData['paymentTermText']?.toString();
+    final deliveryTermText = orderData['deliveryTermText']?.toString();
+
+    String paymentText = '';
+    String deliveryText = '';
+
+    if (paymentTermText != null && paymentTermText.isNotEmpty) {
+      paymentText = paymentTermText;
+    } else {
+      final paymentTermCode = orderData['paymentTermCode']?.toString();
+      paymentText = _getPaymentTermText(paymentTermCode, isArabic);
+    }
+
+    if (deliveryTermText != null && deliveryTermText.isNotEmpty) {
+      deliveryText = deliveryTermText;
+    } else {
+      final deliveryTermCode = orderData['deliveryTermCode']?.toString();
+      deliveryText = _getDeliveryTermText(deliveryTermCode, isArabic);
+    }
+
+    if ((paymentText.isEmpty) && (deliveryText.isEmpty)) {
+      return pw.SizedBox();
+    }
+
+    final columnWidths = isArabic
+        ? {0: const pw.FlexColumnWidth(3), 1: const pw.FlexColumnWidth(1)}
+        : {0: const pw.FlexColumnWidth(1), 1: const pw.FlexColumnWidth(3)};
+
+    final List<Map<String, String>> rows = [];
+    if (paymentText.isNotEmpty) {
+      rows.add({
+        'label': isArabic ? 'شروط الدفع' : 'Payment Terms',
+        'value': paymentText,
+      });
+    }
+    if (deliveryText.isNotEmpty) {
+      rows.add({
+        'label': isArabic ? 'شروط التسليم' : 'Delivery Terms',
+        'value': deliveryText,
+      });
+    }
+
+    return pw.Directionality(
+      textDirection: isArabic ? pw.TextDirection.rtl : pw.TextDirection.ltr,
+      child: pw.Table(
+        border: pw.TableBorder.all(color: PdfColors.grey300),
+        columnWidths: columnWidths,
+        children: rows.map((row) {
+          return pw.TableRow(
+            children: isArabic
+                ? [
+                    _buildCell(row['value']!, arabicFont, isArabic,
+                        align: pw.TextAlign.right),
+                    _buildCell(row['label']!, arabicFont, isArabic,
+                        align: pw.TextAlign.right),
+                  ]
+                : [
+                    _buildCell(row['label']!, arabicFont, isArabic,
+                        align: pw.TextAlign.left),
+                    _buildCell(row['value']!, arabicFont, isArabic,
+                        align: pw.TextAlign.left),
+                  ],
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  static String _getPaymentTermText(String? code, bool isArabic) {
+    switch (code) {
+      case 'CASH':
+        return isArabic ? 'دفع نقدي' : 'Cash';
+      case 'NET_30':
+        return isArabic ? 'صافي 30 يوم' : 'Net 30';
+      case 'NET_45':
+        return isArabic ? 'صافي 45 يوم' : 'Net 45';
+      case 'NET_60':
+        return isArabic ? 'صافي 60 يوم' : 'Net 60';
+      case 'ADVANCE':
+        return isArabic ? 'دفعة مقدمة' : 'Advance Payment';
+      case 'LETTER_OF_CREDIT':
+        return isArabic ? 'خطاب اعتماد' : 'Letter of Credit';
+      default:
+        return code ?? '';
+    }
+  }
+
+  static String _getDeliveryTermText(String? code, bool isArabic) {
+    switch (code) {
+      case 'EXW':
+        return isArabic ? 'تسليم من المصنع' : 'Ex Works';
+      case 'FOB':
+        return isArabic ? 'تسليم ظهر السفينة' : 'Free On Board';
+      case 'CIF':
+        return isArabic ? 'تسليم شامل التكاليف' : 'CIF';
+      case 'DDP':
+        return isArabic ? 'تسليم شامل الرسوم' : 'DDP';
+      case 'FCA':
+        return isArabic ? 'تسليم إلى الناقل' : 'Free Carrier';
+      default:
+        return code ?? '';
+    }
+  }
+
+  // ==================== التفقيط ====================
+  static pw.Widget _buildAmountInWordsRow(
+      double total, String currency, bool isArabic, pw.Font arabicFont) {
+    final totalWords = isArabic
+        ? _convertNumberToArabicWords(total, currency)
+        : _convertNumberToEnglishWords(total, currency);
+
+    return pw.Container(
+      width: double.infinity,
+      decoration: pw.BoxDecoration(
+        border: pw.Border.all(color: PdfColors.grey300),
+        color: PdfColors.grey50,
+      ),
+      padding: const pw.EdgeInsets.all(8),
+      child: pw.Text(
+        totalWords,
+        style: pw.TextStyle(
+          fontSize: _mediumFontSize,
+          font: arabicFont,
+          fontWeight: pw.FontWeight.bold,
+        ),
+        textAlign: pw.TextAlign.center,
+      ),
+    );
+  }
+
+  static String _convertNumberToArabicWords(double number, String currency) {
+    int integerPart = number.toInt();
+    int fractionalPart = ((number - integerPart) * 100).round();
+
+    String currencyName;
+    String fractionalName;
+
+    if (currency == 'EGP') {
+      currencyName = 'جنيهاً مصرياً';
+      fractionalName = 'قرشاً';
+    } else if (currency == 'USD') {
+      currencyName = 'دولار أمريكي';
+      fractionalName = 'سنتاً';
+    } else if (currency == 'EUR') {
+      currencyName = 'يورو';
+      fractionalName = 'سنتاً';
+    } else {
+      currencyName = currency;
+      fractionalName = 'جزءاً';
+    }
+
+    String result = Tafqeet.convert(integerPart.toString());
+    result += ' $currencyName';
+
+    if (fractionalPart > 0) {
+      result +=
+          ' و ${Tafqeet.convert(fractionalPart.toString())} $fractionalName';
+    }
+
+    result += ' فقط لا غير';
+    return result;
+  }
+
+  static String _convertNumberToEnglishWords(double number, String currency) {
+    int integerPart = number.toInt();
+    int fractionalPart = ((number - integerPart) * 100).round();
+
+    String currencyName;
+    String fractionalName;
+
+    if (currency == 'EGP') {
+      currencyName = 'Egyptian Pounds';
+      fractionalName = 'piasters';
+    } else if (currency == 'USD') {
+      currencyName = 'US Dollars';
+      fractionalName = 'cents';
+    } else if (currency == 'EUR') {
+      currencyName = 'Euros';
+      fractionalName = 'cents';
+    } else {
+      currencyName = currency;
+      fractionalName = 'hundredths';
+    }
+
+    String result = NumberToWordsEnglish.convert(integerPart);
+    result += ' $currencyName';
+
+    if (fractionalPart > 0) {
+      result +=
+          ' and ${NumberToWordsEnglish.convert(fractionalPart)} $fractionalName';
+    }
+
+    result += ' only';
+    return result;
+  }
+
+  // ==================== بقية الدوال ====================
+  static pw.Widget _buildHeader(
+      Map<String, dynamic> orderData,
+      Map<String, dynamic> companyData,
+      pw.Widget qrImage,
+      Uint8List? logoBytes,
+      bool isArabic,
+      pw.Font arabicFont) {
+    final poNumber = orderData['poNumber']?.toString().isNotEmpty == true
+        ? orderData['poNumber'].toString()
+        : '';
+
+    return pw.Row(
+      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        if (logoBytes != null)
+          pw.Image(pw.MemoryImage(logoBytes), width: 200, height: 200),
+        pw.Column(
           crossAxisAlignment: pw.CrossAxisAlignment.center,
           children: [
-            // عنوان الفاتورة
+            pw.Text(isArabic ? companyData['nameAr'] : companyData['nameEn'],
+                style: pw.TextStyle(
+                    fontSize: _headerFontSize + 2,
+                    fontWeight: pw.FontWeight.bold,
+                    font: arabicFont)),
+            pw.Text('${'invoice'.tr()} $poNumber',
+                style: pw.TextStyle(
+                    fontSize: _bodyFontSize + 2, font: arabicFont)),
             pw.Text(
-              'purchase_order'.tr(),
-              style: pw.TextStyle(
-                fontSize: 22,
-                fontWeight: pw.FontWeight.bold,
-                font: arabicFont,
-              ),
-              textAlign: isArabic ? pw.TextAlign.right : pw.TextAlign.left,
-            ),
-
-            // QR Code
-            pw.Container(
-              width: 150,
-              height: 150,
-              child: qrImage,
-              decoration: pw.BoxDecoration(
-                border: pw.Border.all(width: 1),
-              ),
-            ),
+                '${'date'.tr()}: ${_formatOrderDate(orderData['orderDate'])}',
+                style: pw.TextStyle(
+                    fontSize: _smallFontSize + 1, font: arabicFont)),
           ],
         ),
-
-        // مسافة قبل باقي المحتوى
-        pw.SizedBox(height: 20),
+        qrImage,
       ],
+    );
+  }
+
+  static pw.Widget _buildSupplierSection(
+      Map<String, dynamic> supplierData, bool isArabic, pw.Font arabicFont) {
+    return pw.Row(
+      children: [
+        pw.Text('${'supplier'.tr()}: ',
+            style:
+                pw.TextStyle(fontWeight: pw.FontWeight.bold, font: arabicFont)),
+        pw.Text(isArabic ? supplierData['nameAr'] : supplierData['nameEn'],
+            style: pw.TextStyle(font: arabicFont)),
+      ],
+    );
+  }
+
+  static pw.Widget _buildTaxExemptNote(
+      Map<String, dynamic> orderData, bool isArabic, pw.Font arabicFont) {
+    final items = orderData['items'] ?? [];
+    final hasTaxExemptItems =
+        items.any((item) => (item['isTaxable'] ?? true) == false);
+
+    if (!hasTaxExemptItems) return pw.SizedBox();
+
+    return pw.Directionality(
+      textDirection: isArabic ? pw.TextDirection.rtl : pw.TextDirection.ltr,
+      child: pw.Text(
+        isArabic
+            ? '* الأصناف التي تحمل علامة * غير خاضعة للضريبة'
+            : '* Items marked with * are tax exempt',
+        style: pw.TextStyle(
+            fontSize: 8,
+            fontStyle: pw.FontStyle.italic,
+            color: PdfColors.grey600,
+            font: arabicFont),
+        textAlign: isArabic ? pw.TextAlign.right : pw.TextAlign.left,
+      ),
+    );
+  }
+
+  static pw.Widget _buildFooter(Map<String, dynamic> companyData, bool isArabic,
+      pw.Font arabicFont, String userName) {
+    return pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        pw.Divider(),
+        pw.SizedBox(height: 2),
+        pw.Text(userName,
+            style: pw.TextStyle(fontSize: _smallFontSize, font: arabicFont)),
+        pw.Text(companyData['address'] ?? '',
+            style: pw.TextStyle(fontSize: _smallFontSize, font: arabicFont)),
+        pw.Text('${'phone'.tr()}: ${companyData['managerPhone'] ?? ''}',
+            style: pw.TextStyle(fontSize: _smallFontSize, font: arabicFont)),
+      ],
+    );
+  }
+
+  static pw.Padding _buildHeaderCell(
+      String text, pw.Font arabicFont, bool isArabic) {
+    return pw.Padding(
+      padding: _cellPadding,
+      child: pw.Text(text,
+          textAlign: pw.TextAlign.center,
+          style:
+              pw.TextStyle(fontWeight: pw.FontWeight.bold, font: arabicFont)),
+    );
+  }
+
+  static pw.Widget _buildCell(String text, pw.Font font, bool isArabic,
+      {pw.TextAlign align = pw.TextAlign.left,
+      bool isBold = false,
+      double fontSize = _mediumFontSize}) {
+    return pw.Padding(
+      padding: _cellPadding,
+      child: pw.Text(text,
+          style: pw.TextStyle(
+              fontSize: fontSize,
+              fontWeight: isBold ? pw.FontWeight.bold : pw.FontWeight.normal,
+              font: font),
+          textAlign: align),
     );
   }
 
@@ -335,420 +841,16 @@ ${isArabic ? 'المجموع النهائي' : 'Total'}: ${_formatCurrency(order
     if (value == null) return '0.00';
     final numValue =
         value is num ? value : double.tryParse(value.toString()) ?? 0;
-    final formatter = NumberFormat("#,##0.00", "en_US");
-    return formatter.format(numValue);
+    return NumberFormat("#,##0.00", "en_US").format(numValue);
   }
 
-  static pw.Widget _buildSupplierSection(
-    Map<String, dynamic> supplierData,
-    bool isArabic,
-    pw.Font arabicFont,
-  ) {
-    return pw.Row(
-      crossAxisAlignment: pw.CrossAxisAlignment.start,
-      children: [
-        pw.Text(
-          '${'supplier'.tr()}: ',
-          style: pw.TextStyle(
-            fontWeight: pw.FontWeight.bold,
-            font: arabicFont,
-          ),
-          textAlign: pw.TextAlign.center,
-        ),
-        pw.Expanded(
-          child: pw.Text(
-            isArabic ? supplierData['nameAr'] : supplierData['nameEn'],
-            style: pw.TextStyle(
-              font: arabicFont,
-            ),
-            textDirection:
-                isArabic ? pw.TextDirection.rtl : pw.TextDirection.ltr,
-            textAlign: isArabic ? pw.TextAlign.right : pw.TextAlign.left,
-          ),
-        ),
-      ],
-    );
-  }
-
-  static pw.Widget _buildOrderItemsTable(
-    Map<String, dynamic> orderData,
-    pw.Font arabicFont,
-    bool isArabic,
-  ) {
-    return pw.Directionality(
-      textDirection: isArabic ? pw.TextDirection.rtl : pw.TextDirection.ltr,
-      child: pw.Table(
-        border: pw.TableBorder.all(),
-        columnWidths: {
-          0: isArabic
-              ? const pw.FlexColumnWidth(1)
-              : const pw.FlexColumnWidth(3),
-          1: const pw.FlexColumnWidth(1),
-          2: const pw.FlexColumnWidth(1),
-          3: isArabic
-              ? const pw.FlexColumnWidth(3)
-              : const pw.FlexColumnWidth(1),
-        },
-        defaultVerticalAlignment: pw.TableCellVerticalAlignment.middle,
-        children: [
-          pw.TableRow(
-            decoration: const pw.BoxDecoration(color: PdfColors.grey200),
-            children: isArabic
-                ? [
-                    _buildTableHeaderCell('total'.tr(), arabicFont, isArabic),
-                    _buildTableHeaderCell('price'.tr(), arabicFont, isArabic),
-                    _buildTableHeaderCell(
-                        'quantity'.tr(), arabicFont, isArabic),
-                    _buildTableHeaderCell('item'.tr(), arabicFont, isArabic)
-                  ]
-                : [
-                    _buildTableHeaderCell('item'.tr(), arabicFont, isArabic),
-                    _buildTableHeaderCell(
-                        'quantity'.tr(), arabicFont, isArabic),
-                    _buildTableHeaderCell('price'.tr(), arabicFont, isArabic),
-                    _buildTableHeaderCell('total'.tr(), arabicFont, isArabic),
-                  ],
-          ),
-          ..._buildOrderItemsRows(
-              orderData['items'] ?? [], arabicFont, isArabic),
-        ],
-      ),
-    );
-  }
-
-  static pw.Padding _buildTableHeaderCell(
-    String text,
-    pw.Font arabicFont,
-    bool isArabic,
-  ) {
-    return pw.Padding(
-      padding: _defaultPadding,
-      child: pw.Text(
-        text,
-        textAlign: isArabic ? pw.TextAlign.right : pw.TextAlign.left,
-        style: pw.TextStyle(
-          fontWeight: pw.FontWeight.bold,
-          font: arabicFont,
-        ),
-        textDirection: isArabic ? pw.TextDirection.rtl : pw.TextDirection.ltr,
-      ),
-    );
-  }
-
-  static List<pw.TableRow> _buildOrderItemsRows(
-    List<dynamic> items,
-    pw.Font arabicFont,
-    bool isArabic,
-  ) {
-    return items.map<pw.TableRow>((item) {
-      final itemName =
-          isArabic ? (item['nameAr'] ?? '') : (item['nameEn'] ?? '');
-      return pw.TableRow(
-        children: isArabic
-            ? [
-                _buildItemCell(
-                    _formatCurrency(item['totalPrice']), arabicFont, isArabic),
-                _buildItemCell(
-                    _formatCurrency(item['unitPrice']), arabicFont, isArabic),
-                _buildItemCell(
-                    item['quantity']?.toString() ?? '', arabicFont, isArabic),
-                _buildItemCell(itemName, arabicFont, isArabic),
-              ]
-            : [
-                _buildItemCell(itemName, arabicFont, isArabic),
-                _buildItemCell(
-                    item['quantity']?.toString() ?? '', arabicFont, isArabic),
-                _buildItemCell(
-                    _formatCurrency(item['unitPrice']), arabicFont, isArabic),
-                _buildItemCell(
-                    _formatCurrency(item['totalPrice']), arabicFont, isArabic),
-              ],
-      );
-    }).toList();
-  }
-
-  static pw.Widget _buildItemCell(String text, pw.Font font, bool isArabic) {
-    return pw.Padding(
-      padding: _defaultPadding,
-      child: pw.Text(
-        text,
-        style: pw.TextStyle(font: font),
-        textAlign: isArabic ? pw.TextAlign.right : pw.TextAlign.left,
-      ),
-    );
-  }
-
-  static String _formatCurrencyWithSymbol(
-      dynamic value, String? currencyCode, bool isArabic) {
-    final formattedValue = _formatCurrency(value);
-    final code = currencyCode?.toUpperCase() ?? 'EGP';
-    return code == 'EGP'
-        ? (isArabic ? '$formattedValue ج.م' : '$formattedValue EGP')
-        : '$formattedValue $code';
-  }
-
-  static pw.Widget _buildOrderSummary(
-    Map<String, dynamic> orderData,
-    bool isArabic,
-    pw.Font arabicFont,
-  ) {
-    return pw.Container(
-      alignment: isArabic ? pw.Alignment.topRight : pw.Alignment.topLeft,
-      child: pw.Directionality(
-        textDirection: isArabic ? pw.TextDirection.rtl : pw.TextDirection.ltr,
-        child: pw.SizedBox(
-          //  width: 250,
-          child: pw.Table(
-            border: const pw.TableBorder(
-              horizontalInside:
-                  pw.BorderSide(width: 0.5, color: PdfColors.grey300),
-              bottom: pw.BorderSide(width: 1, color: PdfColors.grey600),
-            ),
-            columnWidths: {
-              0: isArabic
-                  ? const pw.FlexColumnWidth(3)
-                  : const pw.FlexColumnWidth(1),
-              1: isArabic
-                  ? const pw.FlexColumnWidth(1)
-                  : const pw.FlexColumnWidth(3),
-            },
-            children: [
-              _buildSummaryRow(
-                label: 'subtotal'.tr(),
-                value: orderData['totalAmount'],
-                currency: orderData['currency'],
-                isArabic: isArabic,
-                arabicFont: arabicFont,
-              ),
-              _buildSummaryRow(
-                label: 'tax'.tr(),
-                value: orderData['totalTax'],
-                currency: orderData['currency'],
-                isArabic: isArabic,
-                arabicFont: arabicFont,
-              ),
-              _buildSummaryRow(
-                label: 'total'.tr(),
-                value: orderData['totalAmountAfterTax'],
-                currency: orderData['currency'],
-                isArabic: isArabic,
-                arabicFont: arabicFont,
-                isTotal: true,
-              ),
-              _buildAmountInWordsRow(
-                value: orderData['totalAmountAfterTax'],
-                currency: orderData['currency'],
-                isArabic: isArabic,
-                arabicFont: arabicFont,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  static pw.Widget _buildTableCell({
-    required String text,
-    required bool isArabic,
-    required pw.Font arabicFont,
-    pw.TextAlign align = pw.TextAlign.right,
-    pw.FontWeight weight = pw.FontWeight.normal,
-  }) {
-    return pw.Padding(
-      padding: const pw.EdgeInsets.all(8), //symmetric(vertical: 8),
-      child: pw.Text(
-        text,
-        style: pw.TextStyle(
-          fontSize: _bodyFontSize,
-          font: arabicFont,
-          fontWeight: weight,
-        ),
-        textAlign: align,
-      ),
-    );
-  }
-
-  static pw.TableRow _buildSummaryRow({
-    required String label,
-    required dynamic value,
-    required String? currency,
-    required bool isArabic,
-    required pw.Font arabicFont,
-    bool isTotal = false,
-  }) {
-    final numValue =
-        value is num ? value : double.tryParse(value.toString()) ?? 0;
-    numValue.toInt();
-    return pw.TableRow(
-      decoration:
-          isTotal ? const pw.BoxDecoration(color: PdfColors.grey100) : null,
-      children: [
-        _buildTableCell(
-          text: isArabic
-              ? _formatCurrencyWithSymbol(value, currency, isArabic)
-              : ' $label:',
-          isArabic: isArabic,
-          arabicFont: arabicFont,
-          align: pw.TextAlign.right,
-          weight: isTotal ? pw.FontWeight.bold : pw.FontWeight.normal,
-        ),
-        _buildTableCell(
-          text: isArabic
-              ? ' $label:'
-              : _formatCurrencyWithSymbol(value, currency, isArabic),
-          isArabic: isArabic,
-          arabicFont: arabicFont,
-          align: pw.TextAlign.right,
-          weight: isTotal ? pw.FontWeight.bold : pw.FontWeight.normal,
-        ),
-        // صف جديد للتفقيط
-      ],
-    );
-  }
-
-// دالة جديدة لإنشاء صف التفقيط
-  static pw.TableRow _buildAmountInWordsRow({
-    required dynamic value,
-    required String? currency,
-    required bool isArabic,
-    required pw.Font arabicFont,
-  }) {
+  static Uint8List? _decodeBase64Logo(String? base64Logo) {
+    if (base64Logo == null || base64Logo.isEmpty) return null;
     try {
-      final numValue =
-          value is num ? value : double.tryParse(value.toString()) ?? 0;
-      final intValue = numValue.toInt();
-
-      // تحديد الحد الأقصى للرقم المدعوم
-      const maxSupportedNumber = 999999999999; // حتى تريليون
-      final safeValue = intValue.abs() > maxSupportedNumber
-          ? (intValue.isNegative ? -maxSupportedNumber : maxSupportedNumber)
-          : intValue;
-
-      final amountInWords = isArabic
-          ? _convertNumberToArabicWords(safeValue)
-          : _convertNumberToEnglishWords(safeValue);
-
-      final currencyText = getCurrencyText(safeValue, isArabic);
-      // currency = isArabic ? 'جنيهاً مصرياً' : 'Egyptian Pounds'; //= 'EGP'
-      //? (isArabic ? 'جنيهاً مصرياً' : 'Egyptian Pounds')
-      //: (isArabic ? 'دولاراً أمريكياً' : 'US Dollars');
-
-      final fullText = isArabic
-          ? '$amountInWords $currencyText فقط لا غير'
-          : '$amountInWords $currencyText only';
-
-      return pw.TableRow(
-        decoration: const pw.BoxDecoration(color: PdfColors.grey50),
-        children: [
-          pw.Padding(
-            padding: const pw.EdgeInsets.all(8),
-            child: isArabic
-                ? pw.Text(
-                    fullText,
-                    style: pw.TextStyle(
-                      fontSize: _smallFontSize,
-                      font: arabicFont,
-                    ),
-                    textAlign:
-                        isArabic ? pw.TextAlign.right : pw.TextAlign.left,
-                  )
-                : pw.Text(isArabic ? 'المبلغ كتابة:' : 'Amount in words:',
-                    style: pw.TextStyle(
-                      fontSize: _smallFontSize,
-                      font: arabicFont,
-                      fontWeight: pw.FontWeight.bold,
-                    ),
-                    textAlign: pw.TextAlign
-                        .right // isArabic ? pw.TextAlign.right : pw.TextAlign.left,
-                    ),
-          ),
-          pw.Padding(
-            padding: const pw.EdgeInsets.all(8),
-            child: isArabic
-                ? pw.Text(
-                    isArabic ? 'المبلغ كتابة:' : 'Amount in words:',
-                    style: pw.TextStyle(
-                      fontSize: _smallFontSize,
-                      font: arabicFont,
-                      fontWeight: pw.FontWeight.bold,
-                    ),
-                    textAlign:
-                        isArabic ? pw.TextAlign.right : pw.TextAlign.left,
-                  )
-                : pw.Text(
-                    fullText,
-                    style: pw.TextStyle(
-                      fontSize: _smallFontSize,
-                      font: arabicFont,
-                    ),
-                    textAlign:
-                        isArabic ? pw.TextAlign.right : pw.TextAlign.left,
-                  ),
-          ),
-        ],
-      );
+      return base64.decode(base64Logo.split(',').last);
     } catch (e) {
-      safeDebugPrint('Error converting number to words: $e');
-      return pw.TableRow(children: [
-        pw.Padding(
-          padding: const pw.EdgeInsets.all(8),
-          child: pw.Text(
-            isArabic
-                ? 'تعذر تحويل المبلغ إلى كتابة'
-                : 'Failed to convert amount to words',
-            style: pw.TextStyle(
-              fontSize: _smallFontSize,
-              font: arabicFont,
-              color: PdfColors.red,
-            ),
-          ),
-        ),
-        pw.Container(),
-      ]);
+      return null;
     }
-  }
-
-  static pw.Widget _buildFooter(
-    Map<String, dynamic> companyData,
-    bool isArabic,
-    pw.Font arabicFont,
-    String userName,
-  ) {
-    return pw.Column(
-      crossAxisAlignment:
-          isArabic ? pw.CrossAxisAlignment.end : pw.CrossAxisAlignment.start,
-      children: [
-        pw.Divider(),
-        pw.Text(
-          userName, // Replaced userId with company name
-          style: pw.TextStyle(
-            fontSize: _smallFontSize,
-            font: arabicFont,
-          ),
-          textDirection: isArabic ? pw.TextDirection.rtl : pw.TextDirection.ltr,
-          textAlign: isArabic ? pw.TextAlign.right : pw.TextAlign.left,
-        ),
-        pw.Text(
-          companyData['address'] ?? '',
-          style: pw.TextStyle(
-            fontSize: _smallFontSize,
-            font: arabicFont,
-          ),
-          textDirection: isArabic ? pw.TextDirection.rtl : pw.TextDirection.ltr,
-          textAlign: isArabic ? pw.TextAlign.right : pw.TextAlign.left,
-        ),
-        pw.Text(
-          '${'phone'.tr()}: ${companyData['phone'] ?? ''}',
-          style: pw.TextStyle(
-            fontSize: _smallFontSize,
-            font: arabicFont,
-          ),
-          textDirection: isArabic ? pw.TextDirection.rtl : pw.TextDirection.ltr,
-          textAlign: isArabic ? pw.TextAlign.right : pw.TextAlign.left,
-        ),
-      ],
-    );
   }
 
   static Future<pw.Font> _getArabicFont() async {
@@ -771,7 +873,6 @@ ${isArabic ? 'المجموع النهائي' : 'Total'}: ${_formatCurrency(order
           : await rootBundle.load('assets/fonts/Tajawal-Regular.ttf');
       return pw.Font.ttf(fontData);
     } catch (e) {
-      safeDebugPrint('Error loading Arabic font: $e');
       return pw.Font.courier();
     }
   }
@@ -786,282 +887,7 @@ ${isArabic ? 'المجموع النهائي' : 'Total'}: ${_formatCurrency(order
           : await rootBundle.load('assets/fonts/Roboto-Regular.ttf');
       return pw.Font.ttf(fontData);
     } catch (e) {
-      safeDebugPrint('Error loading Latin font: $e');
       return pw.Font.helvetica();
     }
-  }
-
-  static String getCurrencyText(int number, bool isArabic) {
-    if (!isArabic) return 'Egyptian Pounds';
-
-    int lastTwoDigits = number % 100;
-
-    if (number == 1) {
-      return 'جنيه مصري';
-    } else if (number == 2) {
-      return 'جنيهان مصريان';
-    } else if (lastTwoDigits >= 3 && lastTwoDigits <= 10) {
-      return 'جنيهات مصرية';
-    } else {
-      return 'جنيهاً مصرياً';
-    }
-  }
-
-  static String _convertNumberToArabicWords(int number) {
-    if (number == 0) return 'صفر';
-
-    final List<String> units = [
-      '',
-      'واحد',
-      'اثنان',
-      'ثلاثة',
-      'أربعة',
-      'خمسة',
-      'ستة',
-      'سبعة',
-      'ثمانية',
-      'تسعة'
-    ];
-    final List<String> unitsAccusative = [
-      '',
-      'واحد',
-      'اثنين',
-      'ثلاثة',
-      'أربعة',
-      'خمسة',
-      'ستة',
-      'سبعة',
-      'ثمانية',
-      'تسعة'
-    ];
-    final List<String> teens = [
-      'عشرة',
-      'أحد عشر',
-      'اثنا عشر',
-      'ثلاثة عشر',
-      'أربعة عشر',
-      'خمسة عشر',
-      'ستة عشر',
-      'سبعة عشر',
-      'ثمانية عشر',
-      'تسعة عشر'
-    ];
-    final List<String> tens = [
-      '',
-      'عشرة',
-      'عشرون',
-      'ثلاثون',
-      'أربعون',
-      'خمسون',
-      'ستون',
-      'سبعون',
-      'ثمانون',
-      'تسعون'
-    ];
-    final List<String> hundreds = [
-      '',
-      'مائة',
-      'مئتان',
-      'ثلاثمائة',
-      'أربعمائة',
-      'خمسمائة',
-      'ستمائة',
-      'سبعمائة',
-      'ثمانمائة',
-      'تسعمائة'
-    ];
-
-    final List<String> singularScales = [
-      '',
-      'ألف',
-      'مليون',
-      'مليار',
-      'تريليون'
-    ];
-    final List<String> dualScales = [
-      '',
-      'ألفان',
-      'مليونان',
-      'ملياران',
-      'تريليونان'
-    ];
-    final List<String> pluralScales = [
-      '',
-      'آلاف',
-      'ملايين',
-      'مليارات',
-      'تريليونات'
-    ];
-    final List<String> accusativeScales = [
-      '',
-      'ألفًا',
-      'مليونًا',
-      'مليارًا',
-      'تريليونًا'
-    ];
-
-    String convertLessThanOneThousand(int n, bool isAccusative) {
-      if (n == 0) return '';
-      if (n < 10) return isAccusative ? unitsAccusative[n] : units[n];
-      if (n < 20) return teens[n - 10];
-      if (n < 100) {
-        return n % 10 == 0
-            ? tens[n ~/ 10]
-            : '${isAccusative ? unitsAccusative[n % 10] : units[n % 10]} و${tens[n ~/ 10]}';
-      }
-      return '${hundreds[n ~/ 100]}${n % 100 != 0 ? ' و${convertLessThanOneThousand(n % 100, isAccusative)}' : ''}';
-    }
-
-    if (number < 0) return 'سالب ${_convertNumberToArabicWords(-number)}';
-
-    String result = '';
-    int scaleIndex = 0;
-    List<String> parts = [];
-    int remainingNumber = number;
-
-    while (remainingNumber > 0) {
-      int chunk = remainingNumber % 1000;
-      if (chunk != 0) {
-        bool isLastChunk = (remainingNumber ~/ 1000 == 0);
-        String chunkStr =
-            convertLessThanOneThousand(chunk, isLastChunk && scaleIndex == 0);
-        String scaleWord = '';
-
-/*       if (scaleIndex > 0) {
-        if (chunk == 1) {
-          scaleWord = isLastChunk ? accusativeScales[scaleIndex] : singularScales[scaleIndex];
-          chunkStr = '';
-        } else if (chunk == 2) {
-          scaleWord = dualScales[scaleIndex];
-          chunkStr = '';
-        } else if (chunk >= 3 && chunk <= 10) {
-          scaleWord = pluralScales[scaleIndex];
-        } else {
-          scaleWord = singularScales[scaleIndex];
-        }
-
-        chunkStr = chunkStr.isEmpty ? scaleWord : '$chunkStr $scaleWord';
-      } */
-
-        if (scaleIndex > 0) {
-          // نحدد هل chunk هو تمييز لعدد مركب (مثل "أحد عشر ألفًا")
-          //    bool needsAccusative = (chunk >= 11 && chunk <= 99) || isLastChunk;
-          bool needsAccusative = (chunk >= 11 && chunk <= 99) ||
-              (scaleIndex == 1 &&
-                  (chunk >= 11 || chunk == 0)); // خاصة لحالات ألف وألفًا فقط
-
-          if (chunk == 1) {
-            scaleWord = needsAccusative
-                ? accusativeScales[scaleIndex]
-                : singularScales[scaleIndex];
-            chunkStr = '';
-          } else if (chunk == 2) {
-            scaleWord = dualScales[scaleIndex];
-            chunkStr = '';
-          } else if (chunk >= 3 && chunk <= 10) {
-            scaleWord = pluralScales[scaleIndex];
-          } else {
-            scaleWord = needsAccusative
-                ? accusativeScales[scaleIndex]
-                : singularScales[scaleIndex];
-          }
-
-          chunkStr = chunkStr.isEmpty ? scaleWord : '$chunkStr $scaleWord';
-        }
-
-        parts.insert(0, chunkStr.trim());
-      }
-
-      remainingNumber ~/= 1000;
-      scaleIndex++;
-      if (scaleIndex >= singularScales.length) break;
-    }
-
-    result = parts.join(' و');
-
-    return result; //'$result $currency مصرياً فقط لا غير';
-  }
-
-  // دالة لتحويل الأرقام إلى كلمات باللغة الإنجليزية
-
-  static String _convertNumberToEnglishWords(int number) {
-    if (number == 0) return 'zero';
-
-    final List<String> units = [
-      '',
-      'one',
-      'two',
-      'three',
-      'four',
-      'five',
-      'six',
-      'seven',
-      'eight',
-      'nine'
-    ];
-    final List<String> teens = [
-      'ten',
-      'eleven',
-      'twelve',
-      'thirteen',
-      'fourteen',
-      'fifteen',
-      'sixteen',
-      'seventeen',
-      'eighteen',
-      'nineteen'
-    ];
-    final List<String> tens = [
-      '',
-      'ten',
-      'twenty',
-      'thirty',
-      'forty',
-      'fifty',
-      'sixty',
-      'seventy',
-      'eighty',
-      'ninety'
-    ];
-    final List<String> scales = [
-      '',
-      'thousand',
-      'million',
-      'billion',
-      'trillion'
-    ];
-
-    String convertLessThanOneThousand(int n) {
-      if (n == 0) return '';
-      if (n < 10) return units[n];
-      if (n < 20) return teens[n - 10];
-      if (n < 100) {
-        return n % 10 == 0
-            ? tens[n ~/ 10]
-            : '${tens[n ~/ 10]}-${units[n % 10]}';
-      }
-      return '${units[n ~/ 100]} hundred${n % 100 != 0 ? ' and ${convertLessThanOneThousand(n % 100)}' : ''}';
-    }
-
-    if (number < 0) return 'negative ${_convertNumberToEnglishWords(-number)}';
-
-    String result = '';
-    int scaleIndex = 0;
-
-    while (number > 0) {
-      int chunk = number % 1000;
-      if (chunk != 0) {
-        String chunkStr = convertLessThanOneThousand(chunk);
-        if (scaleIndex > 0) {
-          chunkStr += ' ${scales[scaleIndex]}';
-        }
-        result = '$chunkStr $result'.trim();
-      }
-      number ~/= 1000;
-      scaleIndex++;
-      if (scaleIndex >= scales.length) break; // تجنب تجاوز حدود القائمة
-    }
-
-    return result.isEmpty ? 'zero' : result.trim();
   }
 }

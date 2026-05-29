@@ -1,25 +1,28 @@
+/* // main.dart - إضافة مسح البيانات في بداية التطبيق
 import 'dart:async';
 import 'package:easy_localization/easy_localization.dart';
+//import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:permission_handler/permission_handler.dart';
-import 'package:puresip_purchasing/adapters/timestamp_adapter.dart';
 import 'package:puresip_purchasing/pages/compositions/services/composition_service.dart';
 import 'package:puresip_purchasing/pages/finished_products/services/finished_product_service.dart';
 import 'package:puresip_purchasing/pages/manufacturing/services/manufacturing_service.dart';
 import 'package:puresip_purchasing/services/company_service.dart';
 import 'package:puresip_purchasing/services/factory_service.dart';
 import 'package:puresip_purchasing/services/firestore_service.dart';
-import 'package:puresip_purchasing/services/hive_service.dart';
+import 'package:puresip_purchasing/services/version_checker.dart';
 import 'firebase_options.dart';
 import 'router.dart';
 import 'services/license_service.dart';
 import 'notifications/license_notifications.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:provider/provider.dart';
-import 'package:hive_flutter/hive_flutter.dart';
 import 'debug_helper.dart';
+
+// ✅ إضافة imports للمسح
+//import 'package:shared_preferences/shared_preferences.dart';
+//import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -27,41 +30,81 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await LicenseNotifications.showFcmNotification(message);
 }
 
-Future<void> _initializeFirebase() async {
+/* /// ✅ دالة مسح جميع البيانات المخزنة
+Future<void> _clearAllStoredData() async {
   try {
-    if (Firebase.apps.isEmpty) {
-      await Firebase.initializeApp(
-        options: DefaultFirebaseOptions.currentPlatform,
-      );
+    safeDebugPrint('🗑️ Starting to clear all stored data...');
 
-      FirebaseMessaging.onBackgroundMessage(
-          _firebaseMessagingBackgroundHandler);
+    // 1. مسح SharedPreferences
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.clear();
+    safeDebugPrint('✅ SharedPreferences cleared');
 
-      await LicenseService().initialize();
-      await LicenseNotifications.initialize();
+    // 2. مسح SecureStorage
+    const secureStorage = FlutterSecureStorage();
+    await secureStorage.deleteAll();
+    safeDebugPrint('✅ SecureStorage cleared');
 
-      safeDebugPrint('✅ Firebase initialized');
+    // 3. مسح التطبيق بالكامل (إذا كان هناك أي تخزين آخر)
+    // 4. محاولة مسح Firebase Auth (سيؤدي إلى تسجيل الخروج)
+    try {
+      await FirebaseAuth.instance.signOut();
+      safeDebugPrint('✅ Firebase Auth signed out');
+    } catch (e) {
+      safeDebugPrint('⚠️ Could not sign out: $e');
     }
-  } catch (e, st) {
-    safeDebugPrint('❌ Firebase initialization error: $e\n$st');
-    rethrow;
+
+    safeDebugPrint('✅ All stored data cleared successfully');
+  } catch (e) {
+    safeDebugPrint('❌ Error clearing data: $e');
   }
 }
 
-Future<void> _requestPermissions() async {
-  if (!kIsWeb) {
-    try {
-      final status = await Permission.notification.status;
-      if (!status.isGranted) {
-        await Permission.notification.request();
-      }
-      if (defaultTargetPlatform == TargetPlatform.android) {
-        await Permission.storage.request();
-        await Permission.manageExternalStorage.request();
-      }
-    } catch (e) {
-      safeDebugPrint('❌ Permission error: $e');
+/// ✅ التحقق من إعادة التثبيت (مسح البيانات إذا كان التطبيق مثبتاً حديثاً)
+Future<void> _checkAndClearOnReinstall() async {
+  try {
+    const secureStorage = FlutterSecureStorage();
+    final prefs = await SharedPreferences.getInstance();
+
+    // ✅ إنشاء مفتاح خاص لتتبع تثبيت التطبيق
+    const installKey = 'app_install_id';
+    final currentInstallId = await secureStorage.read(key: installKey);
+
+    if (currentInstallId == null) {
+      // ✅ هذه هي المرة الأولى التي يتم فيها تشغيل التطبيق بعد التثبيت
+      safeDebugPrint(
+          '🆕 First launch after installation - clearing all data...');
+
+      // إنشاء معرف تثبيت جديد
+      final newInstallId = DateTime.now().millisecondsSinceEpoch.toString();
+      await secureStorage.write(key: installKey, value: newInstallId);
+
+      // مسح جميع البيانات القديمة
+      await prefs.clear();
+      await secureStorage.deleteAll();
+      await secureStorage.write(key: installKey, value: newInstallId);
+
+      safeDebugPrint('✅ Fresh install detected - all old data cleared');
+    } else {
+      safeDebugPrint('✅ App already installed - keeping data');
     }
+  } catch (e) {
+    safeDebugPrint('❌ Error checking reinstall: $e');
+  }
+}
+ */
+// 🚀 تهيئة التراخيص والإشعارات فقط بالخلفية
+Future<void> _initSecondaryBackgroundServices() async {
+  try {
+    if (!kIsWeb) {
+      FirebaseMessaging.onBackgroundMessage(
+          _firebaseMessagingBackgroundHandler);
+    }
+    await LicenseService().initialize();
+    await LicenseNotifications.initialize();
+    safeDebugPrint('✅ Secondary background services initialized');
+  } catch (e, st) {
+    safeDebugPrint('❌ Secondary services error: $e\n$st');
   }
 }
 
@@ -69,57 +112,60 @@ Future<void> main() async {
   runZonedGuarded(() async {
     WidgetsFlutterBinding.ensureInitialized();
 
-    // Error handling: show fallback UI
     FlutterError.onError = (FlutterErrorDetails details) {
       FlutterError.presentError(details);
-      safeDebugPrint('❗ FlutterError: ${details.exception}\n${details.stack}');
     };
 
     ErrorWidget.builder = (FlutterErrorDetails details) {
       return Material(
         color: Colors.white,
         child: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24.0),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.error_outline, size: 64, color: Colors.red),
-                const SizedBox(height: 12),
-                const Text('حدث خطأ في التطبيق',
-                    style: TextStyle(fontSize: 18)),
-                const SizedBox(height: 8),
-                Text(
-                  details.exceptionAsString(),
-                  textAlign: TextAlign.center,
-                ),
-              ],
-            ),
-          ),
+          child: Text(details.exceptionAsString(), textAlign: TextAlign.center),
         ),
       );
     };
 
-    // Localization & Hive
+    // ✅ FIRST: مسح جميع البيانات (للتأكد من أن التطبيق يبدأ بحالة نظيفة)
+  //  await _clearAllStoredData();
+
+    // ✅ SECOND: التحقق من إعادة التثبيت
+ //   await _checkAndClearOnReinstall();
+
+    // 1️⃣ تهيئة Firebase الأساسي أولاً
+    try {
+      if (Firebase.apps.isEmpty) {
+        await Firebase.initializeApp(
+            options: DefaultFirebaseOptions.currentPlatform);
+        safeDebugPrint('✅ Core Firebase initialized successfully');
+      }
+    } catch (e) {
+      safeDebugPrint('❌ Firebase core init error: $e');
+    }
+
+    // 2️⃣ تهيئة التخزين واللغات السريعة
     await EasyLocalization.ensureInitialized();
-    await Hive.initFlutter();
 
-    // HiveService.init يفتح الصناديق التي تحتاجها الخدمات
-    await HiveService.init();
-    await HiveService.testHive();
+    // 3️⃣ تشغيل بقية الإعدادات غير الحرجة بالخلفية
+   // _initSecondaryBackgroundServices();
+    unawaited(_initSecondaryBackgroundServices());
+    unawaited(VersionChecker.init());
 
-    Hive.registerAdapter(TimestampAdapter());
-    // Initialize Firebase and permissions in parallel
-    await Future.wait([
-      _initializeFirebase(),
-      _requestPermissions(),
-    ]);
+    await VersionChecker.init();
 
     runApp(
       EasyLocalization(
-        supportedLocales: const [Locale('en'), Locale('ar')],
+        supportedLocales: const [
+          Locale('en'), // الإنجليزية
+          Locale('ar'), // العربية
+          Locale('fr'), // الفرنسية
+          Locale('es'), // الإسبانية
+          Locale('de'), // الألمانية
+          Locale('tr'), // التركية
+        ],
         path: 'assets/lang',
-        fallbackLocale: const Locale('ar'),
+        fallbackLocale: const Locale('en'),
+        saveLocale: true,
+        useOnlyLangCode: true,
         child: MultiProvider(
           providers: [
             Provider<FirestoreService>(create: (_) => FirestoreService()),
@@ -149,8 +195,21 @@ class MyApp extends StatelessWidget {
       key: ValueKey(context.locale.languageCode),
       title: 'PureSip',
       debugShowCheckedModeBanner: false,
-      theme: _buildAppTheme(),
-      darkTheme: _buildDarkTheme(),
+      theme: ThemeData(
+        primarySwatch: Colors.green,
+        fontFamily: 'Cairo-Regular',
+        appBarTheme: const AppBarTheme(centerTitle: true, elevation: 2),
+        inputDecorationTheme: InputDecorationTheme(
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      ),
+      darkTheme: ThemeData.dark().copyWith(
+        primaryColor: Colors.green,
+        appBarTheme: const AppBarTheme(centerTitle: true, elevation: 2),
+        inputDecorationTheme: InputDecorationTheme(
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      ),
       locale: context.locale,
       supportedLocales: context.supportedLocales,
       localizationsDelegates: context.localizationDelegates,
@@ -158,678 +217,148 @@ class MyApp extends StatelessWidget {
       builder: (context, child) {
         if (child == null) {
           return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
-          );
+              body: Center(child: CircularProgressIndicator()));
         }
-
         return MediaQuery(
-          data:
-              MediaQuery.of(context).copyWith(textScaler: TextScaler.noScaling),
+          data: MediaQuery.of(context).copyWith(
+            textScaler: TextScaler.noScaling,
+          ),
           child: child,
         );
       },
     );
   }
-
-  ThemeData _buildAppTheme() {
-    return ThemeData(
-      primarySwatch: Colors.green,
-      fontFamily: 'Cairo-Regular',
-      appBarTheme: const AppBarTheme(
-        centerTitle: true,
-        elevation: 2,
-      ),
-      inputDecorationTheme: InputDecorationTheme(
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
-      ),
-    );
-  }
-
-  ThemeData _buildDarkTheme() {
-    return ThemeData.dark().copyWith(
-      primaryColor: Colors.green[800],
-      appBarTheme: const AppBarTheme(
-        centerTitle: true,
-        elevation: 2,
-      ),
-      inputDecorationTheme: InputDecorationTheme(
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
-      ),
-    );
-  }
 }
+ */
 
-/* import 'package:easy_localization/easy_localization.dart';
+// main.dart - نسخة سريعة
+import 'dart:async';
+import 'package:easy_localization/easy_localization.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:permission_handler/permission_handler.dart';
+import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
+import 'package:puresip_purchasing/providers/dashboard_settings_provider.dart';
 import 'package:puresip_purchasing/pages/compositions/services/composition_service.dart';
 import 'package:puresip_purchasing/pages/finished_products/services/finished_product_service.dart';
 import 'package:puresip_purchasing/pages/manufacturing/services/manufacturing_service.dart';
 import 'package:puresip_purchasing/services/company_service.dart';
 import 'package:puresip_purchasing/services/factory_service.dart';
 import 'package:puresip_purchasing/services/firestore_service.dart';
-import 'package:puresip_purchasing/services/hive_service.dart';
+import 'package:puresip_purchasing/services/version_checker.dart';
 import 'firebase_options.dart';
 import 'router.dart';
 import 'services/license_service.dart';
 import 'notifications/license_notifications.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:provider/provider.dart';
-import 'package:hive_flutter/hive_flutter.dart';
-import 'package:puresip_purchasing/debug_helper.dart';
+import 'debug_helper.dart';
 
-// دالة خلفية لمعالجة رسائل FCM
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   await LicenseNotifications.showFcmNotification(message);
 }
 
-Future<void> _initializeFirebase() async {
+Future<void> _initSecondaryBackgroundServices() async {
   try {
-    if (Firebase.apps.isEmpty) {
-      await Firebase.initializeApp(
-        options: DefaultFirebaseOptions.currentPlatform,
-      );
-
-      // تهيئة FCM للمعالجة الخلفية
-      FirebaseMessaging.onBackgroundMessage(
-          _firebaseMessagingBackgroundHandler);
-
-      // تهيئة خدمات التراخيص والإشعارات
-      final licenseService = LicenseService();
-      await licenseService.initialize();
-      await LicenseNotifications.initialize();
-
-      safeDebugPrint('Firebase initialization completed');
+    if (!kIsWeb) {
+      FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
     }
-  } catch (e) {
-    safeDebugPrint('Firebase initialization error: $e');
-    rethrow;
+    await LicenseService().initialize();
+    await LicenseNotifications.initialize();
+    safeDebugPrint('✅ Secondary services initialized');
+  } catch (e, st) {
+    safeDebugPrint('❌ Secondary services error: $e\n$st');
   }
 }
 
-Future<void> _requestPermissions() async {
-  if (!kIsWeb) {
-    try {
-      final status = await Permission.notification.status;
-      if (!status.isGranted) {
-        await Permission.notification.request();
-      }
-
-      // طلب أذونات إضافية للأندرويد
-      if (defaultTargetPlatform == TargetPlatform.android) {
-        await Permission.storage.request();
-        await Permission.manageExternalStorage.request();
-      }
-    } catch (e) {
-      safeDebugPrint('Permission request error: $e');
-    }
-  }
-}
-
-/* Future<void> _loadAppResources() async {
-  try {
-    await Future.delayed(const Duration(milliseconds: 200));
-    safeDebugPrint('App resources loaded successfully');
-  } catch (e) {
-    safeDebugPrint('Resource loading error: $e');
-  }
-} */
-
-/* Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-
-  // تهيئة كل شيء بشكل متوازي حيثما أمكن
-  await Future.wait([
-    EasyLocalization.ensureInitialized(),
-    Hive.initFlutter(),
-  ]);
-
-  // فتح صناديق Hive بشكل متوازي
-  await Future.wait([
-    Hive.openBox('userData'),
-    Hive.openBox('licenseBox'),
-    Hive.openBox('auth'), // أضف هذا
-  ]);
-
-  try {
-    // تهيئة Firebase والخدمات الأخرى بشكل متوازي
-    await Future.wait([
-      _initializeFirebase(),
-      _requestPermissions(),
-    ]);
-  } catch (e) {
-    safeDebugPrint('Initialization failed: $e');
-  } */
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await EasyLocalization.ensureInitialized();
-
-  // تهيئة Hive فقط - الصناديق سيتم فتحها في HiveService.init()
-  await Hive.initFlutter();
- await HiveService.init();
-  // تهيئة الخدمات الأخرى بشكل متوازي
-  try {
-    await Future.wait([
-      HiveService.init(), // تهيئة صناديق Hive
-      _initializeFirebase(),
-      _requestPermissions(),
-    ]);
-  } catch (e) {
-    safeDebugPrint('Initialization failed: $e');
-  }
-
-  runApp(
-    EasyLocalization(
-      supportedLocales: const [Locale('en'), Locale('ar')],
-      path: 'assets/lang',
-      fallbackLocale: const Locale('ar'),
-      child: MultiProvider(
-        providers: [
-          Provider<FirestoreService>(create: (_) => FirestoreService()),
-          Provider<FinishedProductService>(
-              create: (_) => FinishedProductService()),
-          ChangeNotifierProvider(create: (_) => CompanyService()),
-          ChangeNotifierProvider(create: (_) => FactoryService()),
-          ChangeNotifierProvider(create: (_) => CompositionService()),
-          Provider<ManufacturingService>(
-            create: (_) => ManufacturingService(),
-          ),
-        ],
-        child: const MyApp(),
-      ),
-    ),
-  );
-}
-
-/* Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-
-  await EasyLocalization.ensureInitialized(); // يجب أن يتم أولًا
-
-  await Hive.initFlutter();
-
- await Hive.openBox('userData');
-  await Hive.openBox('licenseBox'); // الصندوق الذي تستخدمه HiveService
   
+  // تهيئة Firebase
   try {
-    // تهيئة Firebase أولًا لأنها قد تستخدم في ما يلي
-    await _initializeFirebase();
-
-    // ثم طلب الأذونات
-    await _requestPermissions();
-
-    // ثم تحميل الموارد الأخرى
-    await _loadAppResources();
+    if (Firebase.apps.isEmpty) {
+      await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+      safeDebugPrint('✅ Firebase initialized');
+    }
   } catch (e) {
-    safeDebugPrint('Initialization failed: $e');
+    safeDebugPrint('❌ Firebase error: $e');
   }
+
+  // تهيئة الترجمة
+  await EasyLocalization.ensureInitialized();
+  
+  // تشغيل الخدمات الخلفية (لا تنتظر)
+  unawaited(_initSecondaryBackgroundServices());
+  unawaited(VersionChecker.init());
+  GoRouter.optionURLReflectsImperativeAPIs = true;  // ✅ أضف هذا
 
   runApp(
     EasyLocalization(
-      supportedLocales: const [Locale('en'), Locale('ar')],
+      supportedLocales: const [
+        Locale('en'), Locale('ar'), Locale('fr'), 
+        Locale('es'), Locale('de'), Locale('tr')
+      ],
       path: 'assets/lang',
-      fallbackLocale: const Locale('ar'),
+      fallbackLocale: const Locale('en'),
+      saveLocale: true,
+      useOnlyLangCode: true,
       child: MultiProvider(
         providers: [
+          // ✅ Provider للإعدادات (يتم تحميله أولاً)
+          ChangeNotifierProvider(create: (_) => DashboardSettingsProvider()),
+          // خدمات أخرى
           Provider<FirestoreService>(create: (_) => FirestoreService()),
-          Provider<FinishedProductService>(
-              create: (_) => FinishedProductService()),
+          Provider<FinishedProductService>(create: (_) => FinishedProductService()),
           ChangeNotifierProvider(create: (_) => CompanyService()),
           ChangeNotifierProvider(create: (_) => FactoryService()),
           ChangeNotifierProvider(create: (_) => CompositionService()),
-          Provider<ManufacturingService>(
-            create: (_) => ManufacturingService(),
-          ),
+          Provider<ManufacturingService>(create: (_) => ManufacturingService()),
         ],
         child: const MyApp(),
       ),
     ),
   );
 }
- */
+
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
-    // اختبار الترجمة هنا للتأكد من عملها
-    //safeDebugPrint('Translation test - manufacturing.shelf_life: ${'manufacturing.shelf_life'.tr()}');
-
     return MaterialApp.router(
       key: ValueKey(context.locale.languageCode),
       title: 'PureSip',
       debugShowCheckedModeBanner: false,
-      theme: _buildAppTheme(),
-      darkTheme: _buildDarkTheme(),
+      theme: ThemeData(
+        primarySwatch: Colors.green,
+        fontFamily: 'Cairo-Regular',
+        appBarTheme: const AppBarTheme(centerTitle: true, elevation: 2),
+        inputDecorationTheme: InputDecorationTheme(
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      ),
+      darkTheme: ThemeData.dark().copyWith(
+        primaryColor: Colors.green,
+        appBarTheme: const AppBarTheme(centerTitle: true, elevation: 2),
+        inputDecorationTheme: InputDecorationTheme(
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      ),
       locale: context.locale,
       supportedLocales: context.supportedLocales,
       localizationsDelegates: context.localizationDelegates,
       routerConfig: appRouter,
       builder: (context, child) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          // يمكن تنفيذ منطق لاحق هنا بعد البناء
-        });
+        if (child == null) {
+          return const Scaffold(body: Center(child: CircularProgressIndicator()));
+        }
         return MediaQuery(
-          data:
-              MediaQuery.of(context).copyWith(textScaler: TextScaler.noScaling),
-          child: child!,
+          data: MediaQuery.of(context).copyWith(textScaler: TextScaler.noScaling),
+          child: child,
         );
       },
     );
   }
-
-  ThemeData _buildAppTheme() {
-    return ThemeData(
-      primarySwatch: Colors.green,
-      fontFamily: 'Cairo-Regular',
-      appBarTheme: const AppBarTheme(
-        centerTitle: true,
-        elevation: 2,
-      ),
-      inputDecorationTheme: InputDecorationTheme(
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
-      ),
-    );
-  }
-
-  ThemeData _buildDarkTheme() {
-    return ThemeData.dark().copyWith(
-      primaryColor: Colors.green[800],
-      appBarTheme: const AppBarTheme(
-        centerTitle: true,
-        elevation: 2,
-      ),
-      inputDecorationTheme: InputDecorationTheme(
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
-      ),
-    );
-  }
-} */
-
-/* import 'package:easy_localization/easy_localization.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'package:flutter/foundation.dart'; //show kIsWeb, defaultTargetPlatform;
-import 'package:flutter/material.dart';
-import 'package:permission_handler/permission_handler.dart';
-import 'package:puresip_purchasing/pages/manufacturing/services/manufacturing_service.dart';
-import 'firebase_options.dart';
-import 'router.dart';
-import 'services/license_service.dart';
-import 'notifications/license_notifications.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:provider/provider.dart';
-
-/* Future<void> _initializeFirebase() async {
-  try {
-    if (Firebase.apps.isEmpty) {
-      await Firebase.initializeApp(
-        options: DefaultFirebaseOptions.currentPlatform,
-      );
-      
-      // تهيئة خدمات التراخيص والإشعارات
-      await LicenseService().initializeForAdmin();
-      await LicenseNotifications.initialize();
-      
-      safeDebugPrint('Firebase initialization completed');
-    }
-  } catch (e) {
-    safeDebugPrint('Firebase initialization error: $e');
-    rethrow;
-  }
 }
- */
-// دالة خلفية لمعالجة رسائل FCM حتى عندما يكون التطبيق مغلقًا أو في الخلفية
-@pragma('vm:entry-point')
-Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  await LicenseNotifications.showFcmNotification(message);
-}
-
-Future<void> _initializeFirebase() async {
-  try {
-    if (Firebase.apps.isEmpty) {
-      await Firebase.initializeApp(
-        options: DefaultFirebaseOptions.currentPlatform,
-      );
-      FirebaseMessaging.onBackgroundMessage(
-          _firebaseMessagingBackgroundHandler);
-
-      // تهيئة خدمات التراخيص والإشعارات
-      final licenseService = LicenseService();
-      await licenseService
-          .initialize(); // استخدم initialize() بدلاً من initializeForAdmin()
-
-      await LicenseNotifications.initialize();
-
-      safeDebugPrint('Firebase initialization completed');
-    }
-  } catch (e) {
-    safeDebugPrint('Firebase initialization error: $e');
-    rethrow;
-  }
-}
-
-Future<void> _requestPermissions() async {
-  if (!kIsWeb) {
-    try {
-      final status = await Permission.notification.status;
-      if (!status.isGranted) {
-        await Permission.notification.request();
-      }
-
-      // ✅ طلب أذونات إضافية للأندرويد بطريقة آمنة
-      if (defaultTargetPlatform == TargetPlatform.android) {
-        await Permission.storage.request();
-        await Permission.manageExternalStorage.request();
-      }
-    } catch (e) {
-      safeDebugPrint('Permission request error: $e');
-    }
-  }
-}
-
-Future<void> _loadAppResources() async {
-  try {
-    // تحميل الخطوط والموارد الأخرى
-    await Future.wait([
-      // يمكن إضافة المزيد من عمليات التحميل هنا
-      Future.delayed(const Duration(milliseconds: 200)),
-    ]);
-    safeDebugPrint('App resources loaded successfully');
-  } catch (e) {
-    safeDebugPrint('Resource loading error: $e');
-  }
-}
-
-Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  // await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-
-  // تسجيل المعالج الخلفي
-//  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
-
-  // await LicenseNotifications.initialize();
-
-  try {
-    // التهيئة المتوازية للخدمات
-    await Future.wait([
-      EasyLocalization.ensureInitialized(),
-      _initializeFirebase(),
-      _requestPermissions(),
-      _loadAppResources(),
-    ]);
-  } catch (e) {
-    safeDebugPrint('Initialization failed: $e');
-  }
-
-  runApp(
-    EasyLocalization(
-      supportedLocales: const [Locale('en'), Locale('ar')],
-      path: 'assets/lang',
-      fallbackLocale: const Locale('ar'),
-      child: MultiProvider(
-        providers: [
-          Provider<ManufacturingService>(
-            create: (_) => ManufacturingService(),
-          ),
-          // مزودات أخرى
-        ],
-        child: const MyApp(),
-      ),
-    ),
-  );
-}
-
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp.router(
-      key: ValueKey(context.locale.languageCode),
-      title: 'PureSip',
-      debugShowCheckedModeBanner: false,
-      theme: _buildAppTheme(),
-      darkTheme: _buildDarkTheme(),
-      locale: context.locale,
-      supportedLocales: context.supportedLocales,
-      localizationsDelegates: context.localizationDelegates,
-      routerConfig: appRouter,
-      builder: (context, child) {
-        return MediaQuery(
-          data:
-              MediaQuery.of(context).copyWith(textScaler: TextScaler.noScaling),
-          child: child!,
-        );
-      },
-    );
-  }
-
-  ThemeData _buildAppTheme() {
-    return ThemeData(
-      primarySwatch: Colors.green,
-      fontFamily: 'Cairo-Regular', // استخدام خط عربي افتراضي
-      appBarTheme: const AppBarTheme(
-        centerTitle: true,
-        elevation: 2,
-      ),
-      inputDecorationTheme: InputDecorationTheme(
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
-      ),
-    );
-  }
-
-  ThemeData _buildDarkTheme() {
-    return ThemeData.dark().copyWith(
-      primaryColor: Colors.green[800],
-      appBarTheme: const AppBarTheme(
-        centerTitle: true,
-        elevation: 2,
-      ),
-      inputDecorationTheme: InputDecorationTheme(
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
-      ),
-    );
-  }
-}
-
-/* import 'dart:io';
-
-import 'package:easy_localization/easy_localization.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:flutter/material.dart';
-import 'package:permission_handler/permission_handler.dart';
-
-import 'firebase_options.dart';
-import 'router.dart';
-
-// import 'package:cloud_firestore/cloud_firestore.dart';
-// import 'package:firebase_auth/firebase_auth.dart';
-
-Future<void> requestNotificationPermission() async {
-  final status = await Permission.notification.status;
-  if (!status.isGranted) {
-    await Permission.notification.request();
-  }
-}
-
-/* void connectToFirebaseEmulators() {
-  // تأكد أنك لا تستخدم المحاكيات عند النشر للإنتاج
-  const bool shouldUseEmulator = true;
-  if (shouldUseEmulator) {
-    FirebaseFirestore.instance.useFirestoreEmulator('localhost', 8080);
-    FirebaseAuth.instance.useAuthEmulator('localhost', 9099);
-  }
-} */
-
-Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  await EasyLocalization.ensureInitialized();
-
-
-  // Load Arabic font
-  await _loadArabicFont();
-  
-  try {
-    if (Firebase.apps.isEmpty) {
-      if (kIsWeb ||
-          Platform.isAndroid ||
-          Platform.isIOS ||
-          Platform.isWindows) {
-        await Firebase.initializeApp(
-          options: DefaultFirebaseOptions.currentPlatform,
-        );
-      } else {
-        await Firebase.initializeApp(); // fallback
-      }
-    }
-  } catch (e) {
-    safeDebugPrint('⚠️ Firebase already initialized: $e');
-  }
-
-  // الاتصال بالمحاكيات
-  // connectToFirebaseEmulators();
-
-  // طلب إذن الإشعارات فقط على الأجهزة المحمولة
-  if (!kIsWeb) {
-    await requestNotificationPermission();
-  }
-
-  runApp(
-    EasyLocalization(
-      supportedLocales: const [Locale('en'), Locale('ar')],
-      path: 'assets/lang',
-      fallbackLocale: const Locale('ar'),
-      child: Builder(
-        builder: (context) => const MyApp(),
-      ),
-    ),
-  );
-  
-}
-
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp.router(
-      key: ValueKey(context.locale.languageCode),
-      title: 'PureSip',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(primarySwatch: Colors.green),
-      locale: context.locale,
-      supportedLocales: context.supportedLocales,
-      localizationsDelegates: context.localizationDelegates,
-      routerConfig: appRouter,
-    );
-  }
-}
-Future<void> _loadArabicFont() async {
-  try {
-    // No need to manually load if using Cairo font declared in pubspec.yaml
-    // Flutter will handle it automatically
-    safeDebugPrint('Arabic fonts loaded successfully');
-  } catch (e) {
-    safeDebugPrint('Error loading Arabic fonts: $e');
-  }
-}
-
- */
-
-
-
-
-
-
-
-
-/* import 'dart:io';
-import 'package:easy_localization/easy_localization.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:flutter/material.dart';
-import 'firebase_options.dart';
-import 'router.dart';
-import 'package:permission_handler/permission_handler.dart';
-
-Future<void> requestNotificationPermission() async {
-  final status = await Permission.notification.status;
-  if (!status.isGranted) {
-    await Permission.notification.request();
-  }
-}
-
-Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  await EasyLocalization.ensureInitialized();
-
-  try {
-    if (Firebase.apps.isEmpty) {
-      if (kIsWeb ||
-          Platform.isAndroid ||
-          Platform.isIOS ||
-          Platform.isWindows) {
-        await Firebase.initializeApp(
-          options: DefaultFirebaseOptions.currentPlatform,
-        );
-      } else {
-        await Firebase.initializeApp(); // fallback
-      }
-    }
-  } catch (e) {
-    safeDebugPrint('⚠️ Firebase already initialized: $e');
-  }
-
-  // طلب إذن الإشعارات فقط على الأجهزة المحمولة (Android/iOS)
-  if (!kIsWeb) {
-    await requestNotificationPermission();
-  }
-
-  runApp(
-    EasyLocalization(
-      supportedLocales: const [Locale('en'), Locale('ar')],
-      path: 'assets/lang',
-      fallbackLocale: const Locale('ar'),
-      child: Builder(
-        builder: (context) => const MyApp(),
-      ),
-    ),
-  );
-}
-
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp.router(
-      key: ValueKey(context.locale.languageCode),
-      title: 'PureSip',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(primarySwatch: Colors.green),
-      locale: context.locale,
-      supportedLocales: context.supportedLocales,
-      localizationsDelegates: context.localizationDelegates,
-      routerConfig: appRouter,
-    );
-  }
-}
- */ */

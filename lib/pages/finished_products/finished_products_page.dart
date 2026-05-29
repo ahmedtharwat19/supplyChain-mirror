@@ -47,7 +47,7 @@ class _FinishedProductsPageState extends State<FinishedProductsPage> {
     final factoryService = Provider.of<FactoryService>(context);
 
     return AppScaffold(
-      title: 'manufacturing.finished_products'.tr(),
+      title: 'manufacture.finished_products'.tr(),
       actions: [
         IconButton(
           icon: const Icon(Icons.add),
@@ -59,7 +59,7 @@ class _FinishedProductsPageState extends State<FinishedProductsPage> {
               ),
             );
           },
-          tooltip: 'manufacturing.add_finished_product'.tr(),
+          tooltip: 'manufacture.add_finished_product'.tr(),
         ),
       ],
       body: Column(
@@ -240,18 +240,18 @@ class _FinishedProductsPageState extends State<FinishedProductsPage> {
                       Text('${'company'.tr()}: $companyName'),
                     if (factoryName.isNotEmpty)
                       Text('${'factory'.tr()}: $factoryName'),
-                    Text('${'manufacturing.batch_number'.tr()}: ${product.batchNumber}'),
-                    Text('${'manufacturing.quantity'.tr()}: ${product.quantity} ${product.unit}'),
-                    Text('${'manufacturing.production_date'.tr()}: ${_formatDate(product.dateTime)}'),
-                    Text('${'manufacturing.expiry_date'.tr()}: ${_formatDate(product.expiryDateTime)}'),
+                    Text('${'manufacture.batch_number'.tr()}: ${product.batchNumber}'),
+                    Text('${'manufacture.quantity'.tr()}: ${product.quantity} ${product.unit}'),
+                    Text('${'manufacture.production_date'.tr()}: ${_formatDate(product.dateTime)}'),
+                    Text('${'manufacture.expiry_date'.tr()}: ${_formatDate(product.expiryDateTime)}'),
                     if (product.isExpired)
                       Text(
-                        'manufacturing.expired'.tr(),
+                        'manufacture.expired'.tr(),
                         style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
                       )
                     else if (product.isExpiringSoon)
                       Text(
-                        'manufacturing.expiring_soon'.tr(),
+                        'manufacture.expiring_soon'.tr(),
                         style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold),
                       ),
                     _buildDaysRemaining(product),
@@ -271,13 +271,13 @@ class _FinishedProductsPageState extends State<FinishedProductsPage> {
     if (product.isExpired) {
       final daysExpired = DateTime.now().difference(product.expiryDateTime).inDays;
       return Text(
-        '${'manufacturing.days_expired'.tr()}: $daysExpired',
+        '${'manufacture.days_expired'.tr()}: $daysExpired',
         style: const TextStyle(color: Colors.red),
       );
     } else {
       final daysRemaining = product.expiryDateTime.difference(DateTime.now()).inDays;
       return Text(
-        '${'manufacturing.days_remaining'.tr()}: $daysRemaining',
+        '${'manufacture.days_remaining'.tr()}: $daysRemaining',
         style: TextStyle(
           color: product.isExpiringSoon ? Colors.orange : Colors.green,
         ),
@@ -309,27 +309,27 @@ class _FinishedProductsPageState extends State<FinishedProductsPage> {
               if (factoryName.isNotEmpty)
                 Text('${'factory'.tr()}: $factoryName'),
               
-              Text('${'manufacturing.batch_number'.tr()}: ${product.batchNumber}'),
-              Text('${'manufacturing.quantity'.tr()}: ${product.quantity} ${product.unit}'),
-              Text('${'manufacturing.production_date'.tr()}: ${_formatDateDetailed(product.dateTime)}'),
-              Text('${'manufacturing.expiry_date'.tr()}: ${_formatDateDetailed(product.expiryDateTime)}'),
-              Text('${'manufacturing.created_at'.tr()}: ${_formatDateDetailed(product.createdAtDateTime)}'),
+              Text('${'manufacture.batch_number'.tr()}: ${product.batchNumber}'),
+              Text('${'manufacture.quantity'.tr()}: ${product.quantity} ${product.unit}'),
+              Text('${'manufacture.production_date'.tr()}: ${_formatDateDetailed(product.dateTime)}'),
+              Text('${'manufacture.expiry_date'.tr()}: ${_formatDateDetailed(product.expiryDateTime)}'),
+              Text('${'manufacture.created_at'.tr()}: ${_formatDateDetailed(product.createdAtDateTime)}'),
               
               const SizedBox(height: 16),
               
               if (product.isExpired)
                 Text(
-                  'manufacturing.expired'.tr(),
+                  'manufacture.expired'.tr(),
                   style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
                 )
               else if (product.isExpiringSoon)
                 Text(
-                  'manufacturing.expiring_soon'.tr(),
+                  'manufacture.expiring_soon'.tr(),
                   style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold),
                 )
               else
                 Text(
-                  'manufacturing.good'.tr(),
+                  'manufacture.good'.tr(),
                   style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold),
                 ),
 
@@ -342,7 +342,7 @@ class _FinishedProductsPageState extends State<FinishedProductsPage> {
                     Navigator.pop(context);
                     _showCompositionDetails(context, product);
                   },
-                  child: Text('manufacturing.show_composition'.tr()),
+                  child: Text('manufacture.show_composition'.tr()),
                 ),
               ),
             ],
@@ -382,13 +382,13 @@ class _FinishedProductsPageState extends State<FinishedProductsPage> {
     if (product.isValid) {
       final daysExpired = DateTime.now().difference(product.expiryDateTime).inDays;
       return Text(
-        '${'manufacturing.days_expired'.tr()}: $daysExpired',
+        '${'manufacture.days_expired'.tr()}: $daysExpired',
         style: const TextStyle(color: Colors.red),
       );
     } else {
       final daysRemaining = product.expiryDateTime.difference(DateTime.now()).inDays;
       return Text(
-        '${'manufacturing.days_remaining'.tr()}: $daysRemaining',
+        '${'manufacture.days_remaining'.tr()}: $daysRemaining',
         style: TextStyle(
           color: product.isExpiringSoon ? Colors.orange : Colors.green,
         ),
@@ -454,7 +454,7 @@ class _FinishedProductsPageState extends State<FinishedProductsPage> {
     final factoryService = Provider.of<FactoryService>(context);
 
     return AppScaffold(
-      title: 'manufacturing.finished_products'.tr(),
+      title: 'manufacture.finished_products'.tr(),
       actions: [
         IconButton(
           icon: const Icon(Icons.add),
@@ -466,7 +466,7 @@ class _FinishedProductsPageState extends State<FinishedProductsPage> {
               ),
             );
           },
-          tooltip: 'manufacturing.add_finished_product'.tr(),
+          tooltip: 'manufacture.add_finished_product'.tr(),
         ),
       ],
       body: Column(
@@ -667,20 +667,20 @@ class _FinishedProductsPageState extends State<FinishedProductsPage> {
                     if (factoryName.isNotEmpty)
                       Text('${'factory'.tr()}: $factoryName'),
                     Text(
-                        '${'manufacturing.batch_number'.tr()}: ${product.barCode}'),
+                        '${'manufacture.batch_number'.tr()}: ${product.barCode}'),
                     Text(
-                        '${'manufacturing.quantity'.tr()}: ${product.quantity} ${product.unit}'),
-                    Text('${'manufacturing.isValid'.tr()}: ${product.isValid}'),
-                    //    Text('${'manufacturing.expiry_date'.tr()}: ${_formatDate(product.expiryDateTime)}'),
+                        '${'manufacture.quantity'.tr()}: ${product.quantity} ${product.unit}'),
+                    Text('${'manufacture.isValid'.tr()}: ${product.isValid}'),
+                    //    Text('${'manufacture.expiry_date'.tr()}: ${_formatDate(product.expiryDateTime)}'),
                     if (!product.isValid)
                       Text(
-                        'manufacturing.notValid'.tr(),
+                        'manufacture.notValid'.tr(),
                         style: const TextStyle(
                             color: Colors.red, fontWeight: FontWeight.bold),
                       )
                     else
                       Text(
-                        'manufacturing.isValid'.tr(),
+                        'manufacture.isValid'.tr(),
                         style: const TextStyle(
                             color: Colors.green, fontWeight: FontWeight.bold),
                       ),
@@ -724,29 +724,29 @@ class _FinishedProductsPageState extends State<FinishedProductsPage> {
               if (factoryName.isNotEmpty)
                 Text('${'factory'.tr()}: $factoryName'),
 
-              Text('${'manufacturing.batch_number'.tr()}: ${product.barCode}'),
+              Text('${'manufacture.batch_number'.tr()}: ${product.barCode}'),
               Text(
-                  '${'manufacturing.quantity'.tr()}: ${product.quantity} ${product.unit}'),
-              Text('${'manufacturing.isValid'.tr()}: ${product.isValid}'),
-              // Text('${'manufacturing.expiry_date'.tr()}: ${_formatDateDetailed(product.expiryDateTime)}'),
-              // Text('${'manufacturing.created_at'.tr()}: ${_formatDateDetailed(product.createdAtDateTime)}'),
+                  '${'manufacture.quantity'.tr()}: ${product.quantity} ${product.unit}'),
+              Text('${'manufacture.isValid'.tr()}: ${product.isValid}'),
+              // Text('${'manufacture.expiry_date'.tr()}: ${_formatDateDetailed(product.expiryDateTime)}'),
+              // Text('${'manufacture.created_at'.tr()}: ${_formatDateDetailed(product.createdAtDateTime)}'),
 
               const SizedBox(height: 16),
 
               if (!product.isValid)
                 Text(
-                  'manufacturing.expired'.tr(),
+                  'manufacture.expired'.tr(),
                   style: const TextStyle(
                       color: Colors.red, fontWeight: FontWeight.bold),
                 )
 /*               else if (product.isExpiringSoon)
                 Text(
-                  'manufacturing.expiring_soon'.tr(),
+                  'manufacture.expiring_soon'.tr(),
                   style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold),
                 ) */
               else
                 Text(
-                  'manufacturing.isValid'.tr(),
+                  'manufacture.isValid'.tr(),
                   style: const TextStyle(
                       color: Colors.green, fontWeight: FontWeight.bold),
                 ),
@@ -760,7 +760,7 @@ class _FinishedProductsPageState extends State<FinishedProductsPage> {
                     Navigator.pop(context);
                     _showCompositionDetails(context, product);
                   },
-                  child: Text('manufacturing.show_composition'.tr()),
+                  child: Text('manufacture.show_composition'.tr()),
                 ),
               ),
             ],
