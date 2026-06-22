@@ -219,6 +219,196 @@
   "unit": "Unit",
   "error_occurred": "An error occurred. Please try again.",
   "no_data_available": "No data available.",
+  
+
+  "egyptian_pound_ar": "Egyptian Pounds",
+  "us_dollar_ar": "US Dollars",
+  "euro_ar": "Euros",
+  "saudi_riyal_ar": "Saudi Riyals",
+  "uae_dirham_ar": "UAE Dirhams",
+  "piaster_ar": "Piasters",
+  "cent_ar": "Cents",
+  "halala_ar": "Halalas",
+  "fils_ar": "Fils",
+  "and_ar": "and",
+  "only_ar": "only",
+  "supplier_analysis": "Supplier Analysis",
+  "expiry_status_expired": "Expired",
+  "expiry_status_critical": "Critical (< 7 days)",
+  "expiry_status_warning": "Warning",
+  "trend_analysis_up": "There is a clear upward trend in %s with a growth rate of %s%%. It is recommended to increase inventory to meet growing demand.",
+  "trend_analysis_down": "There is a downward trend in %s with a decrease rate of %s%%. It is recommended to review the reasons for this decline and reduce excess stock.",
+  "trend_analysis_stable": "A relatively stable trend in %s with minor changes. It is recommended to continue monitoring and plan cautiously.",
+  "trend_up": "Upward",
+  "trend_down": "Downward",
+  "trend_stable": "Stable",
+  "order_status_completed": "Completed",
+  "order_status_pending": "Pending",
+  "order_status_cancelled": "Cancelled",
+  "movement_type_purchase": "Purchase",
+  "movement_type_manufacturing": "Manufacturing",
+  "movement_type_sale": "Sale",
+  "movement_type_issue": "Issue",
+  "movement_type_return": "Return",
+  "movement_type_adjustment": "Adjustment",
+  "movement_type_all": "All",
+  "expiry_recommendation_expired": "This product must be disposed of immediately.",
+  "expiry_recommendation_critical": "This product must be used urgently.",
+  "expiry_recommendation_warning": "Plan to use this product before it expires.",
+  "risk_level_critical": "Very Critical",
+  "risk_level_high": "High",
+  "risk_level_medium": "Medium",
+  "risk_level_low": "Low",
+    "inventory_on_hand": "Inventory On-Hand",
+  "slow_moving_inventory": "Slow-Moving Inventory",
+  "abc_analysis": "ABC Analysis",
+  "cost_analysis": "Cost Analysis",
+  "supplier_performance": "Supplier Performance",
+  "inventory_report_desc": "General summary and metrics of your company inventory.",
+  "category_raw_material": "Raw Material",
+  "category_packaging": "Packaging",
+  "No expiring or expired items": "No expiring or expired items found.",
+  "All items are within expiry period": "All items are within their valid expiry period.",
+"Click Analyze button to view results": "Click the Analyze button to view results.",
+  "Total Items": "Total Items",
+  "Total Value": "Total Value",
+
+  "inventory_on_hand_desc": "Detailed status of items currently available in stock.",
+
+  "slow_moving_inventory_desc": "Identify inventory items with a low turnover rate.",
+  "expiry_report_desc": "Track product batches nearing their expiration dates.",
+
+  "abc_analysis_desc": "Classify inventory based on item value and importance.",
+  "consumption_report_desc": "Detailed view of raw materials and stock consumed over time.",
+  "trend_analysis_desc": "Statistical projections and direction of item demand.",
+
+  "cost_analysis_desc": "Detailed evaluation of total inventory value and handling costs.",
+  "purchase_orders_analysis_desc": "Metrics on open, completed, and canceled purchase orders.",
+
+  "supplier_performance_desc": "Evaluate vendor delivery timelines and compliance scores.",
+  "supplier_analysis_desc": "Comprehensive trends and financial distribution among suppliers.",
+  "advanced_stock_movements_desc": "Granular log of stock issues, returns, and adjustments.",
+  "factory_performance_desc": "Production turnover and efficiency scores per factory branch.",
+
+  "slow_moving_recommendation_critical": "Disposal or recycling is recommended.",
+  "slow_moving_recommendation_high": "Price reduction or promotional offers are recommended.",
+  "slow_moving_recommendation_medium": "Monitor stock levels and review demand patterns.",
+  "slow_moving_recommendation_low": "Perform regular inventory follow-ups.",
+
+  "trend_analysis": "Trend Analysis",
+  "factory_performance": "Factory Performance",
+
+  "total_suppliers": "Total Suppliers",
+  "total_spent": "Total Spent",
+  "avg_delivery_days": "Avg Delivery Days",
+  "performance_metrics": "Performance Metrics",
+  "on_time_delivery_rate": "On-Time Delivery Rate",
+  "monthly_distribution": "Monthly Distribution",
+  "trend_type": "Trend Type",
+  "months_count": "Months Count",
+  "trend_direction": "Trend Direction",
+  "growth_rate": "Growth Rate",
+  "trend_chart": "Trend Chart",
+  "trend_analysis_summary": "Trend Analysis Summary",
+  "factory_details": "Factory Details",
+  "low_stock_items": "Low Stock Items",
+  "out_of_stock_items": "Out of Stock Items",
+  "turnover_rate": "Turnover Rate",
+  "movement_types_distribution": "Movement Types Distribution",
+  "inventory_overview": "Inventory Overview",
+  "stock_status": "Stock Status",
+  "top_items_by_value": "Top Items by Value",
+  "items_not_moved_90_days": "Items not moved in 90 days",
+  "expiring_in_30_days": "Expiring in 30 days",
+
+  "no_factories_found": "No Factories Found",
+  "per_month": "per month",
+  "increasing": "Increasing",
+  "decreasing": "Decreasing",
+  "min_max": "Min - Max",
+
+  "select_supplier": "Select Supplier",
+
+  "all_time": "All Time",
+
+  "critical": "Critical",
+  "warning": "Warning",
+  "no_companies_assigned": "No companies assigned",
+  "contact_admin_for_companies": "Contact administrator to add companies",
+  "select_factory_first": "Please select a factory first",
+  "export_to_csv": "Export to CSV",
+  "analyzing_report": "Analyzing data...",
+
+  "exchange_rate": "Exchange Rate",
+  "base_currency": "Base Currency",
+  "amount_in_base_currency": "Amount in Base Currency",
+  "select_currency": "Select Currency",
+  "currency_code": "Currency Code",
+  "inventory_report": "Inventory On-Hand Report",
+  "base": "Base",
+  "currency_egp": "Egyptian Pound",
+  "currency_usd": "US Dollar",
+  "currency_eur": "Euro",
+  "currency_sar": "Saudi Riyal",
+  "currency_aed": "UAE Dirham",
+  "no_low_stock": "No low stock items found",
+
+
+  "no_name": "No Name",
+  "item_column": "Item",
+  "qty_column": "Qty",
+  "price_column": "Price",
+  "tax_column": "Tax",
+  "total_column": "Total",
+  "tax_exempt": "Exempt",
+  "cash": "Cash",
+  "net_30": "Net 30 Days",
+  "net_45": "Net 45 Days",
+  "net_60": "Net 60 Days",
+  "advance_payment": "Advance Payment",
+  "letter_of_credit": "Letter of Credit",
+  "exw": "Ex Works",
+  "fob": "Free On Board",
+  "cif": "CIF",
+  "ddp": "DDP",
+  "fca": "Free Carrier",
+  "egyptian_pound_en": "Egyptian Pounds",
+  "us_dollar_en": "US Dollars",
+  "euro_en": "Euros",
+  "saudi_riyal_en": "Saudi Riyals",
+  "uae_dirham_en": "UAE Dirhams",
+  "piaster_en": "piasters",
+  "cent_en": "cents",
+  "halala_en": "halalas",
+  "fils_en": "fils",
+  "and_en": "and",
+  "only_en": "only",
+
+  "company_not_selected": "Please select a company",
+  "supplier_not_selected": "Please select a supplier",
+  "no_items_selected": "Please add at least one item",
+
+  "tax_exempt_note_en": "* Items marked with * are tax exempt",
+  "additional_conditions_en": "Additional Conditions",
+  "required_documents_en": "Required Documents",
+  "notes_en": "Notes",
+
+  "tax_exempt_note": "* Items marked with * are tax exempt",
+  "additional_conditions": "Additional Conditions",
+  "low_stock": "Low Stock",
+  "out_of_stock": "Out of Stock",
+  "low": "Low",
+  "empty": "Empty",
+
+  "sort_by": "Sort By",
+
+  "quantity_asc": "Quantity (Low to High)",
+  "quantity_desc": "Quantity (High to Low)",
+  "low_stock_only": "Low Stock Only",
+
+
+
+
   "name": "Name",
   "company": "Company",
   "phone": "Phone",
@@ -403,14 +593,36 @@
   "customize_dashboard": "Customize Dashboard",
   "initialization_failed": "Initialization failed",
   "offline_mode_notice": "You are offline. Some features may be limited.",
-  "notice": "Notice",
+
   "syncing_background": "Syncing in background...",
   "update_company": "Update Company",
   "update_required": "Update Required",
-  "update_now": "Update Now",
-  "update_available": "New Update Available",
-  "optional_update_message": "A newer version of the app is available. You can update now or later.",
-  "later": "Later",
+
+
+
+
+
+
+
+
+
+
+
+
+
+  "download_complete": "Download Complete",
+  "platform_not_supported": "Auto-update is not supported on this platform",
+
+
+
+
+
+  "available": "Available",
+
+
+
+
+  
   "settings": {
     "title": "Settings",
     "choose_view": "Choose Dashboard View:",
@@ -914,34 +1126,31 @@
   "current_balance": "Current Balance",
   "balance": "Balance",
   "in": "In",
-    "license_deactivated_success": "License deactivated successfully.",
-   "reset_app": "Reset App",
+  "license_deactivated_success": "License deactivated successfully.",
+  "reset_app": "Reset App",
   "reset_app_message": "If you are experiencing issues, click the button below to reset the app and log out.",
   "logout_confirmation_title": "Confirm Logout",
   "logout_confirmation_message": "Are you sure you want to log out?",
   "logout_error": "Error logging out",
-
   "checking_local_license": "Checking local license...",
   "checking_admin": "Checking admin status...",
-"device_id_not_loaded": "Device ID could not be loaded.",
+  "device_id_not_loaded": "Device ID could not be loaded.",
   "cannot_replace_device": "Cannot Replace Device",
   "device_replacement_already_used": "You have already changed your device once. This action cannot be repeated.",
   "request_new_license": "Request New License",
-"no_license_title": "No License Found",
+  "no_license_title": "No License Found",
   "no_license_message": "You don't have an active license. Please request a license to continue.",
-"unexpected_error": "An unexpected error occurred. Please try again.",
-
+  "unexpected_error": "An unexpected error occurred. Please try again.",
+  "never": "Never",
+  "none": "None",
   "renew_license": "Renew License",
   "too_many_requests": "Too many requests. Please try again later",
   "account_disabled": "This account has been disabled",
-
   "expires_on": "Expires on: ",
   "max_devices_allowed": "Max devices: ",
-
   "device_not_registered_description": "Your current device is not registered with your license.",
   "replace_device": "Replace Device",
-"device_replacement_note": "Note: Your oldest registered device will be replaced.",
-
+  "device_replacement_note": "Note: Your oldest registered device will be replaced.",
   "reset_and_logout": "Reset & Logout",
   "out": "Out",
   "online": "Online",
@@ -1147,6 +1356,25 @@
   "no_suppliers_for_company": "No suppliers found for this company",
   "no_suppliers_found_contact_admin": "No suppliers found. Please add suppliers or contact administrator",
   "generate_report": "Generate Report",
+  "checking_updates": "Checking for updates...",
+  "new_version_available": "New version available",
+  "current_version": "Current version",
+  "latest_version": "Latest version",
+  "force_update_required": "Force Update Required!",
+  "force_update_message": "You must update the app to the latest version to continue.",
+  "update_now_to_continue": "Update now to continue",
+  "downloading_update": "Downloading update...",
+  "please_wait_downloading": "Please wait while downloading the update",
+  "download_failed": "Download failed, please try again",
+  "download_error": "Download error",
+  "storage_permission_required": "Storage permission required",
+  "update_available": "Update Available",
+  "optional_update_message": "A new version of the app is available. Would you like to update now?",
+  "update_now": "Update Now",
+  "later": "Later",
+  "notice": "Notice",
+
+
   "no_slow_moving_items": "No slow moving items found",
   "all_items_active": "All items are active and moving regularly",
   "last_movement": "Last Movement",

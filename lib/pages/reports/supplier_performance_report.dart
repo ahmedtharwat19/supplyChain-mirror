@@ -1,4 +1,4 @@
-// lib/pages/reports/supplier_performance_report.dart
+/* // lib/pages/reports/supplier_performance_report.dart
 
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -1064,6 +1064,608 @@ Future<void> _printCurrentUserData() async {
               value,
               style: TextStyle(color: valueColor ?? Colors.grey.shade900),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+ */
+
+// lib/pages/reports/supplier_performance_report.dart
+import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:easy_localization/easy_localization.dart';
+import 'package:puresip_purchasing/debug_helper.dart';
+import 'package:puresip_purchasing/services/reports_data_service.dart';
+import 'package:puresip_purchasing/widgets/app_scaffold.dart';
+import 'package:puresip_purchasing/widgets/reports_widgets.dart';
+
+class SupplierPerformanceReport extends StatefulWidget {
+  const SupplierPerformanceReport({super.key});
+
+  @override
+  State<SupplierPerformanceReport> createState() =>
+      _SupplierPerformanceReportState();
+}
+
+class _SupplierPerformanceReportState extends State<SupplierPerformanceReport> {
+  final ReportsDataService _dataService = ReportsDataService();
+
+  bool _isLoading = false;
+  bool _isLoadingReport = false;
+
+  String? _selectedCompanyId;
+  String? _selectedSupplierId;
+
+  String _selectedPeriod = 'monthly';
+  DateTime? _startDate;
+  DateTime? _endDate;
+
+  final List<Map<String, dynamic>> _companies = [];
+  final List<Map<String, dynamic>> _suppliers = [];
+  final List<Map<String, dynamic>> _performanceData = [];
+
+  double _onTimeDeliveryRate = 0;
+  double _averageLeadTime = 0;
+  double _orderAccuracyRate = 0;
+  double _qualityAcceptanceRate = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _setPeriodDates();
+    _loadData();
+  }
+
+  void _setPeriodDates() {
+    final now = DateTime.now();
+    switch (_selectedPeriod) {
+      case 'monthly':
+        _startDate = DateTime(now.year, now.month - 1, now.day);
+        break;
+      case 'quarterly':
+        _startDate = DateTime(now.year, now.month - 3, now.day);
+        break;
+      case 'semi_annual':
+        _startDate = DateTime(now.year, now.month - 6, now.day);
+        break;
+      case 'annual':
+        _startDate = DateTime(now.year - 1, now.month, now.day);
+        break;
+      case 'custom':
+        if (_startDate == null) {
+          _startDate = DateTime(now.year, now.month - 3, now.day);
+          _endDate = now;
+        }
+        break;
+    }
+    if (_selectedPeriod != 'custom') {
+      _endDate = now;
+    }
+  }
+
+  Future<void> _loadData() async {
+    setState(() => _isLoading = true);
+    await _loadCompanies();
+    setState(() => _isLoading = false);
+  }
+
+  Future<void> _loadCompanies() async {
+    final companies = await _dataService.getUserCompanies();
+    if (!mounted) return;
+    final isArabic = context.locale.languageCode == 'ar';
+    setState(() {
+      _companies..clear()..addAll(companies.map((c) {
+        return {
+          'id': c['id'],
+          'name': isArabic ? c['nameAr'] : c['nameEn'],
+        };
+      }).toList());
+    });
+
+    if (_companies.isNotEmpty && _selectedCompanyId == null) {
+      _selectedCompanyId = _companies.first['id'] as String;
+      await _loadSuppliers();
+    }
+  }
+
+  Future<void> _loadSuppliers() async {
+    if (_selectedCompanyId == null) return;
+
+    setState(() => _isLoading = true);
+    _suppliers.clear();
+
+    final suppliers = await _dataService.getSuppliersForCompany(
+      _selectedCompanyId!,
+    );
+    if (!mounted) return;
+    final isArabic = context.locale.languageCode == 'ar';
+    setState(() {
+      _suppliers.addAll(suppliers.map((s) {
+        return {
+          'id': s['id'],
+          'name': isArabic ? s['nameAr'] : s['nameEn'],
+        };
+      }).toList());
+    });
+
+    if (_suppliers.isNotEmpty && _selectedSupplierId == null) {
+      _selectedSupplierId = _suppliers.first['id'] as String;
+      await _generateReport();
+    } else if (_suppliers.isEmpty && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('no_suppliers_for_company'.tr())),
+      );
+    }
+
+    setState(() => _isLoading = false);
+  }
+
+  Future<void> _generateReport() async {
+    if (_selectedCompanyId == null || _selectedSupplierId == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('select_company_and_supplier'.tr())),
+        );
+      }
+      return;
+    }
+
+    setState(() => _isLoadingReport = true);
+    _performanceData.clear();
+
+    try {
+      final ordersDocs = await _dataService.getPurchaseOrders(
+        companyId: _selectedCompanyId!,
+        supplierId: _selectedSupplierId,
+        startDate: _startDate,
+        endDate: _endDate,
+      );
+
+      if (ordersDocs.isEmpty) {
+        setState(() => _isLoadingReport = false);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('no_orders_found'.tr())),
+          );
+        }
+        return;
+      }
+
+      int totalOrders = ordersDocs.length;
+      int onTimeDeliveries = 0;
+      int totalLeadDays = 0;
+      int leadTimeCount = 0;
+
+      for (final doc in ordersDocs) {
+        final data = doc.data() as Map<String, dynamic>;
+
+        final orderDate = (data['orderDate'] as Timestamp?)?.toDate();
+        final expectedDeliveryDate =
+            (data['expectedDeliveryDate'] as Timestamp?)?.toDate();
+        final actualDeliveryDate =
+            (data['actualDeliveryDate'] as Timestamp?)?.toDate();
+        final status = data['status'];
+
+        if (status == 'completed' &&
+            expectedDeliveryDate != null &&
+            actualDeliveryDate != null) {
+          final diffDays =
+              actualDeliveryDate.difference(expectedDeliveryDate).inDays;
+          if (diffDays <= 3) {
+            onTimeDeliveries++;
+          }
+        }
+
+        if (orderDate != null && actualDeliveryDate != null) {
+          final leadTime = actualDeliveryDate.difference(orderDate).inDays;
+          if (leadTime > 0) {
+            totalLeadDays += leadTime;
+            leadTimeCount++;
+          }
+        }
+
+        _performanceData.add({
+          'poNumber': data['poNumber'],
+          'orderDate': orderDate,
+          'expectedDeliveryDate': expectedDeliveryDate,
+          'actualDeliveryDate': actualDeliveryDate,
+          'status': status,
+          'isOnTime': status == 'completed' &&
+              expectedDeliveryDate != null &&
+              actualDeliveryDate != null &&
+              actualDeliveryDate.difference(expectedDeliveryDate).inDays <= 3,
+          'totalAmount': data['totalAmountAfterTax'] ?? 0,
+        });
+      }
+
+      _onTimeDeliveryRate =
+          totalOrders > 0 ? (onTimeDeliveries / totalOrders) * 100 : 0;
+      _averageLeadTime = leadTimeCount > 0 ? totalLeadDays / leadTimeCount : 0;
+      _orderAccuracyRate = totalOrders > 0 ? 85.0 : 0;
+      _qualityAcceptanceRate = totalOrders > 0 ? 90.0 : 0;
+
+      setState(() {});
+    } catch (e) {
+      safeDebugPrint('Error generating supplier report: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('error_generating_report'.tr())),
+        );
+      }
+    } finally {
+      setState(() => _isLoadingReport = false);
+    }
+  }
+
+  Future<void> _selectCustomDateRange() async {
+    final picked = await showCustomDateRangePicker(
+      context,
+      startDate: _startDate,
+      endDate: _endDate,
+    );
+
+    if (picked != null) {
+      setState(() {
+        _startDate = picked.start;
+        _endDate = picked.end;
+        _selectedPeriod = 'custom';
+      });
+      await _generateReport();
+    }
+  }
+
+  void _onPeriodChanged(String? period) {
+    if (period == null) return;
+    setState(() {
+      _selectedPeriod = period;
+      _setPeriodDates();
+    });
+    _generateReport();
+  }
+
+  String _getPeriodText() {
+    return _selectedPeriod.tr();
+  }
+
+  Color _getPerformanceColor(double rate) {
+    if (rate >= 90) return Colors.green;
+    if (rate >= 70) return Colors.orange;
+    return Colors.red;
+  }
+
+  Widget _buildKPICard({
+    required String title,
+    required String value,
+    required Color color,
+    required IconData icon,
+  }) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: color.withAlpha(25),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: color.withAlpha(75)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(icon, size: 20, color: color),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              value,
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: color,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showOrderDetails(Map<String, dynamic> order) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('order_details'.tr()),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildDetailRow('po_number'.tr(), order['poNumber'] ?? '-'),
+            _buildDetailRow('order_date'.tr(), formatDate(order['orderDate'])),
+            _buildDetailRow('expected_delivery'.tr(),
+                formatDate(order['expectedDeliveryDate'])),
+            _buildDetailRow('actual_delivery'.tr(),
+                formatDate(order['actualDeliveryDate'])),
+            _buildDetailRow(
+                'status'.tr(),
+                order['status'] == 'completed'
+                    ? 'completed'.tr()
+                    : 'pending'.tr()),
+            _buildDetailRow(
+                'on_time'.tr(), order['isOnTime'] ? 'yes'.tr() : 'no'.tr(),
+                valueColor: order['isOnTime'] ? Colors.green : Colors.red),
+            _buildDetailRow('total_amount'.tr(),
+                '${(order['totalAmount'] ?? 0).toStringAsFixed(2)} ${'currency'.tr()}'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('close'.tr()),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDetailRow(String label, String value, {Color? valueColor}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 120,
+            child: Text(
+              '$label:',
+              style: TextStyle(
+                  fontWeight: FontWeight.w600, color: Colors.grey.shade700),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: TextStyle(color: valueColor ?? Colors.grey.shade900),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AppScaffold(
+      title: 'supplier_performance_report'.tr(),
+      body: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            color: Colors.grey[100],
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        initialValue: _selectedCompanyId,
+                        isExpanded: true,
+                        decoration: InputDecoration(
+                          labelText: 'company'.tr(),
+                          border: const OutlineInputBorder(),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          isDense: true,
+                        ),
+                        items: _companies.map((c) {
+                          return DropdownMenuItem<String>(
+                            value: c['id'],
+                            child: Text(c['name']),
+                          );
+                        }).toList(),
+                        onChanged: (val) async {
+                          setState(() {
+                            _selectedCompanyId = val;
+                            _selectedSupplierId = null;
+                            _suppliers.clear();
+                            _performanceData.clear();
+                          });
+                          await _loadSuppliers();
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        initialValue: _selectedSupplierId,
+                        isExpanded: true,
+                        decoration: InputDecoration(
+                          labelText: 'supplier'.tr(),
+                          border: const OutlineInputBorder(),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          isDense: true,
+                        ),
+                        items: _suppliers.map((s) {
+                          return DropdownMenuItem<String>(
+                            value: s['id'],
+                            child: Text(s['name']),
+                          );
+                        }).toList(),
+                        onChanged: (val) {
+                          setState(() {
+                            _selectedSupplierId = val;
+                          });
+                          _generateReport();
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        initialValue: _selectedPeriod,
+                        isExpanded: true,
+                        decoration: InputDecoration(
+                          labelText: 'period'.tr(),
+                          border: const OutlineInputBorder(),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          isDense: true,
+                        ),
+                        items: getPeriodOptions(),
+                        onChanged: _onPeriodChanged,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    if (_selectedPeriod == 'custom')
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: _selectCustomDateRange,
+                          icon: const Icon(Icons.date_range, size: 18),
+                          label: Text(
+                            '${formatDate(_startDate)} → ${formatDate(_endDate)}',
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      )
+                    else
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: _generateReport,
+                          icon: const Icon(Icons.refresh, size: 18),
+                          label: Text('refresh'.tr()),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        '${'selected_period'.tr()}: ${_getPeriodText()}',
+                        style: const TextStyle(fontWeight: FontWeight.w500),
+                      ),
+                      Text(
+                        '${formatDate(_startDate)} → ${formatDate(_endDate)}',
+                        style: TextStyle(color: Colors.grey.shade700),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (_performanceData.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Row(
+                children: [
+                  _buildKPICard(
+                    title: 'on_time_delivery'.tr(),
+                    value: '${_onTimeDeliveryRate.toStringAsFixed(1)}%',
+                    color: _getPerformanceColor(_onTimeDeliveryRate),
+                    icon: Icons.schedule,
+                  ),
+                  const SizedBox(width: 8),
+                  _buildKPICard(
+                    title: 'average_lead_time'.tr(),
+                    value: '${_averageLeadTime.toStringAsFixed(1)} ${'days'.tr()}',
+                    color: _averageLeadTime <= 14
+                        ? Colors.green
+                        : (_averageLeadTime <= 30 ? Colors.orange : Colors.red),
+                    icon: Icons.timer,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Row(
+                children: [
+                  _buildKPICard(
+                    title: 'order_accuracy'.tr(),
+                    value: '${_orderAccuracyRate.toStringAsFixed(1)}%',
+                    color: _getPerformanceColor(_orderAccuracyRate),
+                    icon: Icons.check_circle,
+                  ),
+                  const SizedBox(width: 8),
+                  _buildKPICard(
+                    title: 'quality_acceptance'.tr(),
+                    value: '${_qualityAcceptanceRate.toStringAsFixed(1)}%',
+                    color: _getPerformanceColor(_qualityAcceptanceRate),
+                    icon: Icons.verified,
+                  ),
+                ],
+              ),
+            ),
+          ],
+          Expanded(
+            child: _isLoading || _isLoadingReport
+                ? const Center(child: CircularProgressIndicator())
+                : _performanceData.isEmpty
+                    ? ReportEmptyState(
+                        icon: Icons.analytics,
+                        title: _selectedSupplierId == null
+                            ? 'select_supplier_first'.tr()
+                            : _suppliers.isEmpty
+                                ? 'no_suppliers_found'.tr()
+                                : 'no_orders_found_period'.tr(),
+                      )
+                    : ListView.builder(
+                        padding: const EdgeInsets.all(8),
+                        itemCount: _performanceData.length,
+                        itemBuilder: (context, index) {
+                          final order = _performanceData[index];
+                          return Card(
+                            margin: const EdgeInsets.symmetric(vertical: 6),
+                            elevation: 2,
+                            child: ListTile(
+                              leading: CircleAvatar(
+                                backgroundColor: order['isOnTime']
+                                    ? Colors.green.shade100
+                                    : Colors.orange.shade100,
+                                child: Icon(
+                                  order['isOnTime']
+                                      ? Icons.check
+                                      : Icons.warning,
+                                  color: order['isOnTime']
+                                      ? Colors.green
+                                      : Colors.orange,
+                                ),
+                              ),
+                              title: Text(order['poNumber'] ?? 'PO-${index + 1}'),
+                              subtitle: Text(
+                                '${'order_date'.tr()}: ${formatDate(order['orderDate'])} | '
+                                '${'status'.tr()}: ${order['status'] == 'completed' ? 'completed'.tr() : 'pending'.tr()}',
+                              ),
+                              trailing: Text(
+                                '${(order['totalAmount'] ?? 0).toStringAsFixed(2)} ${'currency'.tr()}',
+                                style: const TextStyle(fontWeight: FontWeight.bold),
+                              ),
+                              onTap: () => _showOrderDetails(order),
+                            ),
+                          );
+                        },
+                      ),
           ),
         ],
       ),

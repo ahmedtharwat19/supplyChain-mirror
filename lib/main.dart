@@ -292,6 +292,9 @@ Future<void> main() async {
   // تشغيل الخدمات الخلفية (لا تنتظر)
   unawaited(_initSecondaryBackgroundServices());
   unawaited(VersionChecker.init());
+    // ✅ طباعة رابط التحميل للتأكد
+  final downloadUrl = VersionChecker.getDownloadUrlAndroid();
+  safeDebugPrint('📥 Main - Download URL: $downloadUrl');
   GoRouter.optionURLReflectsImperativeAPIs = true;  // ✅ أضف هذا
 
   runApp(

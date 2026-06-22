@@ -1,3 +1,5 @@
+// models/purchase_order.dart - تصحيح fromMap
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:puresip_purchasing/models/item.dart';
 
@@ -16,20 +18,25 @@ class PurchaseOrder {
   final double totalTax;
   final double totalAmountAfterTax;
   final bool isDelivered;
-  
-  // ✅ ضريبة الخصم من المنبع
+
+  // ضريبة الخصم من المنبع
   final double withholdingTaxAmount;
   final double withholdingTaxRate;
   final double netPayable;
-  
-  // ✅ شروط الدفع والتسليم
+
+  // شروط الدفع والتسليم
   final String? paymentTermCode;
   final String? deliveryTermCode;
-  
-  // ✅ العناصر الإضافية (قوائم المعرفات)
+
+  // العناصر الإضافية (قوائم المعرفات)
   final List<String> conditionsIds;
   final List<String> documentsIds;
   final List<String> notesIds;
+  
+  // ✅ حقول العملة
+  final String? currencyCode; // 'USD', 'EUR', 'SAR', إلخ
+  final double? exchangeRate; // سعر الصرف مقابل العملة الأساسية
+  final double? totalAmountInBaseCurrency; // القيمة بالعملة الأساسية (EGP)
 
   PurchaseOrder({
     required this.id,
@@ -54,6 +61,9 @@ class PurchaseOrder {
     this.conditionsIds = const [],
     this.documentsIds = const [],
     this.notesIds = const [],
+    this.currencyCode,
+    this.exchangeRate,
+    this.totalAmountInBaseCurrency,
   });
 
   factory PurchaseOrder.fromMap(DocumentSnapshot doc) {
@@ -83,6 +93,10 @@ class PurchaseOrder {
       conditionsIds: List<String>.from(data['conditionsIds'] ?? []),
       documentsIds: List<String>.from(data['documentsIds'] ?? []),
       notesIds: List<String>.from(data['notesIds'] ?? []),
+      // ✅ تصحيح: استخدام data بدلاً من map
+      currencyCode: data['currencyCode'],
+      exchangeRate: (data['exchangeRate'] as num?)?.toDouble(),
+      totalAmountInBaseCurrency: (data['totalAmountInBaseCurrency'] as num?)?.toDouble(),
     );
   }
 
@@ -109,6 +123,9 @@ class PurchaseOrder {
       'conditionsIds': conditionsIds,
       'documentsIds': documentsIds,
       'notesIds': notesIds,
+      'currencyCode': currencyCode,
+      'exchangeRate': exchangeRate,
+      'totalAmountInBaseCurrency': totalAmountInBaseCurrency,
     };
   }
 
@@ -135,6 +152,9 @@ class PurchaseOrder {
     List<String>? conditionsIds,
     List<String>? documentsIds,
     List<String>? notesIds,
+    String? currencyCode,
+    double? exchangeRate,
+    double? totalAmountInBaseCurrency,
   }) {
     return PurchaseOrder(
       id: id ?? this.id,
@@ -159,6 +179,9 @@ class PurchaseOrder {
       conditionsIds: conditionsIds ?? this.conditionsIds,
       documentsIds: documentsIds ?? this.documentsIds,
       notesIds: notesIds ?? this.notesIds,
+      currencyCode: currencyCode ?? this.currencyCode,
+      exchangeRate: exchangeRate ?? this.exchangeRate,
+      totalAmountInBaseCurrency: totalAmountInBaseCurrency ?? this.totalAmountInBaseCurrency,
     );
   }
 }

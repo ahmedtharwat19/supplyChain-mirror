@@ -421,7 +421,38 @@ Future<void> _refreshInBackground() async {
   }
 }
 
+// في dashboard_page.dart - داخل DashboardStats
+
+// في dashboard_page.dart
+
 class DashboardStats {
+  int totalCompanies = 0;
+  int totalSuppliers = 0;
+  int totalOrders = 0;
+  int totalItems = 0;
+  int totalStockMovements = 0;
+  int totalManufacturingOrders = 0;
+  int totalFinishedProducts = 0;
+  int totalFactories = 0;
+  double totalAmount = 0.0;
+
+  // ✅ عدد التقارير من الدالة المساعدة
+  int get totalReports => getTotalReportsCount();
+
+  Map<String, dynamic> toMap() => {
+        'totalCompanies': totalCompanies,
+        'totalSuppliers': totalSuppliers,
+        'totalOrders': totalOrders,
+        'totalAmount': totalAmount,
+        'totalItems': totalItems,
+        'totalStockMovements': totalStockMovements,
+        'totalManufacturingOrders': totalManufacturingOrders,
+        'totalFinishedProducts': totalFinishedProducts,
+        'totalFactories': totalFactories,
+        'totalReports': totalReports,
+      };
+}
+/* class DashboardStats {
   int totalCompanies = 0;
   int totalSuppliers = 0;
   int totalOrders = 0;
@@ -446,3 +477,4 @@ class DashboardStats {
         'totalReports': totalReports,
       };
 }
+ */

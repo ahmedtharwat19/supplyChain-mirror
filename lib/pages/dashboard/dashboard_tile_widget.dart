@@ -178,7 +178,7 @@ class DashboardTileWidget extends StatelessWidget {
  */
 
 // dashboard_tile_widget.dart - نسخة سريعة
-
+// dashboard_tile_widget.dart
 import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:puresip_purchasing/services/navigation_service.dart';
@@ -214,7 +214,6 @@ class DashboardTileWidget extends StatelessWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(15),
         onTap: () {
-          // ✅ تنقل فوري بدون تأخير
           NavigationService().navigateTo(context, metric.route);
         },
         child: Container(

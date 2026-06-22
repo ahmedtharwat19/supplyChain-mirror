@@ -1,5 +1,6 @@
 // lib/pages/dashboard/dashboard_metrics.dart
 import 'package:flutter/material.dart';
+import 'package:puresip_purchasing/pages/reports/reports_page.dart';
 
 class DashboardMetric {
   final String titleKey;
@@ -21,7 +22,12 @@ class DashboardMetric {
   });
 }
 
-// ✅ قائمة بسيطة وواضحة - لا ديناميكية معقدة
+// ✅ دالة لحساب عدد التقارير من ReportsPage مباشرة
+int _getTotalReportsCount() {
+  return ReportsPage.totalCount; // 13 تقريراً
+}
+
+// ✅ قائمة بجميع المقاييس
 final List<DashboardMetric> dashboardMetrics = [
   // ==================== عرض قصير (Short) ====================
   DashboardMetric(
@@ -117,22 +123,8 @@ final List<DashboardMetric> dashboardMetrics = [
     },
     defaultMenuType: 'long',
   ),
-/*   DashboardMetric(
-    titleKey: 'inventory_query',
-    valueBuilder: (data) => (data['totalInventoryItems'] ?? 0).toString(),
-    icon: Icons.search,
-    color: Colors.lightBlue,
-    route: '/inventory-query',
-    progressBuilder: (data) {
-      final value = (data['totalInventoryItems'] ?? '') as int;
-      final max = 500;
-      return (value / max).clamp(0.0, 1.0);
-    },
-    defaultMenuType: 'long',
-  ), */
   DashboardMetric(
     titleKey: 'inventory_query',
-    // ✅ النص الظاهر: يعرض مسافة فارغة " " بدلاً من 0 إذا كانت البيانات غير موجودة
     valueBuilder: (data) {
       final val = data['totalInventoryItems'];
       return (val != null) ? val.toString() : " ";
@@ -140,7 +132,6 @@ final List<DashboardMetric> dashboardMetrics = [
     icon: Icons.search,
     color: Colors.lightBlue,
     route: '/inventory-query',
-    // ✅ شريط التقدم: يحسب النسبة بناءً على 0 داخلياً لمنع انهيار النوع (Type Mismatch)
     progressBuilder: (data) {
       final num value = (data['totalInventoryItems'] as num?) ?? 0;
       final max = 500;
@@ -148,7 +139,6 @@ final List<DashboardMetric> dashboardMetrics = [
     },
     defaultMenuType: 'long',
   ),
-
   DashboardMetric(
     titleKey: 'totalManufacturingOrders',
     valueBuilder: (data) => (data['totalManufacturingOrders'] ?? 0).toString(),
@@ -175,39 +165,41 @@ final List<DashboardMetric> dashboardMetrics = [
     },
     defaultMenuType: 'long',
   ),
-  
-  // ✅ بطاقة التقارير - واحدة فقط
-/*   DashboardMetric(
-    titleKey: 'reports',
-    valueBuilder: (data) => (data['totalReports'] ?? 8).toString(),
-    icon: Icons.query_stats,
-    color: Colors.red,
-    route: '/reports',
-    progressBuilder: (data) {
-      final value = (data['totalReports'] ?? 8) as int;
-      final max = 20;
-      return (value / max).clamp(0.0, 1.0);
-    },
-    defaultMenuType: 'long',
-  ), */
 
+  // ==================== ✅ كارت التقارير الواحد ====================
   DashboardMetric(
     titleKey: 'reports',
-    // ✅ النص الظاهر على الشاشة: إذا لم تكن القيمة موجودة سيظهر نص فارغ " " بدلاً من 0
     valueBuilder: (data) {
-      final val = data['totalReports'];
-      return (val != null) ? val.toString() : " ";
+      final reportCount = _getTotalReportsCount();
+      return reportCount.toString();
     },
     icon: Icons.query_stats,
     color: Colors.red,
     route: '/reports',
-    // شريط التقدم: يحسب النسبة بشكل آمن برقم 0 داخلياً لمنع الانهيار
     progressBuilder: (data) {
-      final num value = (data['totalReports'] as num?) ?? 0;
+      final total = _getTotalReportsCount();
       final max = 20;
-      return (value / max).clamp(0.0, 1.0);
+      return (total / max).clamp(0.0, 1.0);
     },
-    defaultMenuType: 'long',
+    defaultMenuType: 'short',
   ),
 ];
 
+// ✅ دالة مساعدة للحصول على عدد التقارير
+int getTotalReportsCount() => _getTotalReportsCount();
+
+// ✅ دالة للحصول على جميع مسارات التقارير (للاستخدام في Settings)
+List<String> getAllReportRoutes() {
+  return dashboardMetrics
+      .where((m) => m.route.startsWith('/reports'))
+      .map((m) => m.route)
+      .toList();
+}
+
+// ✅ دالة للحصول على جميع مفاتيح التقارير (للاستخدام في Settings)
+List<String> getAllReportKeys() {
+  return dashboardMetrics
+      .where((m) => m.route.startsWith('/reports'))
+      .map((m) => m.titleKey)
+      .toList();
+}

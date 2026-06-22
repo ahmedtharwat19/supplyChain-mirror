@@ -1,5 +1,6 @@
-// lib/pages/reports/inventory_report_page.dart
+// lib/pages/reports/inventory_onhand_report_page.dart
 // تقرير المخزون الكامل — كل شركة → كل مصنع → كل منتج
+// ✅ نسخة سريعة باستخدام استعلامات موحدة و Batch Reading
 
 import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -31,7 +32,10 @@ class InventoryItem {
     required this.unit,
   });
 
-  String name(bool isArabic) => isArabic ? nameAr : nameEn;
+  String name(BuildContext context) {
+    final isArabic = context.locale.languageCode == 'ar';
+    return isArabic ? nameAr : nameEn;
+  }
 }
 
 class FactoryInventory {
@@ -47,11 +51,13 @@ class FactoryInventory {
     required this.items,
   });
 
-  String name(bool isArabic) => isArabic ? nameAr : nameEn;
+  String name(BuildContext context) {
+    final isArabic = context.locale.languageCode == 'ar';
+    return isArabic ? nameAr : nameEn;
+  }
 
   int get totalItems => items.length;
-  int get lowStockCount =>
-      items.where((i) => i.quantity <= 10 && i.quantity > 0).length;
+  int get lowStockCount => items.where((i) => i.quantity <= 10 && i.quantity > 0).length;
   int get outOfStockCount => items.where((i) => i.quantity <= 0).length;
 }
 
@@ -68,13 +74,14 @@ class CompanyInventory {
     required this.factories,
   });
 
-  String name(bool isArabic) => isArabic ? nameAr : nameEn;
+  String name(BuildContext context) {
+    final isArabic = context.locale.languageCode == 'ar';
+    return isArabic ? nameAr : nameEn;
+  }
 
   int get totalItems => factories.fold(0, (total, f) => total + f.totalItems);
-  int get totalLowStock =>
-      factories.fold(0, (total, f) => total + f.lowStockCount);
-  int get totalOutOfStock =>
-      factories.fold(0, (total, f) => total + f.outOfStockCount);
+  int get totalLowStock => factories.fold(0, (total, f) => total + f.lowStockCount);
+  int get totalOutOfStock => factories.fold(0, (total, f) => total + f.outOfStockCount);
 }
 
 // ─────────────────────────────────────────────
@@ -92,12 +99,11 @@ class _InventoryOnHandPageState extends State<InventoryOnHandPage> {
   List<CompanyInventory> _data = [];
   bool _isLoading = true;
   bool _isRefreshing = false;
-  bool _isArabic = false;
   String _filterCategory = 'all';
-  String _sortBy = 'name'; // name | quantity_asc | quantity_desc | low_stock
+  String _sortBy = 'name';
 
-  static const String _cacheKey = 'inventory_report_cache';
-  static const String _cacheTimeKey = 'inventory_report_cache_time';
+  static const String _cacheKey = 'inventory_report_cache_v2';
+  static const String _cacheTimeKey = 'inventory_report_cache_time_v2';
   static const Duration _cacheDuration = Duration(minutes: 10);
 
   @override
@@ -106,22 +112,13 @@ class _InventoryOnHandPageState extends State<InventoryOnHandPage> {
     _loadReport();
   }
 
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    _isArabic = context.locale.languageCode == 'ar';
-  }
-
   // ─────────────────────────────────────────────
-  // تحميل البيانات
+  // تحميل البيانات - نسخة محسنة 🚀
   // ─────────────────────────────────────────────
 
   Future<void> _loadReport() async {
-    // 1. اقرأ من الكاش أولاً
     await _loadFromCache();
-
-    // 2. حدّث من Firestore في الخلفية
-    _fetchFromFirestore(background: _data.isNotEmpty);
+    _fetchFromFirestoreOptimized(background: _data.isNotEmpty);
   }
 
   Future<void> _loadFromCache() async {
@@ -150,7 +147,8 @@ class _InventoryOnHandPageState extends State<InventoryOnHandPage> {
     }
   }
 
-  Future<void> _fetchFromFirestore({required bool background}) async {
+  /// ✅ النسخة المحسنة - استعلامات موحدة
+  Future<void> _fetchFromFirestoreOptimized({required bool background}) async {
     if (!background && mounted) setState(() => _isLoading = true);
     if (background && mounted) setState(() => _isRefreshing = true);
 
@@ -158,12 +156,15 @@ class _InventoryOnHandPageState extends State<InventoryOnHandPage> {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
 
-      // ── جلب companyIds من المستخدم ──
+      // ── 1. جلب companyIds من المستخدم ──
       final userDoc = await FirebaseFirestore.instance
           .collection('users')
           .doc(user.uid)
           .get();
-      final companyIds = List<String>.from(userDoc.data()?['companyIds'] ?? []);
+      
+      final userData = userDoc.data();
+      final companyIds = List<String>.from(userData?['companyIds'] ?? []);
+      
       if (companyIds.isEmpty) {
         if (mounted) {
           setState(() {
@@ -175,13 +176,13 @@ class _InventoryOnHandPageState extends State<InventoryOnHandPage> {
         return;
       }
 
-      // ── جلب الشركات بطلب واحد ──
+      // ── 2. جلب جميع الشركات بطلب واحد ──
       final companiesSnap = await FirebaseFirestore.instance
           .collection('companies')
           .where(FieldPath.documentId, whereIn: companyIds)
           .get();
 
-      // ── جلب كل أسماء المنتجات للمستخدم بطلب واحد ──
+      // ── 3. جلب جميع الأصناف بطلب واحد ──
       final itemsSnap = await FirebaseFirestore.instance
           .collection('items')
           .where('userId', isEqualTo: user.uid)
@@ -191,64 +192,112 @@ class _InventoryOnHandPageState extends State<InventoryOnHandPage> {
         for (final doc in itemsSnap.docs) doc.id: doc.data()
       };
 
-      // ── بناء بيانات كل شركة ──
-      final List<CompanyInventory> result = [];
-
+      // ── 4. جلب جميع المصانع للشركات بطلب واحد ──
+      final List<QueryDocumentSnapshot> allFactories = [];
       for (final companyDoc in companiesSnap.docs) {
-        final companyData = companyDoc.data();
-
-        // جلب مصانع الشركة
         final factoriesSnap = await FirebaseFirestore.instance
             .collection('factories')
             .where('companyIds', arrayContains: companyDoc.id)
             .get();
+        allFactories.addAll(factoriesSnap.docs);
+      }
+
+      // ── 5. ✅ جلب جميع المخزونات دفعة واحدة (Batch) ──
+      final Map<String, List<QueryDocumentSnapshot>> inventoryByFactory = {};
+      
+      // استخدام Future.wait لجلب جميع المخزونات بالتوازي
+      final inventoryFutures = allFactories.map((factoryDoc) async {
+        final inventorySnap = await FirebaseFirestore.instance
+            .collection('factories')
+            .doc(factoryDoc.id)
+            .collection('inventory')
+            .get();
+        return {
+          'factoryId': factoryDoc.id, 
+          'docs': inventorySnap.docs
+        };
+      }).toList();
+
+      final inventoryResults = await Future.wait(inventoryFutures);
+      
+      for (final result in inventoryResults) {
+        final factoryId = result['factoryId'] as String?;
+        final docs = result['docs'] as List<QueryDocumentSnapshot>?;
+        if (factoryId != null && docs != null) {
+          inventoryByFactory[factoryId] = docs;
+        }
+      }
+
+      // ── 6. بناء النتائج ──
+      final List<CompanyInventory> result = [];
+
+      for (final companyDoc in companiesSnap.docs) {
+        final companyData = companyDoc.data();
+        
+        // جلب مصانع هذه الشركة
+        final factoryDocs = allFactories
+            .where((f) {
+              // ✅ استخدام f.data() مع التحقق من null
+              final fData = f.data() as Map<String, dynamic>?;
+              if (fData == null) return false;
+              final companyIdsList = (fData['companyIds'] as List?)?.cast<String>() ?? [];
+              return companyIdsList.contains(companyDoc.id);
+            })
+            .toList();
 
         final List<FactoryInventory> factories = [];
 
-        // جلب inventory كل مصنع بالتوازي
-        final factoryInventoryFutures =
-            factoriesSnap.docs.map((factoryDoc) async {
-          final inventorySnap = await FirebaseFirestore.instance
-              .collection('factories')
-              .doc(factoryDoc.id)
-              .collection('inventory')
-              .get();
-
+        for (final factoryDoc in factoryDocs) {
+          final inventoryDocs = inventoryByFactory[factoryDoc.id] ?? [];
+          
           final List<InventoryItem> items = [];
-          for (final invDoc in inventorySnap.docs) {
+          for (final invDoc in inventoryDocs) {
             final itemData = itemsMap[invDoc.id];
             if (itemData == null) continue;
 
-            final quantity = _toDouble(invDoc.data()['quantity']);
+            final quantity = _toDouble((invDoc.data() as Map<String, dynamic>)['quantity']);
+            
+            // ✅ استخدام ?. مع toString() معالجة القيم null
+            final nameAr = itemData['nameAr']?.toString() ?? invDoc.id;
+            final nameEn = itemData['nameEn']?.toString() ?? invDoc.id;
+            final category = itemData['category']?.toString() ?? 'raw_material';
+            final unit = itemData['unit']?.toString() ?? '';
+
             items.add(InventoryItem(
               itemId: invDoc.id,
-              nameAr: itemData['nameAr'] ?? invDoc.id,
-              nameEn: itemData['nameEn'] ?? invDoc.id,
-              category: itemData['category']?.toString() ?? 'raw_material',
+              nameAr: nameAr,
+              nameEn: nameEn,
+              category: category,
               quantity: quantity,
-              unit: itemData['unit']?.toString() ?? '',
+              unit: unit,
             ));
           }
 
-          return FactoryInventory(
-            factoryId: factoryDoc.id,
-            nameAr: factoryDoc.data()['nameAr'] ?? factoryDoc.id,
-            nameEn: factoryDoc.data()['nameEn'] ?? factoryDoc.id,
-            items: items,
-          );
-        }).toList();
+          // ✅ استخدام factoryDoc.data() مع التحقق من null
+          final factoryData = factoryDoc.data() as Map<String, dynamic>?;
+          final factoryNameAr = factoryData?['nameAr']?.toString() ?? factoryDoc.id;
+          final factoryNameEn = factoryData?['nameEn']?.toString() ?? factoryDoc.id;
 
-        factories.addAll(await Future.wait(factoryInventoryFutures));
+          factories.add(FactoryInventory(
+            factoryId: factoryDoc.id,
+            nameAr: factoryNameAr,
+            nameEn: factoryNameEn,
+            items: items,
+          ));
+        }
+
+        // ✅ استخدام ?. مع toString() معالجة القيم null
+        final companyNameAr = companyData['nameAr']?.toString() ?? companyDoc.id;
+        final companyNameEn = companyData['nameEn']?.toString() ?? companyDoc.id;
 
         result.add(CompanyInventory(
           companyId: companyDoc.id,
-          nameAr: companyData['nameAr'] ?? companyDoc.id,
-          nameEn: companyData['nameEn'] ?? companyDoc.id,
+          nameAr: companyNameAr,
+          nameEn: companyNameEn,
           factories: factories,
         ));
       }
 
-      // ── حفظ في الكاش ──
       await _saveToCache(result);
 
       if (mounted) {
@@ -258,7 +307,7 @@ class _InventoryOnHandPageState extends State<InventoryOnHandPage> {
           _isRefreshing = false;
         });
       }
-      safeDebugPrint('✅ Inventory report fetched from Firestore');
+      safeDebugPrint('✅ Inventory report fetched from Firestore (Optimized)');
     } catch (e) {
       safeDebugPrint('Firestore error: $e');
       if (mounted) {
@@ -270,33 +319,32 @@ class _InventoryOnHandPageState extends State<InventoryOnHandPage> {
     }
   }
 
+  // ── دالة قديمة للتوافق مع RefreshIndicator ──
+  Future<void> _fetchFromFirestore({required bool background}) async {
+    await _fetchFromFirestoreOptimized(background: background);
+  }
+
   Future<void> _saveToCache(List<CompanyInventory> data) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final serializable = data
-          .map((c) => {
-                'companyId': c.companyId,
-                'nameAr': c.nameAr,
-                'nameEn': c.nameEn,
-                'factories': c.factories
-                    .map((f) => {
-                          'factoryId': f.factoryId,
-                          'nameAr': f.nameAr,
-                          'nameEn': f.nameEn,
-                          'items': f.items
-                              .map((i) => {
-                                    'itemId': i.itemId,
-                                    'nameAr': i.nameAr,
-                                    'nameEn': i.nameEn,
-                                    'category': i.category,
-                                    'quantity': i.quantity,
-                                    'unit': i.unit,
-                                  })
-                              .toList(),
-                        })
-                    .toList(),
-              })
-          .toList();
+      final serializable = data.map((c) => {
+        'companyId': c.companyId,
+        'nameAr': c.nameAr,
+        'nameEn': c.nameEn,
+        'factories': c.factories.map((f) => {
+          'factoryId': f.factoryId,
+          'nameAr': f.nameAr,
+          'nameEn': f.nameEn,
+          'items': f.items.map((i) => {
+            'itemId': i.itemId,
+            'nameAr': i.nameAr,
+            'nameEn': i.nameEn,
+            'category': i.category,
+            'quantity': i.quantity,
+            'unit': i.unit,
+          }).toList(),
+        }).toList(),
+      }).toList();
 
       await prefs.setString(_cacheKey, json.encode(serializable));
       await prefs.setInt(_cacheTimeKey, DateTime.now().millisecondsSinceEpoch);
@@ -306,29 +354,35 @@ class _InventoryOnHandPageState extends State<InventoryOnHandPage> {
   }
 
   CompanyInventory _parseCompany(dynamic c) {
-    final factories = (c['factories'] as List).map((f) {
-      final items = (f['items'] as List)
-          .map((i) => InventoryItem(
-                itemId: i['itemId'],
-                nameAr: i['nameAr'],
-                nameEn: i['nameEn'],
-                category: i['category'],
-                quantity: _toDouble(i['quantity']),
-                unit: i['unit'] ?? '',
-              ))
-          .toList();
+    // ✅ استخدام ?. مع التحقق من null
+    final factoriesList = (c['factories'] as List?) ?? [];
+    
+    final factories = factoriesList.map((f) {
+      final itemsList = (f['items'] as List?) ?? [];
+      
+      final items = itemsList.map((i) {
+        return InventoryItem(
+          itemId: i['itemId']?.toString() ?? '',
+          nameAr: i['nameAr']?.toString() ?? '',
+          nameEn: i['nameEn']?.toString() ?? '',
+          category: i['category']?.toString() ?? 'raw_material',
+          quantity: _toDouble(i['quantity']),
+          unit: i['unit']?.toString() ?? '',
+        );
+      }).toList();
+      
       return FactoryInventory(
-        factoryId: f['factoryId'],
-        nameAr: f['nameAr'],
-        nameEn: f['nameEn'],
+        factoryId: f['factoryId']?.toString() ?? '',
+        nameAr: f['nameAr']?.toString() ?? '',
+        nameEn: f['nameEn']?.toString() ?? '',
         items: items,
       );
     }).toList();
 
     return CompanyInventory(
-      companyId: c['companyId'],
-      nameAr: c['nameAr'],
-      nameEn: c['nameEn'],
+      companyId: c['companyId']?.toString() ?? '',
+      nameAr: c['nameAr']?.toString() ?? '',
+      nameEn: c['nameEn']?.toString() ?? '',
       factories: factories,
     );
   }
@@ -338,6 +392,7 @@ class _InventoryOnHandPageState extends State<InventoryOnHandPage> {
     if (v is double) return v;
     if (v is int) return v.toDouble();
     if (v is num) return v.toDouble();
+    if (v is String) return double.tryParse(v) ?? 0.0;
     return 0.0;
   }
 
@@ -362,7 +417,7 @@ class _InventoryOnHandPageState extends State<InventoryOnHandPage> {
         filtered = filtered.where((i) => i.quantity <= 10).toList();
         break;
       default:
-        filtered.sort((a, b) => a.name(_isArabic).compareTo(b.name(_isArabic)));
+        filtered.sort((a, b) => a.name(context).compareTo(b.name(context)));
     }
     return filtered;
   }
@@ -392,8 +447,7 @@ class _InventoryOnHandPageState extends State<InventoryOnHandPage> {
                         : ListView.builder(
                             padding: const EdgeInsets.all(12),
                             itemCount: _data.length,
-                            itemBuilder: (_, i) =>
-                                _buildCompanySection(_data[i]),
+                            itemBuilder: (_, i) => _buildCompanySection(_data[i]),
                           ),
                   ),
                 ],
@@ -408,47 +462,38 @@ class _InventoryOnHandPageState extends State<InventoryOnHandPage> {
       color: Colors.grey.shade100,
       child: Row(
         children: [
-          // فلتر الفئة
           Expanded(
             child: DropdownButtonFormField<String>(
               initialValue: _filterCategory,
               decoration: InputDecoration(
                 labelText: 'category'.tr(),
                 border: const OutlineInputBorder(),
-                contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 isDense: true,
               ),
               items: [
                 DropdownMenuItem(value: 'all', child: Text('all'.tr())),
-                DropdownMenuItem(
-                    value: 'raw_material', child: Text('raw_material'.tr())),
-                DropdownMenuItem(
-                    value: 'packaging', child: Text('packaging'.tr())),
+                DropdownMenuItem(value: 'raw_material', child: Text('raw_material'.tr())),
+                DropdownMenuItem(value: 'packaging', child: Text('packaging'.tr())),
               ],
               onChanged: (v) => setState(() => _filterCategory = v ?? 'all'),
             ),
           ),
           const SizedBox(width: 8),
-          // ترتيب
           Expanded(
             child: DropdownButtonFormField<String>(
               initialValue: _sortBy,
               decoration: InputDecoration(
                 labelText: 'sort_by'.tr(),
                 border: const OutlineInputBorder(),
-                contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 isDense: true,
               ),
               items: [
                 DropdownMenuItem(value: 'name', child: Text('name'.tr())),
-                DropdownMenuItem(
-                    value: 'quantity_asc', child: Text('quantity_asc'.tr())),
-                DropdownMenuItem(
-                    value: 'quantity_desc', child: Text('quantity_desc'.tr())),
-                DropdownMenuItem(
-                    value: 'low_stock', child: Text('low_stock_only'.tr())),
+                DropdownMenuItem(value: 'quantity_asc', child: Text('quantity_asc'.tr())),
+                DropdownMenuItem(value: 'quantity_desc', child: Text('quantity_desc'.tr())),
+                DropdownMenuItem(value: 'low_stock', child: Text('low_stock_only'.tr())),
               ],
               onChanged: (v) => setState(() => _sortBy = v ?? 'name'),
             ),
@@ -472,9 +517,8 @@ class _InventoryOnHandPageState extends State<InventoryOnHandPage> {
             const SizedBox(width: 8),
             Expanded(
               child: Text(
-                company.name(_isArabic),
-                style:
-                    const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                company.name(context),
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
               ),
             ),
           ],
@@ -499,15 +543,12 @@ class _InventoryOnHandPageState extends State<InventoryOnHandPage> {
     return Wrap(
       spacing: 6,
       children: [
-        _buildChip(
-            '${company.factories.length} ${'factories'.tr()}', Colors.blue),
+        _buildChip('${company.factories.length} ${'factories'.tr()}', Colors.blue),
         _buildChip('${company.totalItems} ${'items'.tr()}', Colors.teal),
         if (company.totalLowStock > 0)
-          _buildChip(
-              '${company.totalLowStock} ${'low_stock'.tr()}', Colors.orange),
+          _buildChip('${company.totalLowStock} ${'low_stock'.tr()}', Colors.orange),
         if (company.totalOutOfStock > 0)
-          _buildChip(
-              '${company.totalOutOfStock} ${'out_of_stock'.tr()}', Colors.red),
+          _buildChip('${company.totalOutOfStock} ${'out_of_stock'.tr()}', Colors.red),
       ],
     );
   }
@@ -533,9 +574,8 @@ class _InventoryOnHandPageState extends State<InventoryOnHandPage> {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  factory.name(_isArabic),
-                  style: const TextStyle(
-                      fontWeight: FontWeight.w600, fontSize: 14),
+                  factory.name(context),
+                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
                 ),
               ),
             ],
@@ -545,16 +585,11 @@ class _InventoryOnHandPageState extends State<InventoryOnHandPage> {
             child: Wrap(
               spacing: 4,
               children: [
-                _buildChip('${factory.totalItems} ${'items'.tr()}', Colors.teal,
-                    small: true),
+                _buildChip('${factory.totalItems} ${'items'.tr()}', Colors.teal, small: true),
                 if (factory.lowStockCount > 0)
-                  _buildChip(
-                      '${factory.lowStockCount} ${'low'.tr()}', Colors.orange,
-                      small: true),
+                  _buildChip('${factory.lowStockCount} ${'low'.tr()}', Colors.orange, small: true),
                 if (factory.outOfStockCount > 0)
-                  _buildChip(
-                      '${factory.outOfStockCount} ${'empty'.tr()}', Colors.red,
-                      small: true),
+                  _buildChip('${factory.outOfStockCount} ${'empty'.tr()}', Colors.red, small: true),
               ],
             ),
           ),
@@ -563,17 +598,14 @@ class _InventoryOnHandPageState extends State<InventoryOnHandPage> {
                   Padding(
                     padding: const EdgeInsets.all(12),
                     child: Text(
-                      _sortBy == 'low_stock'
-                          ? 'no_low_stock'.tr()
-                          : 'no_items'.tr(),
+                      _sortBy == 'low_stock' ? 'no_low_stock'.tr() : 'no_items'.tr(),
                       style: TextStyle(color: Colors.grey.shade600),
                     ),
                   )
                 ]
               : [
                   Padding(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     child: _buildItemsTable(filteredItems),
                   ),
                 ],
@@ -585,7 +617,6 @@ class _InventoryOnHandPageState extends State<InventoryOnHandPage> {
   Widget _buildItemsTable(List<InventoryItem> items) {
     return Column(
       children: [
-        // Header
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
           decoration: BoxDecoration(
@@ -594,26 +625,12 @@ class _InventoryOnHandPageState extends State<InventoryOnHandPage> {
           ),
           child: Row(
             children: [
-              Expanded(
-                  flex: 3,
-                  child: Text('item_name'.tr(),
-                      style: const TextStyle(
-                          fontWeight: FontWeight.bold, fontSize: 12))),
-              Expanded(
-                  flex: 2,
-                  child: Text('category'.tr(),
-                      style: const TextStyle(
-                          fontWeight: FontWeight.bold, fontSize: 12))),
-              Expanded(
-                  flex: 2,
-                  child: Text('quantity'.tr(),
-                      style: const TextStyle(
-                          fontWeight: FontWeight.bold, fontSize: 12),
-                      textAlign: TextAlign.end)),
+              Expanded(flex: 3, child: Text('item_name'.tr(), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
+              Expanded(flex: 2, child: Text('category'.tr(), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
+              Expanded(flex: 2, child: Text('quantity'.tr(), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12), textAlign: TextAlign.end)),
             ],
           ),
         ),
-        // Rows
         ...items.map((item) => _buildItemRow(item)),
       ],
     );
@@ -649,14 +666,13 @@ class _InventoryOnHandPageState extends State<InventoryOnHandPage> {
                 if (isOutOfStock)
                   const Icon(Icons.warning, size: 14, color: Colors.red)
                 else if (isLowStock)
-                  const Icon(Icons.warning_amber,
-                      size: 14, color: Colors.orange)
+                  const Icon(Icons.warning_amber, size: 14, color: Colors.orange)
                 else
                   const SizedBox(width: 14),
                 const SizedBox(width: 4),
                 Expanded(
                   child: Text(
-                    item.name(_isArabic),
+                    item.name(context),
                     style: const TextStyle(fontSize: 13),
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -667,9 +683,7 @@ class _InventoryOnHandPageState extends State<InventoryOnHandPage> {
           Expanded(
             flex: 2,
             child: Text(
-              item.category == 'raw_material'
-                  ? 'raw_material'.tr()
-                  : 'packaging'.tr(),
+              'category_${item.category}'.tr(),
               style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
             ),
           ),

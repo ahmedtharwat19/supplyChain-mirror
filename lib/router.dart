@@ -38,11 +38,14 @@ import 'package:puresip_purchasing/pages/reports/advanced_stock_movements_report
 import 'package:puresip_purchasing/pages/reports/consumption_report.dart';
 import 'package:puresip_purchasing/pages/reports/cost_analysis_report.dart';
 import 'package:puresip_purchasing/pages/reports/expiry_report.dart';
+import 'package:puresip_purchasing/pages/reports/factory_performance_report.dart';
 import 'package:puresip_purchasing/pages/reports/inventory_onhand_report_page.dart';
 import 'package:puresip_purchasing/pages/reports/inventory_report_page.dart';
 import 'package:puresip_purchasing/pages/reports/reports_page.dart';
 import 'package:puresip_purchasing/pages/reports/slow_moving_report.dart';
+import 'package:puresip_purchasing/pages/reports/supplier_analysis_report.dart';
 import 'package:puresip_purchasing/pages/reports/supplier_performance_report.dart';
+import 'package:puresip_purchasing/pages/reports/trend_analysis_report.dart';
 import 'package:puresip_purchasing/pages/settings/additional_items_page.dart';
 import 'package:puresip_purchasing/pages/settings/user_terms_management_page.dart';
 import 'package:puresip_purchasing/pages/settings/settings_page.dart';
@@ -378,7 +381,6 @@ Future<String?> _appRedirectLogic(
 
 // router.dart - استبدل دالة _appRedirectLogic بالكامل
 
-
 Future<String?> _appRedirectLogic(
     BuildContext context, GoRouterState state) async {
   final currentPath = state.matchedLocation;
@@ -390,7 +392,7 @@ Future<String?> _appRedirectLogic(
   }
 
   final user = FirebaseAuth.instance.currentUser;
-  
+
   // ✅ لا يوجد مستخدم
   if (user == null) {
     return '/login';
@@ -399,7 +401,7 @@ Future<String?> _appRedirectLogic(
   // ✅ التحقق من Admin باستخدام LicenseService
   final licenseService = LicenseService();
   final isAdmin = await licenseService.isCurrentUserAdmin();
-  
+
   // ✅ إذا كان Admin، دعه يمر دون تحويل
   if (isAdmin) {
     safeDebugPrint('👑 Admin user: ${user.email} - full access granted');
@@ -409,7 +411,8 @@ Future<String?> _appRedirectLogic(
   // ✅ للمستخدمين العاديين - تحقق من الترخيص
   final status = await licenseService.getCurrentUserLicenseStatus();
 
-  safeDebugPrint('🔍 User: ${user.email} | isValid=${status.isValid} | path=$currentPath');
+  safeDebugPrint(
+      '🔍 User: ${user.email} | isValid=${status.isValid} | path=$currentPath');
 
   const licenseRelatedPaths = [
     '/license/request',
@@ -421,7 +424,8 @@ Future<String?> _appRedirectLogic(
   if (status.isValid) {
     // ترخيص صالح - إذا كان في صفحات الترخيص، اذهب إلى Dashboard
     if (licenseRelatedPaths.contains(currentPath)) {
-      safeDebugPrint('✅ Valid license, redirecting from license page to dashboard');
+      safeDebugPrint(
+          '✅ Valid license, redirecting from license page to dashboard');
       return '/dashboard';
     }
     return null;
@@ -434,6 +438,7 @@ Future<String?> _appRedirectLogic(
     return null;
   }
 }
+
 // 🧭 تكوين المسارات - نسخة محسنة مع KeepAliveWrapper
 final GoRouter appRouter = GoRouter(
   navigatorKey: navigatorKey,
@@ -662,7 +667,7 @@ final GoRouter appRouter = GoRouter(
     ),
 
     // ==================== التقارير ====================
-    GoRoute(
+/*     GoRoute(
       path: '/reports',
       pageBuilder: (context, state) => MaterialPage(
         key: state.pageKey,
@@ -670,11 +675,11 @@ final GoRouter appRouter = GoRouter(
       ),
       routes: [
         GoRoute(
-  path: '/report-inventoryOnHand',
-  pageBuilder: (context, state) => const MaterialPage(
-    child: InventoryOnHandPage(),
-  ),
-),
+          path: '/report-inventoryOnHand',
+          pageBuilder: (context, state) => const MaterialPage(
+            child: InventoryOnHandPage(),
+          ),
+        ),
         GoRoute(
           path: '/advanced-movements',
           pageBuilder: (context, state) => MaterialPage(
@@ -739,7 +744,112 @@ final GoRouter appRouter = GoRouter(
           ),
         ),
       ],
+    ), */
+
+// في router.dart - قسم التقارير
+
+// ==================== التقارير ====================
+GoRoute(
+  path: '/reports',
+  pageBuilder: (context, state) => MaterialPage(
+    key: state.pageKey,
+    child: const KeepAliveWrapper(child: ReportsPage()),
+  ),
+  routes: [
+    // ✅ جميع التقارير الـ 13
+    GoRoute(
+      path: '/report-inventoryOnHand',
+      pageBuilder: (context, state) => const MaterialPage(
+        child: InventoryOnHandPage(),
+      ),
     ),
+    GoRoute(
+      path: '/advanced-movements',
+      pageBuilder: (context, state) => MaterialPage(
+        key: state.pageKey,
+        child: const AdvancedStockMovementsReport(),
+      ),
+    ),
+    GoRoute(
+      path: '/slow-moving',
+      pageBuilder: (context, state) => MaterialPage(
+        key: state.pageKey,
+        child: const SlowMovingReport(),
+      ),
+    ),
+    GoRoute(
+      path: '/expiry',
+      pageBuilder: (context, state) => MaterialPage(
+        key: state.pageKey,
+        child: const ExpiryReport(),
+      ),
+    ),
+    GoRoute(
+      path: '/supplier-performance',
+      pageBuilder: (context, state) => MaterialPage(
+        key: state.pageKey,
+        child: const SupplierPerformanceReport(),
+      ),
+    ),
+    GoRoute(
+      path: '/abc-analysis',
+      pageBuilder: (context, state) => MaterialPage(
+        key: state.pageKey,
+        child: const AbcAnalysisReport(),
+      ),
+    ),
+    GoRoute(
+      path: '/consumption',
+      pageBuilder: (context, state) => MaterialPage(
+        key: state.pageKey,
+        child: const ConsumptionReport(),
+      ),
+    ),
+    GoRoute(
+      path: '/cost-analysis',
+      pageBuilder: (context, state) => MaterialPage(
+        key: state.pageKey,
+        child: const CostAnalysisReport(),
+      ),
+    ),
+    GoRoute(
+      path: '/purchase-orders-analysis',
+      pageBuilder: (context, state) => MaterialPage(
+        key: state.pageKey,
+        child: const PurchaseOrdersAnalysisPage(),
+      ),
+    ),
+    GoRoute(
+      path: '/report-inventory',
+      pageBuilder: (context, state) => MaterialPage(
+        key: state.pageKey,
+        child: const InventoryAnalysisPage(),
+      ),
+    ),
+    // 🆕 مسارات جديدة
+    GoRoute(
+      path: '/trend-analysis',
+      pageBuilder: (context, state) => MaterialPage(
+        key: state.pageKey,
+        child: const TrendAnalysisReport(),
+      ),
+    ),
+    GoRoute(
+      path: '/supplier-analysis',
+      pageBuilder: (context, state) => MaterialPage(
+        key: state.pageKey,
+        child: const SupplierAnalysisReport(),
+      ),
+    ),
+    GoRoute(
+      path: '/factory-performance',
+      pageBuilder: (context, state) => MaterialPage(
+        key: state.pageKey,
+        child: const FactoryPerformanceReport(),
+      ),
+    ),
+  ],
+),
 
     // ==================== الإعدادات ====================
     GoRoute(
