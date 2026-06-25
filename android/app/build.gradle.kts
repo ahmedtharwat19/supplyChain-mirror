@@ -1,4 +1,4 @@
-﻿import java.util.Properties
+import java.util.Properties
 import java.io.FileInputStream
 import com.android.build.gradle.internal.api.ApkVariantOutputImpl
 
@@ -16,7 +16,8 @@ if (keystorePropertiesFile.exists()) {
 
 android {
     namespace = "com.puresip.purchasing"
-    compileSdk = 36
+    compileSdk = 36  // ✅ تم التحديث إلى 36
+    
     ndkVersion = flutter.ndkVersion
 
     signingConfigs {
@@ -37,7 +38,7 @@ android {
             val appName    = "puresip_purchasing"
             val ver        = variant.versionName
             val code       = variant.versionCode
-            outputImpl.outputFileName = "_v_.apk"
+            outputImpl.outputFileName = "${appName}_v${ver}_${code}.apk"
         }
     }
 
@@ -49,10 +50,10 @@ android {
 
     defaultConfig {
         applicationId   = "com.puresip.purchasing"
-        minSdk          = flutter.minSdkVersion
-        targetSdk       = 34
+        minSdk = flutter.minSdkVersion
+        targetSdk       = 34  // ✅ يبقى 34 (runtime behavior)
         multiDexEnabled = true
-        versionCode     = flutter.versionCode
+        versionCode     = flutter.versionCode.toInt()
         versionName     = flutter.versionName
     }
 
@@ -81,9 +82,21 @@ flutter {
 
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
-    implementation("androidx.core:core-ktx:1.15.0")
+    
+    // ✅ Kotlin
+    implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.9.22")
+    implementation("androidx.core:core-ktx:1.13.1")
+    
+    // ✅ MultiDex
+    implementation("androidx.multidex:multidex:2.0.1")
+    
+    // ✅ Firebase
     implementation(platform("com.google.firebase:firebase-bom:34.13.0"))
     implementation("com.google.firebase:firebase-perf")
+    implementation("com.google.firebase:firebase-analytics")
+    
+    // ✅ Permission Handler
+    implementation("androidx.core:core:1.13.1")
 }
 
 kotlin {

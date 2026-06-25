@@ -25,6 +25,22 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "13.0.0"
+  android_intent_plus:
+    dependency: "direct main"
+    description:
+      name: android_intent_plus
+      sha256: "14a9f94c5825a528e8c38ee89a33dbeba947efbbf76f066c174f4f3ae4f48feb"
+      url: "https://pub.dev"
+    source: hosted
+    version: "6.0.0"
+  android_package_installer:
+    dependency: "direct main"
+    description:
+      name: android_package_installer
+      sha256: "8d402893474e4489f1400f772ef6e37f1ec5561a46fb8257ec6b19fe0280a9e5"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.0.3"
   archive:
     dependency: transitive
     description:
@@ -469,10 +485,10 @@ packages:
     dependency: "direct main"
     description:
       name: firebase_auth
-      sha256: "6b0f6a6d2b092c002dd15006b440f032f129449f87c338e918a35bc5a6565ec2"
+      sha256: "7996a49c4b4054573eac9124c1c412095ae1406ca367bd2373de1ad2eaba04b8"
       url: "https://pub.dev"
     source: hosted
-    version: "6.5.3"
+    version: "6.5.4"
   firebase_auth_platform_interface:
     dependency: transitive
     description:
@@ -533,18 +549,18 @@ packages:
     dependency: "direct main"
     description:
       name: firebase_data_connect
-      sha256: "9ca212bf180386a6be2f1ff0703075f95bfddc54f2dd9cfaf95e7281bab65f9e"
+      sha256: b0e1b778629148ea3e9a4f76b60eb4eff10f8731c35914153f55d9c3b05f7d51
       url: "https://pub.dev"
     source: hosted
-    version: "0.3.0+4"
+    version: "0.3.0+5"
   firebase_messaging:
     dependency: "direct main"
     description:
       name: firebase_messaging
-      sha256: f2d1734d167e07746949ada91a288a9b14a03be470eec89ee249ed90c8d4db44
+      sha256: ce21a510e5a9aed67a0404476981e19ec0361a0301eeba547dc93dc2e7dec99a
       url: "https://pub.dev"
     source: hosted
-    version: "16.4.0"
+    version: "16.4.1"
   firebase_messaging_platform_interface:
     dependency: transitive
     description:
@@ -662,6 +678,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "9.1.1"
+  flutter_downloader:
+    dependency: "direct main"
+    description:
+      name: flutter_downloader
+      sha256: "93a9ddbd561f8a3f5483b4189453fba145a0a1014a88143c96a966296b78a118"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.12.0"
   flutter_launcher_icons:
     dependency: "direct main"
     description:
@@ -1393,10 +1417,10 @@ packages:
     dependency: transitive
     description:
       name: path_provider_linux
-      sha256: f7a1fe3a634fe7734c8d3f2766ad746ae2a2884abe22e241a8b301bf5cac3279
+      sha256: "58c2005f147315b11e9b4a7bc889cd5203e250cba8e3f012dae259b4972b5c16"
       url: "https://pub.dev"
     source: hosted
-    version: "2.2.1"
+    version: "2.2.2"
   path_provider_platform_interface:
     dependency: transitive
     description:
@@ -1690,6 +1714,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "3.3.3"
+  sqlite3_flutter_libs:
+    dependency: "direct main"
+    description:
+      name: sqlite3_flutter_libs
+      sha256: "3ed7553eee7bb368f8950f58ba29f634e06e813c029aff6a0d60862b96de8454"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.6.0+eol"
   stack_trace:
     dependency: transitive
     description:

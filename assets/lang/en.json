@@ -1373,11 +1373,48 @@
   "update_now": "Update Now",
   "later": "Later",
   "notice": "Notice",
-
-
+  "opening_install_screen": "Opening installation screen...",
+  "install_permission_required": "Install packages permission required",
+  "install_error": "Installation error",
+"update_not_supported_on_web": "Auto-update is not available on the web version. Please download manually.",
+"storage_permission_explanation": "The app needs storage permission to download and install updates.",
+"open_settings": "Open Settings",
   "no_slow_moving_items": "No slow moving items found",
   "all_items_active": "All items are active and moving regularly",
   "last_movement": "Last Movement",
+   "install_permission_explanation": "The app needs install packages permission to install the new update.",
+  "permission_required_for_update": "These permissions are required to install the update",
+"storage_permission_permanently_denied": "Storage permission was permanently denied. Please go to settings and grant permission manually.",
+"install_permission_permanently_denied": "Install packages permission was permanently denied. Please go to settings and grant permission manually.",
+  "permissions_required": "Permissions Required",
+  "permissions_explanation": "The app needs storage and install permissions to update the app.",
+  "permissions_required_for_update": "These permissions are required to install the update",
+  "download_will_start_soon": "The download will start soon...",
+
+
+
+  "download_already_in_progress": "Download already in progress...",
+  "update_url_empty": "Update URL is empty. Please contact support.",
+  "invalid_update_file": "Invalid update file. Please contact support.",
+  "download_complete_installing": "Download complete! Opening installer...",
+  "install_open_error": "Error opening installer: {0}",
+
+
+"update_failed": "Update failed: {0}",
+"speed": "Speed",
+"remaining": "Remaining",
+
+
+  "install_error_title": "Installation Error",
+  "install_success_title": "Installation Successful",
+  "install_success_message": "The app has been installed successfully. You can now open it.",
+  "install_failed_unknown_sources": "Installation failed. Please allow installation from unknown sources in settings.",
+  "install_status_unknown": "Unknown installation status.",
+  "install_failed_code": "Installation failed (code: {0}).",
+
+
+
+
   "days_since_last_movement": "Days Since Last Movement",
   "last_movement_type": "Last Movement Type",
   "last_movement_quantity": "Last Movement Quantity",
