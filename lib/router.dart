@@ -1,6 +1,8 @@
 // router.dart - النسخة الكاملة المعدلة
 
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:puresip_purchasing/debug_helper.dart';
+import 'package:puresip_purchasing/pages/admin/admin_users_page.dart';
 import 'package:puresip_purchasing/pages/admin/force_update_all_stats.dart';
 import 'package:puresip_purchasing/pages/admin/update_all_users_stats_page.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -408,11 +410,47 @@ Future<String?> _appRedirectLogic(
     return null;
   }
 
-  // ✅ للمستخدمين العاديين - تحقق من الترخيص
+/*   // ✅ للمستخدمين العاديين - تحقق من الترخيص
   final status = await licenseService.getCurrentUserLicenseStatus();
 
   safeDebugPrint(
-      '🔍 User: ${user.email} | isValid=${status.isValid} | path=$currentPath');
+      '🔍 User: ${user.email} | isValid=${status.isValid} | path=$currentPath'); */
+  // ✅ أولاً: تحقق من SecureStorage (أسرع وأموثوق)
+  const storage = FlutterSecureStorage();
+  final cachedLicenseKey = await storage.read(key: 'license_key');
+  final cachedExpiryStr = await storage.read(key: 'license_expiry');
+  final cachedStatus = await storage.read(key: 'license_status');
+
+  bool isCachedValid = false;
+  if (cachedLicenseKey != null &&
+      cachedStatus == 'active' &&
+      cachedExpiryStr != null) {
+    final expiry = DateTime.tryParse(cachedExpiryStr);
+    if (expiry != null && expiry.isAfter(DateTime.now())) {
+      isCachedValid = true;
+      safeDebugPrint(
+          '✅ Router: Valid license from SecureStorage: $cachedLicenseKey');
+    }
+  }
+
+  // ✅ ثانياً: لو SecureStorage ما فيهوش، جرب Firestore
+  bool isValid = isCachedValid;
+  if (!isValid) {
+    try {
+      final status = await licenseService
+          .getCurrentUserLicenseStatus()
+          .timeout(const Duration(seconds: 5));
+      isValid = status.isValid;
+      safeDebugPrint('🔍 Router Firestore check: isValid=$isValid');
+    } catch (e) {
+      safeDebugPrint('⚠️ Router: Firestore check failed: $e');
+      // لو Firestore فشل والـ cache موجود، استخدمه كـ fallback
+      isValid = cachedLicenseKey != null;
+    }
+  }
+
+  safeDebugPrint(
+      '🔍 User: ${user.email} | isValid=$isValid | path=$currentPath');
 
   const licenseRelatedPaths = [
     '/license/request',
@@ -421,7 +459,20 @@ Future<String?> _appRedirectLogic(
     '/device-request',
   ];
 
-  if (status.isValid) {
+  if (isValid) {
+    if (licenseRelatedPaths.contains(currentPath)) {
+      return '/dashboard';
+    }
+    return null;
+  } else {
+    if (!licenseRelatedPaths.contains(currentPath)) {
+      safeDebugPrint('❌ No valid license, redirecting to /license/request');
+      return '/license/request';
+    }
+    return null;
+  }
+}
+/*   if (status.isValid) {
     // ترخيص صالح - إذا كان في صفحات الترخيص، اذهب إلى Dashboard
     if (licenseRelatedPaths.contains(currentPath)) {
       safeDebugPrint(
@@ -437,7 +488,7 @@ Future<String?> _appRedirectLogic(
     }
     return null;
   }
-}
+} */
 
 // 🧭 تكوين المسارات - نسخة محسنة مع KeepAliveWrapper
 final GoRouter appRouter = GoRouter(
@@ -749,107 +800,107 @@ final GoRouter appRouter = GoRouter(
 // في router.dart - قسم التقارير
 
 // ==================== التقارير ====================
-GoRoute(
-  path: '/reports',
-  pageBuilder: (context, state) => MaterialPage(
-    key: state.pageKey,
-    child: const KeepAliveWrapper(child: ReportsPage()),
-  ),
-  routes: [
-    // ✅ جميع التقارير الـ 13
     GoRoute(
-      path: '/report-inventoryOnHand',
-      pageBuilder: (context, state) => const MaterialPage(
-        child: InventoryOnHandPage(),
-      ),
-    ),
-    GoRoute(
-      path: '/advanced-movements',
+      path: '/reports',
       pageBuilder: (context, state) => MaterialPage(
         key: state.pageKey,
-        child: const AdvancedStockMovementsReport(),
+        child: const KeepAliveWrapper(child: ReportsPage()),
       ),
+      routes: [
+        // ✅ جميع التقارير الـ 13
+        GoRoute(
+          path: '/report-inventoryOnHand',
+          pageBuilder: (context, state) => const MaterialPage(
+            child: InventoryOnHandPage(),
+          ),
+        ),
+        GoRoute(
+          path: '/advanced-movements',
+          pageBuilder: (context, state) => MaterialPage(
+            key: state.pageKey,
+            child: const AdvancedStockMovementsReport(),
+          ),
+        ),
+        GoRoute(
+          path: '/slow-moving',
+          pageBuilder: (context, state) => MaterialPage(
+            key: state.pageKey,
+            child: const SlowMovingReport(),
+          ),
+        ),
+        GoRoute(
+          path: '/expiry',
+          pageBuilder: (context, state) => MaterialPage(
+            key: state.pageKey,
+            child: const ExpiryReport(),
+          ),
+        ),
+        GoRoute(
+          path: '/supplier-performance',
+          pageBuilder: (context, state) => MaterialPage(
+            key: state.pageKey,
+            child: const SupplierPerformanceReport(),
+          ),
+        ),
+        GoRoute(
+          path: '/abc-analysis',
+          pageBuilder: (context, state) => MaterialPage(
+            key: state.pageKey,
+            child: const AbcAnalysisReport(),
+          ),
+        ),
+        GoRoute(
+          path: '/consumption',
+          pageBuilder: (context, state) => MaterialPage(
+            key: state.pageKey,
+            child: const ConsumptionReport(),
+          ),
+        ),
+        GoRoute(
+          path: '/cost-analysis',
+          pageBuilder: (context, state) => MaterialPage(
+            key: state.pageKey,
+            child: const CostAnalysisReport(),
+          ),
+        ),
+        GoRoute(
+          path: '/purchase-orders-analysis',
+          pageBuilder: (context, state) => MaterialPage(
+            key: state.pageKey,
+            child: const PurchaseOrdersAnalysisPage(),
+          ),
+        ),
+        GoRoute(
+          path: '/report-inventory',
+          pageBuilder: (context, state) => MaterialPage(
+            key: state.pageKey,
+            child: const InventoryAnalysisPage(),
+          ),
+        ),
+        // 🆕 مسارات جديدة
+        GoRoute(
+          path: '/trend-analysis',
+          pageBuilder: (context, state) => MaterialPage(
+            key: state.pageKey,
+            child: const TrendAnalysisReport(),
+          ),
+        ),
+        GoRoute(
+          path: '/supplier-analysis',
+          pageBuilder: (context, state) => MaterialPage(
+            key: state.pageKey,
+            child: const SupplierAnalysisReport(),
+          ),
+        ),
+        GoRoute(
+          path: '/factory-performance',
+          pageBuilder: (context, state) => MaterialPage(
+            key: state.pageKey,
+            child: const FactoryPerformanceReport(),
+          ),
+        ),
+      ],
     ),
-    GoRoute(
-      path: '/slow-moving',
-      pageBuilder: (context, state) => MaterialPage(
-        key: state.pageKey,
-        child: const SlowMovingReport(),
-      ),
-    ),
-    GoRoute(
-      path: '/expiry',
-      pageBuilder: (context, state) => MaterialPage(
-        key: state.pageKey,
-        child: const ExpiryReport(),
-      ),
-    ),
-    GoRoute(
-      path: '/supplier-performance',
-      pageBuilder: (context, state) => MaterialPage(
-        key: state.pageKey,
-        child: const SupplierPerformanceReport(),
-      ),
-    ),
-    GoRoute(
-      path: '/abc-analysis',
-      pageBuilder: (context, state) => MaterialPage(
-        key: state.pageKey,
-        child: const AbcAnalysisReport(),
-      ),
-    ),
-    GoRoute(
-      path: '/consumption',
-      pageBuilder: (context, state) => MaterialPage(
-        key: state.pageKey,
-        child: const ConsumptionReport(),
-      ),
-    ),
-    GoRoute(
-      path: '/cost-analysis',
-      pageBuilder: (context, state) => MaterialPage(
-        key: state.pageKey,
-        child: const CostAnalysisReport(),
-      ),
-    ),
-    GoRoute(
-      path: '/purchase-orders-analysis',
-      pageBuilder: (context, state) => MaterialPage(
-        key: state.pageKey,
-        child: const PurchaseOrdersAnalysisPage(),
-      ),
-    ),
-    GoRoute(
-      path: '/report-inventory',
-      pageBuilder: (context, state) => MaterialPage(
-        key: state.pageKey,
-        child: const InventoryAnalysisPage(),
-      ),
-    ),
-    // 🆕 مسارات جديدة
-    GoRoute(
-      path: '/trend-analysis',
-      pageBuilder: (context, state) => MaterialPage(
-        key: state.pageKey,
-        child: const TrendAnalysisReport(),
-      ),
-    ),
-    GoRoute(
-      path: '/supplier-analysis',
-      pageBuilder: (context, state) => MaterialPage(
-        key: state.pageKey,
-        child: const SupplierAnalysisReport(),
-      ),
-    ),
-    GoRoute(
-      path: '/factory-performance',
-      pageBuilder: (context, state) => MaterialPage(
-        key: state.pageKey,
-        child: const FactoryPerformanceReport(),
-      ),
-    ),
-  ],
-),
 
     // ==================== الإعدادات ====================
     GoRoute(
@@ -904,6 +955,7 @@ GoRoute(
       pageBuilder: (context, state) => MaterialPage(
           key: state.pageKey, child: const AdminLicenseManagementPage()),
     ),
+
     GoRoute(
       path: '/admin/update-all-stats',
       builder: (context, state) => const UpdateAllUsersStatsPage(),
@@ -914,5 +966,10 @@ GoRoute(
       path: '/admin/force-update',
       builder: (context, state) => const ForceUpdateAllStats(),
     ),
+    GoRoute(
+      path: '/admin/users',
+      builder: (context, state) => const AdminUsersPage(),
+    ),
+
   ],
 );

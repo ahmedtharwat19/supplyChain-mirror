@@ -4,10 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:go_router/go_router.dart';
 import 'package:puresip_purchasing/debug_helper.dart';
-import 'package:puresip_purchasing/services/license_service.dart';
+import 'package:puresip_purchasing/services/auto_license_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class SignupForm extends StatefulWidget {
@@ -30,152 +29,113 @@ class _SignupFormState extends State<SignupForm> {
   bool _obscurePassword = true;
   bool _obscureConfirm = true;
 
-/*   void _signup() async {
-    if (!(_formKey.currentState?.validate() ?? false)) return;
+  @override
+  void initState() {
+    super.initState();
+    _clearCache();
+  }
 
-    setState(() => _isLoading = true);
-
+  Future<void> _clearCache() async {
     try {
-      final credential =
-          await FirebaseAuth.instance.createUserWithEmailAndPassword(
-        email: _emailController.text.trim(),
-        password: _passwordController.text.trim(),
-      );
-
-      final user = credential.user;
-      if (user != null) {
-        await user.sendEmailVerification();
-
-        final displayName = _displayNameController.text.trim().isEmpty
-            ? _emailController.text.trim().split('@')[0]
-            : _displayNameController.text.trim();
-
-        final phone = _phoneController.text.trim();
-
-        await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
-          'userId': user.uid,
-          'email': user.email,
-          'displayName': displayName,
-          'phoneNumber': phone,
-          'companyIds': [],
-          'supplierIds': [],
-          'factoriesIds': [],
-          'isActive': true,
-          'createdAt': FieldValue.serverTimestamp(),
-        });
-
-        final licenseService = LicenseService();
-        await licenseService.initialize();
-
-        final licenseKey = await licenseService.createLicense(
-          userId: user.uid,
-          durationMonths: 60 * 60 * 24 * 30, // مثال: 30 يوم بالثواني
-          maxDevices: 1,
-          requestId: 'demo_${DateTime.now().millisecondsSinceEpoch}',
-        );
-
-        // تسجيل الجهاز الحالي تلقائيًا (من غير محاولة أخذ قيمة)
-        await licenseService.registerCurrentDevice(licenseKey);
-
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('account_created_successfully'.tr())),
-          );
-          context.go('/login');
-        }
-      }
-    } on FirebaseAuthException catch (e) {
-      String message = 'signup_error'.tr();
-      if (e.code == 'email-already-in-use') {
-        message = 'email_already_in_use'.tr();
-      } else if (e.code == 'weak-password') {
-        message = 'weak_password'.tr();
-      } else if (e.code == 'invalid-email') {
-        message = 'invalid_email'.tr();
-      }
-
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(message)));
-      }
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('cached_user_name');
+      await prefs.remove('cached_stats');
+      safeDebugPrint('🧹 Cache cleared on signup page open');
+    } catch (e) {
+      safeDebugPrint('Cache clear error: $e');
     }
   }
- */
 
-/*   void _signup() async {
+  /// ✅ التسجيل: بيعمل حساب Firebase Auth + document في users، ثم يستدعي
+  /// AutoLicenseService فورًا لإنشاء ترخيص تجريبي لشهر واحد. لا نعتمد على
+  /// مرور المستخدم بـ splash_screen.dart بعد التسجيل لأن التنقل يذهب
+  /// مباشرة لـ /dashboard، وكان هذا يمنع إنشاء الترخيص حتى يُغلق المستخدم
+  /// التطبيق ويعيد فتحه.
+  void _signup() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
-
     setState(() => _isLoading = true);
 
+    User? createdUser;
+
     try {
+      // 1️⃣ إنشاء الحساب في Firebase Auth
       final credential =
           await FirebaseAuth.instance.createUserWithEmailAndPassword(
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
       );
 
-      final user = credential.user;
-      if (user != null) {
-        await user.sendEmailVerification();
+      createdUser = credential.user;
+      if (createdUser == null) return;
 
-        final displayName = _displayNameController.text.trim().isEmpty
-            ? _emailController.text.trim().split('@')[0]
-            : _displayNameController.text.trim();
+      await createdUser.sendEmailVerification();
 
-        final phone = _phoneController.text.trim();
+      final displayName = _displayNameController.text.trim().isEmpty
+          ? _emailController.text.trim().split('@')[0]
+          : _displayNameController.text.trim();
 
-        await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
-          'userId': user.uid,
-          'email': user.email,
-          'displayName': displayName,
-          'phoneNumber': phone,
-          'companyIds': [],
-          'supplierIds': [],
-          'factoriesIds': [],
-          'isActive': true,
-          'createdAt': FieldValue.serverTimestamp(),
-        });
+      // ✅ مزامنة الاسم مع Firebase Auth Profile نفسه (لا يكفي حفظه في
+      // Firestore فقط)، عشان أي كود بيقرأ currentUser.displayName يلاقيه
+      // متاح فورًا بدون الحاجة لإغلاق وإعادة فتح التطبيق.
+      await createdUser.updateDisplayName(displayName);
+      await createdUser.reload();
+      final activeUser = FirebaseAuth.instance.currentUser ?? createdUser;
+      createdUser = activeUser;
 
-        // ✅ تهيئة الشروط الافتراضية للمستخدم الجديد
-        final termsService = UserTermsService();
-        await termsService.initializeDefaultTerms(user.uid);
+      // 2️⃣ إنشاء user document فقط — بدون أي license هنا خالص
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(activeUser.uid)
+          .set({
+        'userId': activeUser.uid,
+        'email': activeUser.email,
+        'displayName': displayName,
+        'phoneNumber': _phoneController.text.trim(),
+        'companyIds': [],
+        'supplierIds': [],
+        'factoryIds': [],
+        'isActive': true,
+        'isAdmin': false,
+        'createdAt': FieldValue.serverTimestamp(),
+        'trialUsed': false,
+      });
 
-        final licenseService = LicenseService();
-        await licenseService.initialize();
+      // ✅ تخزين الاسم فورًا في نفس الكاش اللي بتقرأه dashboard_page.dart
+      // (مفتاح 'cached_user_name')، عشان ميفضل فاضي لحد ما يكمل
+      // _refreshInBackground في الداشبورد (وده اللي كان بيخلي الاسم يظهر
+      // بس بعد إغلاق وإعادة فتح التطبيق).
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('cached_user_name', displayName);
+      } catch (e) {
+        safeDebugPrint('⚠️ Failed to seed cached_user_name on signup: $e');
+      }
 
-        // إنشاء الترخيص - 1 شهر تجريبي
-        final licenseKey = await licenseService.createLicense(
-          userId: user.uid,
-          durationMonths: 1, // 1 شهر تجريبي
-          maxDevices: 1,
-          requestId: 'signup_${DateTime.now().millisecondsSinceEpoch}',
-        );
-
-        // تحديث مستخدم برقم الترخيص
-        await FirebaseFirestore.instance
-            .collection('users')
-            .doc(user.uid)
-            .update({
-          'licenseKey': licenseKey,
-        });
-
-        // التحقق من الترخيص لتسجيل الجهاز تلقائياً
-        final status = await licenseService.checkLicenseStatus(licenseKey);
-
-        if (mounted) {
-          if (status.isValid) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('account_created_successfully'.tr())),
-            );
-            context.go('/login');
-          } else {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('license_activation_failed'.tr())),
-            );
-          }
+      // 3️⃣ إنشاء الترخيص التجريبي (شهر واحد) فورًا — لا ننتظر splash_screen
+      // لأن التنقل بعد التسجيل يذهب مباشرة لـ /dashboard ولا يمر بالـ
+      // splash، فكان الترخيص لا يُنشأ إلا بعد إغلاق وفتح التطبيق من جديد.
+      try {
+        final license = await AutoLicenseService()
+            .createAutoLicenseForNewUser(activeUser.uid);
+        if (license != null) {
+          safeDebugPrint('✅ Trial license created on signup: $license');
+        } else {
+          safeDebugPrint('⚠️ Trial license NOT created on signup (will retry on splash)');
         }
+      } catch (e) {
+        // ✅ لا نفشل عملية التسجيل لو فشل إنشاء الترخيص هنا — splash_screen
+        // سيحاول مرة أخرى عند أول فتح للتطبيق
+        safeDebugPrint('⚠️ Error creating trial license on signup: $e');
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('account_created_successfully'.tr()),
+            backgroundColor: Colors.green,
+          ),
+        );
+        context.go('/dashboard');
       }
     } on FirebaseAuthException catch (e) {
       String message = 'signup_error'.tr();
@@ -188,229 +148,34 @@ class _SignupFormState extends State<SignupForm> {
       }
 
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(message)));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(message), backgroundColor: Colors.red),
+        );
       }
     } catch (e) {
+      safeDebugPrint('Signup error: $e');
+
+      // ✅ Rollback: حذف حساب Auth لو فشلت كتابة user document
+      if (createdUser != null) {
+        try {
+          await createdUser.delete();
+          safeDebugPrint('🗑️ Auth user rolled back');
+        } catch (_) {}
+      }
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('unexpected_error'.tr())),
+          SnackBar(
+            content: Text('unexpected_error'.tr()),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
- */
- 
- // signup_form.dart - الجزء المعدل من دالة _signup
 
-/* void _signup() async {
-  if (!(_formKey.currentState?.validate() ?? false)) return;
-
-  setState(() => _isLoading = true);
-
-  try {
-    final credential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
-      email: _emailController.text.trim(),
-      password: _passwordController.text.trim(),
-    );
-
-    final user = credential.user;
-    if (user != null) {
-      // ✅ إرسال تأكيد البريد الإلكتروني
-      await user.sendEmailVerification();
-
-      final displayName = _displayNameController.text.trim().isEmpty
-          ? _emailController.text.trim().split('@')[0]
-          : _displayNameController.text.trim();
-
-      final phone = _phoneController.text.trim();
-
-      // ✅ حساب تاريخ انتهاء الترخيص (شهر واحد)
-      final expiryDate = DateTime.now().add(const Duration(days: 30));
-      
-      // ✅ إنشاء ترخيص تجريبي
-      final licenseService = LicenseService();
-      final licenseKey = await licenseService.createLicense(
-        userId: user.uid,
-        durationMonths: 1,      // شهر واحد تجريبي
-        maxDevices: 1,          // جهاز واحد
-        requestId: 'signup_${DateTime.now().millisecondsSinceEpoch}',
-      );
-
-      // ✅ إنشاء وثيقة المستخدم في Firestore
-      await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
-        'userId': user.uid,
-        'email': user.email,
-        'displayName': displayName,
-        'phoneNumber': phone,
-        'companyIds': [],
-        'supplierIds': [],
-        'factoryIds': [],
-        'isActive': true,           // ✅ نشط
-        'isAdmin': false,           // ✅ مستخدم عادي
-        'createdAt': FieldValue.serverTimestamp(),
-        'licenseKey': licenseKey,   // ✅ ربط الترخيص
-        'license_expiry': Timestamp.fromDate(expiryDate),  // ✅ تاريخ الانتهاء
-        'maxDevices': 1,
-        'trialUsed': true,          // ✅ تم استخدام النسخة التجريبية
-        'trialExpiryDate': Timestamp.fromDate(expiryDate),
-      });
-
-      // ✅ حفظ الترخيص في SecureStorage
-      final secureStorage = const FlutterSecureStorage();
-      await secureStorage.write(key: 'licenseKey', value: licenseKey);
-      await secureStorage.write(key: 'license_expiry', value: expiryDate.toIso8601String());
-
-      // ✅ حفظ اسم المستخدم
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('user_name', displayName);
-      await secureStorage.write(key: 'user_name', value: displayName);
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('account_created_successfully'.tr()),
-            backgroundColor: Colors.green,
-          ),
-        );
-        // ✅ التوجيه إلى Dashboard مباشرة (بدون login)
-        context.go('/dashboard');
-      }
-    }
-  } on FirebaseAuthException catch (e) {
-    String message = 'signup_error'.tr();
-    if (e.code == 'email-already-in-use') {
-      message = 'email_already_in_use'.tr();
-    } else if (e.code == 'weak-password') {
-      message = 'weak_password'.tr();
-    } else if (e.code == 'invalid-email') {
-      message = 'invalid_email'.tr();
-    }
-
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message), backgroundColor: Colors.red),
-      );
-    }
-  } catch (e) {
-    safeDebugPrint('Signup error: $e');
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('unexpected_error'.tr()), backgroundColor: Colors.red),
-      );
-    }
-  } finally {
-    if (mounted) setState(() => _isLoading = false);
-  }
-}
-  */
-  
-// signup_form.dart - الجزء المعدل من دالة _signup
-
-void _signup() async {
-  if (!(_formKey.currentState?.validate() ?? false)) return;
-
-  setState(() => _isLoading = true);
-
-  try {
-    final credential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
-      email: _emailController.text.trim(),
-      password: _passwordController.text.trim(),
-    );
-
-    final user = credential.user;
-    if (user != null) {
-      // ✅ إرسال تأكيد البريد الإلكتروني
-      await user.sendEmailVerification();
-
-      final displayName = _displayNameController.text.trim().isEmpty
-          ? _emailController.text.trim().split('@')[0]
-          : _displayNameController.text.trim();
-
-      final phone = _phoneController.text.trim();
-
-      // ✅ حساب تاريخ انتهاء الترخيص (شهر واحد)
-      final expiryDate = DateTime.now().add(const Duration(days: 30));
-      
-      // ✅ إنشاء ترخيص تجريبي
-      final licenseService = LicenseService();
-      final licenseKey = await licenseService.createLicense(
-        userId: user.uid,
-        durationMonths: 1,      // شهر واحد تجريبي
-        maxDevices: 1,          // جهاز واحد
-        requestId: 'signup_${DateTime.now().millisecondsSinceEpoch}',
-      );
-
-      // ✅ إنشاء وثيقة المستخدم في Firestore
-      await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
-        'userId': user.uid,
-        'email': user.email,
-        'displayName': displayName,
-        'phoneNumber': phone,
-        'companyIds': [],
-        'supplierIds': [],
-        'factoryIds': [],
-        'isActive': true,           // ✅ نشط
-        'isAdmin': false,           // ✅ مستخدم عادي
-        'createdAt': FieldValue.serverTimestamp(),
-        'licenseKey': licenseKey,   // ✅ ربط الترخيص
-        'license_expiry': Timestamp.fromDate(expiryDate),  // ✅ تاريخ الانتهاء
-        'maxDevices': 1,
-        'trialUsed': true,          // ✅ تم استخدام النسخة التجريبية
-        'trialExpiryDate': Timestamp.fromDate(expiryDate),
-      });
-
-      // ✅ حفظ الترخيص في SecureStorage
-      final secureStorage = const FlutterSecureStorage();
-      await secureStorage.write(key: 'licenseKey', value: licenseKey);
-      await secureStorage.write(key: 'license_expiry', value: expiryDate.toIso8601String());
-
-      // ✅ حفظ اسم المستخدم
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('user_name', displayName);
-      await secureStorage.write(key: 'user_name', value: displayName);
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('account_created_successfully'.tr()),
-            backgroundColor: Colors.green,
-          ),
-        );
-        // ✅ التوجيه إلى Dashboard مباشرة (بدون login)
-        context.go('/dashboard');
-      }
-    }
-  } on FirebaseAuthException catch (e) {
-    String message = 'signup_error'.tr();
-    if (e.code == 'email-already-in-use') {
-      message = 'email_already_in_use'.tr();
-    } else if (e.code == 'weak-password') {
-      message = 'weak_password'.tr();
-    } else if (e.code == 'invalid-email') {
-      message = 'invalid_email'.tr();
-    }
-
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message), backgroundColor: Colors.red),
-      );
-    }
-  } catch (e) {
-    safeDebugPrint('Signup error: $e');
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('unexpected_error'.tr()), backgroundColor: Colors.red),
-      );
-    }
-  } finally {
-    if (mounted) setState(() => _isLoading = false);
-  }
-}  
-  
-  
   @override
   void dispose() {
     _emailController.dispose();

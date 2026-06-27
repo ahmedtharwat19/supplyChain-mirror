@@ -1,430 +1,3 @@
-/* import 'dart:io';
-import 'package:universal_io/io.dart' as io;
-import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:device_info_plus/device_info_plus.dart';
-import 'package:crypto/crypto.dart';
-import 'dart:convert';
-
-class DeviceFingerprint {
-
-    static final DeviceInfoPlugin deviceInfo = DeviceInfoPlugin();
-
-  static Future<Map<String, String>> getDeviceInfo() async {
-    try {
-      final Map<String, String> info = {};
-      
-      if (io.Platform.isAndroid) {
-        final androidInfo = await deviceInfo.androidInfo;
-        info['deviceName'] = 'Android Device';
-        info['platform'] = 'Android';
-        info['model'] = androidInfo.model;
-        info['os'] = 'Android ${androidInfo.version.release}';
-        info['browser'] = 'N/A';
-      } 
-      else if (io.Platform.isIOS) {
-        final iosInfo = await deviceInfo.iosInfo;
-        info['deviceName'] = 'iOS Device';
-        info['platform'] = 'iOS';
-        info['model'] = iosInfo.model;
-        info['os'] = 'iOS ${iosInfo.systemVersion}';
-        info['browser'] = 'N/A';
-      }
-      else if (io.Platform.isWindows) {
-        info['deviceName'] = 'Windows PC';
-        info['platform'] = 'Windows';
-        info['model'] = 'Windows Device';
-        info['os'] = 'Windows';
-        info['browser'] = _getBrowserInfo();
-      }
-      else if (io.Platform.isMacOS) {
-        info['deviceName'] = 'Mac Computer';
-        info['platform'] = 'macOS';
-        info['model'] = 'Mac Device';
-        info['os'] = 'macOS';
-        info['browser'] = _getBrowserInfo();
-      }
-      else if (io.Platform.isLinux) {
-        info['deviceName'] = 'Linux Computer';
-        info['platform'] = 'Linux';
-        info['model'] = 'Linux Device';
-        info['os'] = 'Linux';
-        info['browser'] = _getBrowserInfo();
-      }
-      else {
-        info['deviceName'] = 'Unknown Device';
-        info['platform'] = 'Unknown';
-        info['model'] = 'Unknown';
-        info['os'] = 'Unknown';
-        info['browser'] = _getBrowserInfo();
-      }
-
-      return info;
-    } catch (e) {
-      return {
-        'deviceName': 'Unknown Device',
-        'platform': 'Unknown',
-        'model': 'Unknown',
-        'os': 'Unknown',
-        'browser': 'Unknown',
-      };
-    }
-  }
-
-  static String _getBrowserInfo() {
-    // يمكن إضافة كشف المتصفح هنا
-    return 'Web Browser';
-  }
-
-  static Future<String> generate() async {
-    String rawId = "";
-
-    if (kIsWeb) {
-      // للويب - استخدم معلومات المتصفح المتاحة
-      rawId = _getWebFingerprint();
-    } else {
-      // للجوال والمنصات الأخرى
-      rawId = await _getDeviceFingerprint();
-    }
-
-    // نحولها إلى بصمة ثابتة عبر SHA256
-    final bytes = utf8.encode(rawId);
-    final digest = sha256.convert(bytes);
-    return digest.toString();
-  }
-
-  static Future<String> _getDeviceFingerprint() async {
-    try {
-      final deviceInfo = DeviceInfoPlugin();
-      String rawId = "";
-
-      if (Platform.isAndroid) {
-        final info = await deviceInfo.androidInfo;
-        rawId = "${info.id}-${info.manufacturer}-${info.model}-${info.hardware}";
-      } else if (Platform.isIOS) {
-        final info = await deviceInfo.iosInfo;
-        rawId = "${info.identifierForVendor}-${info.name}-${info.systemName}";
-      } else if (Platform.isWindows) {
-        final info = await deviceInfo.windowsInfo;
-        rawId = "${info.deviceId}-${info.computerName}";
-      } else if (Platform.isLinux) {
-        final info = await deviceInfo.linuxInfo;
-        rawId = "${info.machineId}-${info.prettyName}";
-      } else if (Platform.isMacOS) {
-        final info = await deviceInfo.macOsInfo;
-        rawId = "${info.systemGUID}-${info.computerName}";
-      } else {
-        rawId = DateTime.now().millisecondsSinceEpoch.toString();
-      }
-
-      return rawId;
-    } catch (e) {
-      // في حالة الخطأ، نرجع معرفًا فريدًا يعتمد على الوقت
-      return "fallback-${DateTime.now().millisecondsSinceEpoch}";
-    }
-  }
-
-  static String _getWebFingerprint() {
-    try {
-      // للويب - استخدم معلومات المتصفح المتاحة
-      // ملاحظة: في الويب، بعض هذه الخصائص قد لا تكون متاحة في جميع المتصفحات
-      final userAgent = _getUserAgent();
-      final language = _getLanguage();
-      final timezone = DateTime.now().timeZoneName;
-      
-      return "web-$userAgent-$language-$timezone-${DateTime.now().millisecondsSinceEpoch}";
-    } catch (e) {
-      return "web-fallback-${DateTime.now().millisecondsSinceEpoch}";
-    }
-  }
-
-  static String _getUserAgent() {
-    try {
-      if (kIsWeb) {
-        return _getWebUserAgent();
-      }
-      return "unknown-user-agent";
-    } catch (e) {
-      return "error-user-agent";
-    }
-  }
-
-  static String _getLanguage() {
-    try {
-      if (kIsWeb) {
-        return _getWebLanguage();
-      }
-      return "unknown-language";
-    } catch (e) {
-      return "error-language";
-    }
-  }
-
-  // دوال مساعدة للويب (سيتم تعريفها بشكل منفصل للويب)
-  static String _getWebUserAgent() {
-    try {
-      return 'web-user-agent'; // سيتم استبدالها في ملف منفصل للويب
-    } catch (e) {
-      return 'web-user-agent-fallback';
-    }
-  }
-
-  static String _getWebLanguage() {
-    try {
-      return 'web-language'; // سيتم استبدالها في ملف منفصل للويب
-    } catch (e) {
-      return 'web-language-fallback';
-    }
-  }
-
-  static Future<String> getFingerprint() => generate();
-} */
-
-/* import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:device_info_plus/device_info_plus.dart';
-import 'package:crypto/crypto.dart';
-import 'dart:convert';
-import 'package:universal_io/io.dart' as io;
- */
-
-/* class DeviceFingerprint {
-  static final DeviceInfoPlugin deviceInfo = DeviceInfoPlugin();
-
-  static Future<Map<String, String>> getDeviceInfo() async {
-    try {
-      final Map<String, String> info = {};
-      
-      if (io.Platform.isAndroid) {
-        final androidInfo = await deviceInfo.androidInfo;
-        info['deviceName'] = 'Android Device';
-        info['platform'] = 'Android';
-        info['model'] = androidInfo.model;
-        info['os'] = 'Android ${androidInfo.version.release}';
-        info['browser'] = 'N/A';
-      } 
-      else if (io.Platform.isIOS) {
-        final iosInfo = await deviceInfo.iosInfo;
-        info['deviceName'] = 'iOS Device';
-        info['platform'] = 'iOS';
-        info['model'] = iosInfo.model;
-        info['os'] = 'iOS ${iosInfo.systemVersion}';
-        info['browser'] = 'N/A';
-      }
-      else if (io.Platform.isWindows) {
-        info['deviceName'] = 'Windows PC';
-        info['platform'] = 'Windows';
-        info['model'] = 'Windows Device';
-        info['os'] = 'Windows';
-        info['browser'] = _getBrowserInfo();
-      }
-      else if (io.Platform.isMacOS) {
-        info['deviceName'] = 'Mac Computer';
-        info['platform'] = 'macOS';
-        info['model'] = 'Mac Device';
-        info['os'] = 'macOS';
-        info['browser'] = _getBrowserInfo();
-      }
-      else if (io.Platform.isLinux) {
-        info['deviceName'] = 'Linux Computer';
-        info['platform'] = 'Linux';
-        info['model'] = 'Linux Device';
-        info['os'] = 'Linux';
-        info['browser'] = _getBrowserInfo();
-      }
-      else {
-        info['deviceName'] = 'Unknown Device';
-        info['platform'] = 'Unknown';
-        info['model'] = 'Unknown';
-        info['os'] = 'Unknown';
-        info['browser'] = _getBrowserInfo();
-      }
-
-      return info;
-    } catch (e) {
-      return {
-        'deviceName': 'Unknown Device',
-        'platform': 'Unknown',
-        'model': 'Unknown',
-        'os': 'Unknown',
-        'browser': 'Unknown',
-      };
-    }
-  }
-
-  static String _getBrowserInfo() {
-    if (kIsWeb) {
-      return _getWebBrowserInfo();
-    }
-    return 'App';
-  }
-
-  // دالة مكتملة للحصول على معلومات المتصفح في الويب
-  static String _getWebBrowserInfo() {
-    try {
-      final userAgent = _getWebUserAgent();
-      if (userAgent.contains('Chrome')) return 'Chrome';
-      if (userAgent.contains('Firefox')) return 'Firefox';
-      if (userAgent.contains('Safari') && !userAgent.contains('Chrome')) return 'Safari';
-      if (userAgent.contains('Edge')) return 'Edge';
-      if (userAgent.contains('Opera')) return 'Opera';
-      return 'Unknown Browser';
-    } catch (e) {
-      return 'Unknown Browser';
-    }
-  }
-
-  static Future<String> generate() async {
-    String rawId = "";
-
-    if (kIsWeb) {
-      rawId = _getWebFingerprint();
-    } else {
-      rawId = await _getDeviceFingerprint();
-    }
-
-    final bytes = utf8.encode(rawId);
-    final digest = sha256.convert(bytes);
-    return digest.toString();
-  }
-
-  static Future<String> _getDeviceFingerprint() async {
-    try {
-      String rawId = "";
-
-      if (io.Platform.isAndroid) {
-        final info = await deviceInfo.androidInfo;
-        rawId = "${info.id}-${info.manufacturer}-${info.model}-${info.hardware}";
-      } else if (io.Platform.isIOS) {
-        final info = await deviceInfo.iosInfo;
-        rawId = "${info.identifierForVendor}-${info.name}-${info.systemName}";
-      } else if (io.Platform.isWindows) {
-        final info = await deviceInfo.windowsInfo;
-        rawId = "${info.deviceId}-${info.computerName}";
-      } else if (io.Platform.isLinux) {
-        final info = await deviceInfo.linuxInfo;
-        rawId = "${info.machineId}-${info.prettyName}";
-      } else if (io.Platform.isMacOS) {
-        final info = await deviceInfo.macOsInfo;
-        rawId = "${info.systemGUID}-${info.computerName}";
-      } else {
-        rawId = DateTime.now().millisecondsSinceEpoch.toString();
-      }
-
-      return rawId;
-    } catch (e) {
-      return "fallback-${DateTime.now().millisecondsSinceEpoch}";
-    }
-  }
-
-  static String _getWebFingerprint() {
-    try {
-      final userAgent = _getWebUserAgent();
-      final language = _getWebLanguage();
-      final timezone = DateTime.now().timeZoneName;
-      final screen = _getWebScreenInfo();
-      
-      return "web-$userAgent-$language-$timezone-$screen-${DateTime.now().millisecondsSinceEpoch}";
-    } catch (e) {
-      return "web-fallback-${DateTime.now().millisecondsSinceEpoch}";
-    }
-  }
-
-  // ======= دوال الويب المكتملة =======
-
-  static String _getWebUserAgent() {
-    try {
-      if (kIsWeb) {
-        // للويب - استخدام dart:js أو window.navigator.userAgent
-        return _getUserAgentFromJS();
-      }
-      return "unknown-user-agent";
-    } catch (e) {
-      return "error-user-agent";
-    }
-  }
-
-  static String _getWebLanguage() {
-    try {
-      if (kIsWeb) {
-        // للويب - استخدام dart:js أو window.navigator.language
-        return _getLanguageFromJS();
-      }
-      return "unknown-language";
-    } catch (e) {
-      return "error-language";
-    }
-  }
-
-  static String _getWebScreenInfo() {
-    try {
-      if (kIsWeb) {
-        // للويب - معلومات الشاشة
-        return _getScreenInfoFromJS();
-      }
-      return "unknown-screen";
-    } catch (e) {
-      return "error-screen";
-    }
-  }
-
-  // ======= التطبيقات الفعلية للدوال (سيتم تعريفها في ملف منفصل) =======
-
-  static String _getUserAgentFromJS() {
-    // سيتم تنفيذ هذا في ملف منفصل للويب
-    return 'web-user-agent-placeholder';
-  }
-
-  static String _getLanguageFromJS() {
-    // سيتم تنفيذ هذا في ملف منفصل للويب
-    return 'web-language-placeholder';
-  }
-
-  static String _getScreenInfoFromJS() {
-    // سيتم تنفيذ هذا في ملف منفصل للويب
-    return 'web-screen-placeholder';
-  }
-
-  static Future<String> getFingerprint() => generate();
-} */
-
-/*   // ✅ دوال JS المحدثة (بدون استخدام dart:html مباشرة)
-  static String _getUserAgentFromJS() {
-    try {
-      if (kIsWeb) {
-        // استخدام طريقة متوافقة مع Flutter web
-        return 'web-user-agent';
-      }
-      return 'non-web-user-agent';
-    } catch (e) {
-      return 'error-user-agent';
-    }
-  }
-
-  static String _getLanguageFromJS() {
-    try {
-      if (kIsWeb) {
-        return 'web-language';
-      }
-      return 'non-web-language';
-    } catch (e) {
-      return 'error-language';
-    }
-  }
-
-  static String _getScreenInfoFromJS() {
-    try {
-      if (kIsWeb) {
-        return 'web-screen';
-      }
-      return 'non-web-screen';
-    } catch (e) {
-      return 'error-screen';
-    }
-  }
- */
-
-
-
-
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:crypto/crypto.dart';
 import 'dart:convert';
@@ -432,16 +5,6 @@ import 'dart:io' as io;
 import 'package:flutter/foundation.dart';
 import 'package:puresip_purchasing/debug_helper.dart';
 import 'package:universal_html/html.dart' as html;
-
-
-
-/* // ✅ إضافة دالة safeDebugPrint
-void safeDebugPrint(String message) {
-  if (kDebugMode) {
-    print(message);
-  }
-}
- */
 
 class DeviceFingerprint {
   static final DeviceInfoPlugin deviceInfo = DeviceInfoPlugin();
@@ -453,52 +16,84 @@ class DeviceFingerprint {
 
       if (io.Platform.isAndroid) {
         final androidInfo = await deviceInfo.androidInfo;
-        info['deviceName'] = 'Android Device';
-        info['platform'] = 'Android';
-        info['model'] = androidInfo.model;
-        info['os'] = 'Android ${androidInfo.version.release}';
-        info['browser'] = 'N/A';
+        info['platform']       = 'Android';
+        info['brand']          = androidInfo.brand;
+        info['model']          = androidInfo.model;
+        info['manufacturer']   = androidInfo.manufacturer;
+        info['androidVersion'] = androidInfo.version.release;
+        info['buildId']        = androidInfo.id;
+        info['deviceName']     = '${androidInfo.manufacturer} ${androidInfo.model}';
+        info['os']             = 'Android ${androidInfo.version.release}';
+        info['browser']        = 'N/A';
       } else if (io.Platform.isIOS) {
         final iosInfo = await deviceInfo.iosInfo;
-        info['deviceName'] = 'iOS Device';
-        info['platform'] = 'iOS';
-        info['model'] = iosInfo.model;
-        info['os'] = 'iOS ${iosInfo.systemVersion}';
-        info['browser'] = 'N/A';
+        info['platform']       = 'iOS';
+        info['brand']          = 'Apple';
+        info['model']          = iosInfo.model;
+        info['manufacturer']   = 'Apple';
+        info['androidVersion'] = '';
+        info['buildId']        = iosInfo.identifierForVendor ?? '';
+        info['deviceName']     = iosInfo.name;
+        info['os']             = 'iOS \${iosInfo.systemVersion}';
+        info['browser']        = 'N/A';
       } else if (io.Platform.isWindows) {
-        info['deviceName'] = 'Windows PC';
-        info['platform'] = 'Windows';
-        info['model'] = 'Windows Device';
-        info['os'] = 'Windows';
-        info['browser'] = _getBrowserInfo();
+        final winInfo = await deviceInfo.windowsInfo;
+        info['platform']       = 'Windows';
+        info['brand']          = 'Windows';
+        info['model']          = winInfo.computerName;
+        info['manufacturer']   = 'Microsoft';
+        info['androidVersion'] = '';
+        info['buildId']        = winInfo.deviceId;
+        info['deviceName']     = winInfo.computerName;
+        info['os']             = 'Windows';
+        info['browser']        = _getBrowserInfo();
       } else if (io.Platform.isMacOS) {
-        info['deviceName'] = 'Mac Computer';
-        info['platform'] = 'macOS';
-        info['model'] = 'Mac Device';
-        info['os'] = 'macOS';
-        info['browser'] = _getBrowserInfo();
+        final macInfo = await deviceInfo.macOsInfo;
+        info['platform']       = 'macOS';
+        info['brand']          = 'Apple';
+        info['model']          = macInfo.model;
+        info['manufacturer']   = 'Apple';
+        info['androidVersion'] = '';
+        info['buildId']        = macInfo.systemGUID ?? '';
+        info['deviceName']     = macInfo.computerName;
+        info['os']             = 'macOS \${macInfo.osRelease}';
+        info['browser']        = _getBrowserInfo();
       } else if (io.Platform.isLinux) {
-        info['deviceName'] = 'Linux Computer';
-        info['platform'] = 'Linux';
-        info['model'] = 'Linux Device';
-        info['os'] = 'Linux';
-        info['browser'] = _getBrowserInfo();
+        final linuxInfo = await deviceInfo.linuxInfo;
+        info['platform']       = 'Linux';
+        info['brand']          = 'Linux';
+        info['model']          = linuxInfo.prettyName;
+        info['manufacturer']   = 'Linux';
+        info['androidVersion'] = '';
+        info['buildId']        = linuxInfo.machineId ?? '';
+        info['deviceName']     = linuxInfo.prettyName;
+        info['os']             = linuxInfo.prettyName;
+        info['browser']        = _getBrowserInfo();
       } else {
-        info['deviceName'] = 'Unknown Device';
-        info['platform'] = 'Unknown';
-        info['model'] = 'Unknown';
-        info['os'] = 'Unknown';
-        info['browser'] = _getBrowserInfo();
+        info['platform']       = 'Unknown';
+        info['brand']          = '';
+        info['model']          = 'Unknown';
+        info['manufacturer']   = '';
+        info['androidVersion'] = '';
+        info['buildId']        = '';
+        info['deviceName']     = 'Unknown Device';
+        info['os']             = 'Unknown';
+        info['browser']        = _getBrowserInfo();
       }
 
       return info;
     } catch (e) {
+      safeDebugPrint('getDeviceInfo error: $e');
       return {
-        'deviceName': 'Unknown Device',
-        'platform': 'Unknown',
-        'model': 'Unknown',
-        'os': 'Unknown',
-        'browser': 'Unknown',
+        'platform':       'Unknown',
+        'brand':          '',
+        'model':          'Unknown',
+        'manufacturer':   '',
+        'androidVersion': '',
+        'buildId':        '',
+        'deviceName':     'Unknown Device',
+        'os':             'Unknown',
+        'browser':        'Unknown',
       };
     }
   }
@@ -510,21 +105,6 @@ class DeviceFingerprint {
     return 'App';
   }
 
-/*   static String _getWebBrowserInfo() {
-    try {
-      final userAgent = _getWebUserAgent();
-      if (userAgent.contains('Chrome')) return 'Chrome';
-      if (userAgent.contains('Firefox')) return 'Firefox';
-      if (userAgent.contains('Safari') && !userAgent.contains('Chrome')) {
-        return 'Safari';
-      }
-      if (userAgent.contains('Edge')) return 'Edge';
-      if (userAgent.contains('Opera')) return 'Opera';
-      return 'Unknown Browser';
-    } catch (e) {
-      return 'Unknown Browser';
-    }
-  } */
 
  static String _getWebBrowserInfo() {
   try {
@@ -570,78 +150,7 @@ class DeviceFingerprint {
 
     return _cachedFingerprint!;
   }
-
-/*   static Future<String> _getDeviceFingerprint() async {
-    try {
-      String rawId = "";
-
-      if (io.Platform.isAndroid) {
-        final info = await deviceInfo.androidInfo;
-        rawId =
-            "${info.id}-${info.manufacturer}-${info.model}-${info.hardware}";
-      } else if (io.Platform.isIOS) {
-        final info = await deviceInfo.iosInfo;
-        rawId = "${info.identifierForVendor}-${info.name}-${info.systemName}";
-      } else if (io.Platform.isWindows) {
-        final info = await deviceInfo.windowsInfo;
-        rawId = "${info.deviceId}-${info.computerName}";
-      } else if (io.Platform.isLinux) {
-        final info = await deviceInfo.linuxInfo;
-        rawId = "${info.machineId}-${info.prettyName}";
-      } else if (io.Platform.isMacOS) {
-        final info = await deviceInfo.macOsInfo;
-        rawId = "${info.systemGUID}-${info.computerName}";
-      } else {
-        // ✅ استخدام معرّف ثابت بدلاً من الوقت
-        rawId =
-            "fallback-${io.Platform.operatingSystem}-${io.Platform.localHostname}";
-      }
-
-      return rawId;
-    } catch (e) {
-      // ✅ fallback ثابت
-      return "fallback-${io.Platform.operatingSystem}-${io.Platform.localHostname}";
-    }
-  }
- */
-  
-/*     static Future<String> _getDeviceFingerprint() async {
-    try {
-      String rawId = "";
-
-      if (io.Platform.isAndroid) {
-        final info = await deviceInfo.androidInfo;
-        // 🚀 استخدام حقول بديلة مضمونة في حال كانت بعض قيم السيرفر القديم فارغة
-        final String id = info.id;
-        final String manufacturer = info.manufacturer;
-        final String model = info.model;
-        final String hardware = info.hardware;
-        rawId = "$id-$manufacturer-$model-$hardware";
-      } else if (io.Platform.isIOS) {
-        final info = await deviceInfo.iosInfo;
-        rawId = "${info.identifierForVendor ?? 'unknown_ios'}-${info.name}-${info.systemName}";
-      } else if (io.Platform.isWindows) {
-        final info = await deviceInfo.windowsInfo;
-        // 🛡️ حماية الحقول ضد الـ Null لمنع انهيار تطبيق الهاتف
-        rawId = "${info.deviceId}-${info.computerName}";
-      } else if (io.Platform.isLinux) {
-        final info = await deviceInfo.linuxInfo;
-        rawId = "${info.machineId ?? 'linux_id'}-${info.prettyName}";
-      } else if (io.Platform.isMacOS) {
-        final info = await deviceInfo.macOsInfo;
-        rawId = "${info.systemGUID ?? 'mac_id'}-${info.computerName}";
-      } else {
-        rawId = "fallback-${io.Platform.operatingSystem}-${io.Platform.localHostname}";
-      }
-
-      return rawId;
-    } catch (e) {
-      safeDebugPrint('⚠️ Error building raw device info: $e');
-      return "fallback-${io.Platform.operatingSystem}-${io.Platform.localHostname}";
-    }
-  }
- */
-  
+ 
     static Future<String> _getDeviceFingerprint() async {
     try {
       String rawId = "";

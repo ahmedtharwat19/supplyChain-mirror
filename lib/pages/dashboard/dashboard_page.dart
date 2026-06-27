@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:provider/provider.dart';
 import 'package:puresip_purchasing/pages/dashboard/dashboard_metrics.dart';
@@ -117,7 +118,7 @@ Future<void> _loadFromCache() async {
   }
 }
 
-Future<void> _refreshInBackground() async {
+/* Future<void> _refreshInBackground() async {
   try {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
@@ -126,7 +127,13 @@ Future<void> _refreshInBackground() async {
     final userDoc = await FirebaseFirestore.instance
         .collection('users').doc(user.uid).get();
 
-    if (!userDoc.exists) return;
+  //  if (!userDoc.exists) return;
+  if (!userDoc.exists) {
+  safeDebugPrint('⚠️ User document not found in Firestore — signing out');
+  await FirebaseAuth.instance.signOut();
+  if (mounted) context.go('/login');
+  return;
+}
     final data = userDoc.data()!;
     isAdmin = data['isAdmin'] == true;
 
@@ -168,8 +175,91 @@ Future<void> _refreshInBackground() async {
     safeDebugPrint('Background refresh error: $e');
   }
 }
+  */
  
+
+ Future<void> _refreshInBackground() async {
+  try {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
  
+    // جلب بيانات المستخدم
+    DocumentSnapshot userDoc;
+    try {
+      userDoc = await FirebaseFirestore.instance
+          .collection('users').doc(user.uid).get();
+    } on FirebaseException catch (e) {
+      if (e.code == 'permission-denied') {
+        safeDebugPrint('⛔ Permission denied reading user doc — signing out');
+        await FirebaseAuth.instance.signOut();
+        if (mounted) context.go('/login');
+      } else {
+        safeDebugPrint('Firestore error fetching user doc: $e');
+      }
+      return;
+    }
+ 
+    if (!userDoc.exists) {
+      safeDebugPrint('⚠️ User document not found in Firestore — signing out');
+      await FirebaseAuth.instance.signOut();
+      if (mounted) context.go('/login');
+      return;
+    }
+    final data = userDoc.data()! as Map<String, dynamic>;
+    isAdmin = data['isAdmin'] == true;
+ 
+    final companyIds = List<String>.from(data['companyIds'] ?? []);
+ 
+    // اسم المستخدم
+    final displayName = data['displayName'] ?? data['name'] ?? '';
+    final newName = displayName.isNotEmpty
+        ? displayName
+        : user.email?.split('@').first ?? 'User';
+ 
+    // تحديث الإحصائيات
+    Map<String, dynamic> stats;
+    try {
+      await _statsService.updateUserStats(user.uid);
+      stats = await _statsService.getUserStats(user.uid);
+    } on FirebaseException catch (e) {
+      if (e.code == 'permission-denied') {
+        safeDebugPrint('⛔ Permission denied on stats — signing out');
+        await FirebaseAuth.instance.signOut();
+        if (mounted) context.go('/login');
+        return;
+      }
+      safeDebugPrint('Stats Firestore error: $e');
+      return;
+    }
+ 
+    // حفظ في الكاش
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('cached_user_name', newName);
+    await prefs.setString('cached_stats', json.encode({
+      ...stats,
+      'totalCompanies': companyIds.length,
+    }));
+ 
+    if (mounted) {
+      setState(() {
+        userName = newName;
+        _stats.totalCompanies           = companyIds.length;
+        _stats.totalSuppliers           = stats['totalSuppliers'] ?? 0;
+        _stats.totalOrders              = stats['totalOrders'] ?? 0;
+        _stats.totalItems               = stats['totalItems'] ?? 0;
+        _stats.totalManufacturingOrders = stats['totalManufacturingOrders'] ?? 0;
+        _stats.totalAmount              = (stats['totalAmount'] ?? 0.0).toDouble();
+        _stats.totalFactories           = stats['totalFactories'] ?? 0;
+        _stats.totalFinishedProducts    = stats['totalFinishedProducts'] ?? 0;
+        _stats.totalStockMovements      = stats['totalStockMovements'] ?? 0;
+      });
+    }
+  } catch (e) {
+    safeDebugPrint('Background refresh error: $e');
+  }
+}
+
+
   Future<void> _loadSettings() async {
     final settingsProvider =
         Provider.of<DashboardSettingsProvider>(context, listen: false);

@@ -1,6 +1,7 @@
-// services/auto_license_service.dart - بدون Hive
+// services/auto_license_service.dart
 import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:puresip_purchasing/services/device_fingerprint.dart';
@@ -10,171 +11,136 @@ class AutoLicenseService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
 
-  /// إنشاء ترخيص تلقائي للمستخدم الجديد لمدة شهر لجهاز واحد
-/*   Future<String?> createAutoLicenseForNewUser(String userId) async {
-    try {
-      // التحقق مما إذا كان المستخدم لديه ترخيص بالفعل
-      final existingLicense = await _getExistingLicense(userId);
-      if (existingLicense != null) {
-        safeDebugPrint('✅ User already has license: $existingLicense');
-        return existingLicense;
-      }
-
-      // إنشاء ترخيص جديد
-      final licenseKey = _generateLicenseKey(userId);
-      final expiryDate = DateTime.now().add(const Duration(days: 30)); // شهر واحد
-      final fingerprint = await DeviceFingerprint.getFingerprint();
-
-      // إنشاء وثيقة الترخيص
-      await _firestore.collection('licenses').doc(licenseKey).set({
-        'licenseKey': licenseKey,
-        'userId': userId,
-        'maxDevices': 1,
-        'isActive': true,
-        'createdAt': FieldValue.serverTimestamp(),
-        'expiryDate': Timestamp.fromDate(expiryDate),
-        'devices': [
-          {
-            'fingerprint': fingerprint,
-            'registeredAt': DateTime.now().toIso8601String(),
-            'deviceId': 'device_${DateTime.now().millisecondsSinceEpoch}',
-          }
-        ],
-        'deviceIds': [fingerprint],
-        'durationMonths': 1,
-        'isAutoCreated': true,
-        'autoCreatedAt': FieldValue.serverTimestamp(),
-        'deviceChanged': false,
-        'canChangeDeviceAgain': false,
-      });
-
-      // تحديث وثيقة المستخدم
-      await _firestore.collection('users').doc(userId).update({
-        'licenseKey': licenseKey,
-        'license_expiry': Timestamp.fromDate(expiryDate),
-        'isActive': true,
-        'maxDevices': 1,
-        'hasAutoLicense': true,
-        'autoLicenseCreatedAt': FieldValue.serverTimestamp(),
-      });
-
-      // ✅ حفظ بصمة الجهاز في SecureStorage (مشفر)
-      await _secureStorage.write(key: 'fingerprint', value: fingerprint);
-      
-      // ✅ حفظ حالة الترخيص في SharedPreferences
-      final prefs = await SharedPreferences.getInstance();
-      
-      final licenseStatus = {
-        'isValid': true,
-        'licenseKey': licenseKey,
-        'expiryDate': expiryDate.toIso8601String(),
-        'maxDevices': 1,
-        'usedDevices': 1,
-        'deviceFingerprintValid': true,
-        'daysLeft': 30,
-      };
-      await prefs.setString('licenseStatus', json.encode(licenseStatus));
-
-      // ✅ حفظ الترخيص في SecureStorage
-      await _secureStorage.write(key: 'licenseKey', value: licenseKey);
-
-      safeDebugPrint('✅ Auto-license created for user $userId: $licenseKey');
-      safeDebugPrint('   Expires: $expiryDate');
-      safeDebugPrint('   Device fingerprint: $fingerprint');
-
-      return licenseKey;
-    } catch (e) {
-      safeDebugPrint('❌ Failed to create auto-license: $e');
-      return null;
-    }
-  }
- */
-
-  // services/auto_license_service.dart - تعديل دالة createAutoLicenseForNewUser
-
-  /// إنشاء ترخيص تلقائي للمستخدم الجديد لمدة شهر لجهاز واحد
+  // ============================================================
+  // ✅ إنشاء ترخيص تلقائي للمستخدم الجديد — شهر واحد / جهاز واحد
+  // ============================================================
   Future<String?> createAutoLicenseForNewUser(String userId) async {
     try {
-      // ✅ التحقق مما إذا كان المستخدم لديه ترخيص بالفعل (من Firestore)
+      final userDoc = await _firestore.collection('users').doc(userId).get();
+
+      // ── إنشاء user document لو مش موجود (حالة فشل التسجيل السابق) ──
+      if (!userDoc.exists) {
+        safeDebugPrint('⚠️ User document missing — creating it for: $userId');
+
+        final authUser = FirebaseAuth.instance.currentUser;
+        final email = authUser?.email ?? '';
+        final displayName = authUser?.displayName ??
+            (email.isNotEmpty ? email.split('@')[0] : '');
+
+        await _firestore.collection('users').doc(userId).set({
+          'userId': userId,
+          'email': email,
+          'displayName': displayName,
+          'phoneNumber': authUser?.phoneNumber ?? '',
+          'companyIds': [],
+          'supplierIds': [],
+          'factoryIds': [],
+          'isActive': true,
+          'isAdmin': false,
+          'createdAt': FieldValue.serverTimestamp(),
+          'trialUsed': false,
+        });
+      }
+
+      // ── إعادة جلب البيانات بعد الإنشاء ──
+      final userData =
+          (await _firestore.collection('users').doc(userId).get()).data()!;
+
+      // ── هل سبق استخدام التجربة؟ ──
+      final trialUsed = userData['trialUsed'] == true;
+      if (trialUsed) {
+        safeDebugPrint('🚫 Trial already used for: $userId');
+        return null;
+      }
+
+      // ── هل لديه license صالح؟ ──
       final existingLicense = await _getExistingLicense(userId);
       if (existingLicense != null) {
-        safeDebugPrint('✅ User already has license: $existingLicense');
+        safeDebugPrint('✅ Found existing valid license: $existingLicense');
         return existingLicense;
       }
 
-      // ✅ التحقق: هل هذا مستخدم جديد حقاً؟
-      final userDoc = await _firestore.collection('users').doc(userId).get();
-      final hasAutoLicense = userDoc.data()?['hasAutoLicense'] == true;
-      final licenseKeyFromUser = userDoc.data()?['licenseKey'] as String?;
-
-      // ✅ إذا كان المستخدم لديه ترخيص (قديم أو جديد) لا ننشئ ترخيصاً جديداً
-      if (hasAutoLicense ||
-          (licenseKeyFromUser != null && licenseKeyFromUser.isNotEmpty)) {
-        safeDebugPrint('✅ User already has license key: $licenseKeyFromUser');
-        return licenseKeyFromUser;
-      }
-
-      // ✅ إنشاء ترخيص جديد فقط للمستخدمين الجدد تماماً
-      safeDebugPrint(
-          '🆕 New user detected - creating auto-license for: $userId');
+      // ── إنشاء trial license جديد ──
+      safeDebugPrint('🆕 Creating trial license for: $userId');
 
       final licenseKey = _generateLicenseKey(userId);
       final expiryDate = DateTime.now().add(const Duration(days: 30));
-      final fingerprint = await DeviceFingerprint.getFingerprint();
 
-      // إنشاء وثيقة الترخيص
+      // ✅ جلب بيانات الجهاز الكاملة
+      final fingerprint = await DeviceFingerprint.getFingerprint();
+      final deviceInfo = await DeviceFingerprint.getDeviceInfo();
+
+      final deviceEntry = {
+        'fingerprint': fingerprint,
+        'deviceId': 'device_${DateTime.now().millisecondsSinceEpoch}',
+        'registeredAt': DateTime.now().toIso8601String(),
+        // ✅ بيانات الجهاز الكاملة
+        'platform': deviceInfo['platform'] ?? '',
+        'brand': deviceInfo['brand'] ?? '',
+        'model': deviceInfo['model'] ?? '',
+        'manufacturer': deviceInfo['manufacturer'] ?? '',
+        'androidVersion': deviceInfo['androidVersion'] ?? '',
+        'buildId': deviceInfo['buildId'] ?? '',
+        'deviceName': deviceInfo['deviceName'] ?? '',
+      };
+
+      // ── إنشاء license document ──
       await _firestore.collection('licenses').doc(licenseKey).set({
         'licenseKey': licenseKey,
         'userId': userId,
         'maxDevices': 1,
         'isActive': true,
+        'isTrialLicense': true,
+        'licenseType': 'trial',       // ✅ نوع الترخيص
+        'licensePrefix': 'AUTO',
         'createdAt': FieldValue.serverTimestamp(),
         'expiryDate': Timestamp.fromDate(expiryDate),
-        'devices': [
-          {
-            'fingerprint': fingerprint,
-            'registeredAt': DateTime.now().toIso8601String(),
-            'deviceId': 'device_${DateTime.now().millisecondsSinceEpoch}',
-          }
-        ],
+        'devices': [deviceEntry],
         'deviceIds': [fingerprint],
         'durationMonths': 1,
         'isAutoCreated': true,
-        'autoCreatedAt': FieldValue.serverTimestamp(),
         'deviceChanged': false,
         'canChangeDeviceAgain': false,
       });
 
-      // تحديث وثيقة المستخدم
+      // ── تحديث user document ──
       await _firestore.collection('users').doc(userId).update({
         'licenseKey': licenseKey,
         'license_expiry': Timestamp.fromDate(expiryDate),
         'isActive': true,
         'maxDevices': 1,
         'hasAutoLicense': true,
+        'trialUsed': true,            // ✅ لن يُنشأ trial مرة ثانية أبداً
+        'trialExpiryDate': Timestamp.fromDate(expiryDate),
+        'licenseType': 'trial',       // ✅ ظاهر مباشرة في user document
         'autoLicenseCreatedAt': FieldValue.serverTimestamp(),
+        'primaryDevice': deviceInfo['deviceName'] ?? '',
+        'deviceIds': [deviceEntry],
+        'lastDeviceRegistration': DateTime.now().toIso8601String(),
       });
 
-      // حفظ في SecureStorage
+      // ── حفظ محلي ──
       await _secureStorage.write(key: 'fingerprint', value: fingerprint);
-      await _secureStorage.write(key: 'licenseKey', value: licenseKey);
+      await _secureStorage.write(key: 'license_key', value: licenseKey);
+      await _secureStorage.write(
+          key: 'license_expiry', value: expiryDate.toIso8601String());
+      await _secureStorage.write(key: 'license_status', value: 'active');
 
       final prefs = await SharedPreferences.getInstance();
-      final licenseStatus = {
-        'isValid': true,
-        'licenseKey': licenseKey,
-        'expiryDate': expiryDate.toIso8601String(),
-        'maxDevices': 1,
-        'usedDevices': 1,
-        'deviceFingerprintValid': true,
-        'daysLeft': 30,
-      };
-      await prefs.setString('licenseStatus', json.encode(licenseStatus));
+      await prefs.setString(
+          'licenseStatus',
+          json.encode({
+            'isValid': true,
+            'licenseKey': licenseKey,
+            'expiryDate': expiryDate.toIso8601String(),
+            'daysLeft': 30,
+            'licenseType': 'trial',
+          }));
 
       safeDebugPrint(
-          '✅ Auto-license created for NEW user $userId: $licenseKey');
-      safeDebugPrint('   Expires: $expiryDate');
-
+          '✅ Trial license created: $licenseKey — expires: $expiryDate');
+      safeDebugPrint(
+          '✅ Device: ${deviceInfo['deviceName']} (${deviceInfo['platform']})');
       return licenseKey;
     } catch (e) {
       safeDebugPrint('❌ Failed to create auto-license: $e');
@@ -182,7 +148,27 @@ class AutoLicenseService {
     }
   }
 
-  /// الحصول على الترخيص الموجود للمستخدم
+  // ============================================================
+  // ✅ نوع الترخيص من اسمه
+  // ============================================================
+  static String getLicenseType(String licenseKey) {
+    if (licenseKey.startsWith('AUTO-')) return 'trial';
+    if (licenseKey.startsWith('LIC-')) return 'licensed';
+    return 'unknown';
+  }
+
+  static bool isTrialLicense(String licenseKey) =>
+      licenseKey.startsWith('AUTO-');
+
+  static String getLicenseTypeLabel(String licenseKey) {
+    if (licenseKey.startsWith('AUTO-')) return '🔬 Trial';
+    if (licenseKey.startsWith('LIC-')) return '✅ Licensed';
+    return '❓ Unknown';
+  }
+
+  // ============================================================
+  // ✅ الحصول على الترخيص الموجود للمستخدم
+  // ============================================================
   Future<String?> _getExistingLicense(String userId) async {
     try {
       // البحث في licenses collection
@@ -205,11 +191,11 @@ class AutoLicenseService {
       final licenseKey = userDoc.data()?['licenseKey'] as String?;
 
       if (licenseKey != null && licenseKey.isNotEmpty) {
-        // التحقق من صلاحية الترخيص
         final licenseDoc =
             await _firestore.collection('licenses').doc(licenseKey).get();
         if (licenseDoc.exists) {
-          final expiry = (licenseDoc.get('expiryDate') as Timestamp?)?.toDate();
+          final expiry =
+              (licenseDoc.get('expiryDate') as Timestamp?)?.toDate();
           if (expiry != null && expiry.isAfter(DateTime.now())) {
             safeDebugPrint('✅ Found valid license from user doc: $licenseKey');
             return licenseKey;
@@ -224,7 +210,9 @@ class AutoLicenseService {
     }
   }
 
-  /// توليد مفتاح ترخيص فريد
+  // ============================================================
+  // ✅ توليد مفتاح ترخيص فريد
+  // ============================================================
   String _generateLicenseKey(String userId) {
     final timestamp = DateTime.now().millisecondsSinceEpoch;
     final randomPart =
@@ -233,7 +221,9 @@ class AutoLicenseService {
     return 'AUTO-$shortUserId-$randomPart';
   }
 
-  /// التحقق مما إذا كان المستخدم لديه ترخيص تلقائي صالح
+  // ============================================================
+  // ✅ التحقق مما إذا كان المستخدم لديه ترخيص تلقائي صالح
+  // ============================================================
   Future<bool> hasValidAutoLicense(String userId) async {
     try {
       final userDoc = await _firestore.collection('users').doc(userId).get();

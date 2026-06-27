@@ -37,7 +37,7 @@ class _SplashScreenState extends State<SplashScreen> {
 
   bool _isInitialized = false;
   bool _isNavigating = false;
-  bool _isForceUpdateShowing = false; // ✅ منع ظهور Dialog مرتين
+  bool _isForceUpdateShowing = false;
 
   static const String _keyLicenseKey = 'license_key';
   static const String _keyLicenseExpiry = 'license_expiry';
@@ -53,6 +53,9 @@ class _SplashScreenState extends State<SplashScreen> {
     _initializeApp();
   }
 
+  // ============================================================
+  // ✅ تحميل نسخة التطبيق
+  // ============================================================
   Future<void> _loadAppVersion() async {
     try {
       final info = await PackageInfo.fromPlatform();
@@ -68,6 +71,9 @@ class _SplashScreenState extends State<SplashScreen> {
     }
   }
 
+  // ============================================================
+  // ✅ SecureStorage — حفظ وقراءة الترخيص
+  // ============================================================
   Future<void> _saveLicenseToSecureStorage(
       String licenseKey, DateTime expiry) async {
     await _secureStorage.write(key: _keyLicenseKey, value: licenseKey);
@@ -101,6 +107,9 @@ class _SplashScreenState extends State<SplashScreen> {
     }
   }
 
+  // ============================================================
+  // ✅ Firestore — جلب حالة الترخيص
+  // ============================================================
   Future<Map<String, dynamic>> _getLicenseStatusFromFirestore(
       String userId) async {
     try {
@@ -161,6 +170,9 @@ class _SplashScreenState extends State<SplashScreen> {
     }
   }
 
+  // ============================================================
+  // ✅ Navigation
+  // ============================================================
   void _navigateTo(String route) {
     if (_isNavigating) return;
     _isNavigating = true;
@@ -175,125 +187,108 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   // ============================================================
-  // ✅ دالة showForceUpdateDialog - عرض حوار التحديث الإجباري
+  // ✅ Force Update Dialog
   // ============================================================
-// lib/pages/dashboard/splash_screen.dart - الجزء المهم
+  void _showForceUpdateDialog(String message, String version) {
+    if (_isForceUpdateShowing) return;
+    _isForceUpdateShowing = true;
 
-// ============================================================
-// ✅ دالة showForceUpdateDialog - عرض حوار التحديث الإجباري
-// ============================================================
-void _showForceUpdateDialog(String message, String version) {
-  if (_isForceUpdateShowing) return;
-  _isForceUpdateShowing = true;
+    if (!mounted) return;
 
-  if (!mounted) return;
+    final downloadUrl = VersionChecker.getDownloadUrlAndroid();
+    safeDebugPrint('📥 Force update - Download URL: $downloadUrl');
 
-  // ✅ جلب رابط التحميل من VersionChecker
-  final downloadUrl = VersionChecker.getDownloadUrlAndroid();
-  
-  safeDebugPrint('📥 Force update - Download URL: $downloadUrl');
+    final rootContext = context;
 
-  // 🟢 نحتفظ بـ context الشاشة الأصلية (يبقى صالح بعد إقفال أي dialog)
-  final rootContext = context;
-
-  showDialog(
-    context: context,
-    barrierDismissible: false,
-    builder: (dialogContext) => AlertDialog(
-      title: Row(
-        children: [
-          Icon(Icons.system_update, color: Colors.red.shade700),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              'force_update_required'.tr(),
-              style: TextStyle(color: Colors.red.shade700),
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.system_update, color: Colors.red.shade700),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'force_update_required'.tr(),
+                style: TextStyle(color: Colors.red.shade700),
+              ),
             ),
-          ),
-        ],
-      ),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            message,
-            style: const TextStyle(fontSize: 16),
-          ),
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.blue.shade50,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.blue.shade200),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.info_outline, color: Colors.blue.shade700),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    '${'new_version_available'.tr()}: v$version',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.blue.shade700,
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(message, style: const TextStyle(fontSize: 16)),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.blue.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.blue.shade200),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.info_outline, color: Colors.blue.shade700),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      '${'new_version_available'.tr()}: v$version',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.blue.shade700,
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'update_now_to_continue'.tr(),
+              style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+            ),
+          ],
+        ),
+        actions: [
+          ElevatedButton.icon(
+            onPressed: () async {
+              safeDebugPrint('🟢 UPDATE BUTTON PRESSED!');
+              Navigator.of(dialogContext).pop();
+
+              // ✅ نكمل التهيئة فوراً، التحميل في الخلفية
+              _continueInitialization();
+
+              if (rootContext.mounted) {
+                UpdateService.downloadAndInstall(
+                  context: rootContext,
+                  url: downloadUrl,
+                );
+              }
+            },
+            icon: const Icon(Icons.download),
+            label: Text('update_now'.tr()),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red.shade700,
+              foregroundColor: Colors.white,
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
             ),
           ),
-          const SizedBox(height: 8),
-          Text(
-            'update_now_to_continue'.tr(),
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey.shade600,
-            ),
-          ),
-          // ❌ تمت إزالة عرض اللينك الكامل للمستخدم (لأسباب أمنية)
         ],
       ),
-      actions: [
-        ElevatedButton.icon(
-          onPressed: () async {
-            safeDebugPrint('🟢 UPDATE BUTTON PRESSED!');
+    );
+  }
 
-            // إغلاق Dialog
-            Navigator.of(dialogContext).pop();
-
-            // ✅ بدء التحميل (نستخدم rootContext لأن context الخاص بالـ dialog
-            // يصبح غير صالح بعد popping)
-            if (rootContext.mounted) {
-              await UpdateService.downloadAndInstall(
-                context: rootContext,
-                url: downloadUrl,
-              );
-            }
-             _continueInitialization();
-          },
-          icon: const Icon(Icons.download),
-          label: Text('update_now'.tr()),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.red.shade700,
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-          ),
-        ),
-      ],
-    ),
-  );
-}
   // ============================================================
-  // ✅ دالة _showOptionalUpdateDialog - عرض حوار التحديث الاختياري
+  // ✅ Optional Update Dialog
   // ============================================================
   void _showOptionalUpdateDialog() {
     if (!mounted) return;
     final latestVersion = VersionChecker.getLatestVersion();
     final downloadUrl = VersionChecker.getDownloadUrlAndroid();
-
-    // 🟢 نحتفظ بـ context الشاشة الأصلية (يبقى صالح بعد إقفال الـ dialog)
     final rootContext = context;
 
     showDialog(
@@ -336,7 +331,6 @@ void _showForceUpdateDialog(String message, String version) {
           TextButton(
             onPressed: () {
               Navigator.pop(dialogContext);
-              // ✅ بعد إغلاق Dialog، نكمل التهيئة
               _continueInitialization();
             },
             child: Text('later'.tr()),
@@ -345,10 +339,12 @@ void _showForceUpdateDialog(String message, String version) {
             onPressed: () async {
               Navigator.pop(dialogContext);
 
-              safeDebugPrint('🚀 Starting optional download from: $downloadUrl');
+              // ✅ نكمل التهيئة فوراً، التحميل في الخلفية
+              _continueInitialization();
 
+              safeDebugPrint('🚀 Starting optional download from: $downloadUrl');
               if (rootContext.mounted) {
-                await UpdateService.downloadAndInstall(
+                UpdateService.downloadAndInstall(
                   context: rootContext,
                   url: downloadUrl,
                 );
@@ -362,20 +358,17 @@ void _showForceUpdateDialog(String message, String version) {
   }
 
   // ============================================================
-  // ✅ دالة _continueInitialization - استكمال التهيئة بعد التحديث الاختياري
+  // ✅ استكمال التهيئة بعد dialog التحديث
   // ============================================================
   void _continueInitialization() {
-    safeDebugPrint('➡️ Continuing initialization after optional update');
+    safeDebugPrint('➡️ Continuing initialization after update dialog');
     _completeInitialization();
   }
 
   // ============================================================
-  // ✅ دالة _checkForUpdates - فحص التحديثات
+  // ✅ فحص التحديثات
   // ============================================================
   Future<_UpdateStatus> _checkForUpdates() async {
-    // ✅ على الويب، فكرة "تحديث الإصدار" غير منطقية: نسخة الويب نفسها
-    // هي أحدث نسخة بمجرد نشرها (deploy)، ومفيش تطبيق مثبّت يحتاج تحديث
-    // يدوي أو تحميل APK. نتجاوز الفحص بالكامل ونكمل التهيئة مباشرة.
     if (kIsWeb) {
       safeDebugPrint('ℹ️ Version check skipped on Web.');
       return _UpdateStatus.none;
@@ -390,23 +383,16 @@ void _showForceUpdateDialog(String message, String version) {
           '📱 Version check - Current: $currentVersion, Min: $minVersion, Latest: $latestVersion');
 
       if (mounted) {
-        setState(() {
-          _latestVersion = latestVersion;
-        });
+        setState(() => _latestVersion = latestVersion);
       }
 
-      // ✅ إذا كان هناك تحديث إجباري
       if (_isVersionLessThan(currentVersion, minVersion)) {
         final message = VersionChecker.getForceUpdateMessage();
         if (mounted) {
-          // ✅ عرض Dialog مع زر التحميل - يمنع استكمال التهيئة
           _showForceUpdateDialog(message, latestVersion);
         }
-        // ✅ إرجاع forced لمنع استكمال التهيئة
         return _UpdateStatus.forced;
-      }
-      // ✅ إذا كان هناك تحديث اختياري
-      else if (_isVersionLessThan(currentVersion, latestVersion)) {
+      } else if (_isVersionLessThan(currentVersion, latestVersion)) {
         return _UpdateStatus.optional;
       }
     } catch (e) {
@@ -415,23 +401,20 @@ void _showForceUpdateDialog(String message, String version) {
     return _UpdateStatus.none;
   }
 
-  // ============================================================
-  // ✅ دالة _checkForUpdatesWithTimeout - فحص التحديثات مع timeout
-  // ============================================================
   Future<_UpdateStatus> _checkForUpdatesWithTimeout() async {
     try {
-      final result = await Future.any([
+      return await Future.any([
         _checkForUpdates(),
-        Future.delayed(const Duration(seconds: 5), () => _UpdateStatus.none),
+        Future.delayed(
+            const Duration(seconds: 5), () => _UpdateStatus.none),
       ]);
-      return result;
     } catch (e) {
       return _UpdateStatus.none;
     }
   }
 
   // ============================================================
-  // ✅ دوال مقارنة الإصدارات
+  // ✅ مقارنة الإصدارات
   // ============================================================
   List<int> _parseVersionParts(String version) {
     final mainAndBuild = version.split('+');
@@ -465,7 +448,7 @@ void _showForceUpdateDialog(String message, String version) {
   }
 
   // ============================================================
-  // ✅ دوال أخرى
+  // ✅ دوال مساعدة
   // ============================================================
   Future<bool> _isAdminUser(String userId) async {
     try {
@@ -488,34 +471,41 @@ void _showForceUpdateDialog(String message, String version) {
     }
   }
 
-  Future<void> _showMessageDialog(String message) async {
-    await showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        title: Text('notice'.tr()),
-        content: Text(message),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: Text('ok'.tr()),
-          ),
-        ],
-      ),
-    );
-  }
-
   void _safeSetState(VoidCallback fn) {
     if (mounted) setState(fn);
   }
 
   // ============================================================
-  // ✅ دالة _completeInitialization - استكمال التهيئة
+  // ✅ الدالة الرئيسية: _initializeApp
+  // ============================================================
+  Future<void> _initializeApp() async {
+    if (_isInitialized) return;
+    _isInitialized = true;
+
+    safeDebugPrint('🎬 SplashScreen - Starting initialization...');
+
+    _safeSetState(() => _loadingMessage = "checking_updates".tr());
+    final updateStatus = await _checkForUpdatesWithTimeout();
+
+    if (updateStatus == _UpdateStatus.forced) {
+      safeDebugPrint('🔒 Force update required - Stopping initialization');
+      return;
+    }
+
+    if (updateStatus == _UpdateStatus.optional && mounted) {
+      _showOptionalUpdateDialog();
+      return;
+    }
+
+    await _completeInitialization();
+  }
+
+  // ============================================================
+  // ✅ استكمال التهيئة: فحص المستخدم والترخيص
   // ============================================================
   Future<void> _completeInitialization() async {
     safeDebugPrint('🎯 Completing initialization...');
 
-    // ✅ التحقق من وجود مستخدم
     final user = FirebaseAuth.instance.currentUser;
 
     if (user == null) {
@@ -528,25 +518,23 @@ void _showForceUpdateDialog(String message, String version) {
 
     safeDebugPrint('👤 User found: ${user.email}');
 
-    // ✅ التحقق من التخزين المحلي
+    // ── فحص الترخيص المحلي أولاً ──
     _safeSetState(() => _loadingMessage = "checking_local_license".tr());
-
     final cachedLicense = await _getLicenseFromSecureStorage();
 
     if (cachedLicense != null && cachedLicense['isValid'] == true) {
       safeDebugPrint('✅ Valid CACHED license found');
-
       if (mounted) {
         _navigateTo('/dashboard');
       }
-
       unawaited(_syncService.syncAllInBackground());
-      if (mounted){
-      unawaited(NavigationService().preloadPages(context));}
+      if (mounted) {
+        unawaited(NavigationService().preloadPages(context));
+      }
       return;
     }
 
-    // ✅ التحقق من Admin
+    // ── فحص Admin ──
     _safeSetState(() => _loadingMessage = "checking_admin".tr());
     final isAdmin = await _isAdminUser(user.uid);
 
@@ -556,12 +544,13 @@ void _showForceUpdateDialog(String message, String version) {
         _navigateTo('/dashboard');
       }
       unawaited(_syncService.syncAllInBackground());
-      if (!mounted) return;
-      unawaited(NavigationService().preloadPages(context));
+      if (mounted) {
+        unawaited(NavigationService().preloadPages(context));
+      }
       return;
     }
 
-    // ✅ التحقق من الاتصال بالإنترنت
+    // ── فحص الإنترنت ──
     final hasInternet = await _checkInternetConnection();
 
     if (!hasInternet) {
@@ -585,7 +574,7 @@ void _showForceUpdateDialog(String message, String version) {
       return;
     }
 
-    // ✅ مع وجود إنترنت - جلب البيانات من Firestore
+    // ── مع إنترنت: جلب الترخيص من Firestore ──
     try {
       _safeSetState(() {
         _loadingMessage = "checking_subscription".tr();
@@ -601,31 +590,30 @@ void _showForceUpdateDialog(String message, String version) {
         _safeSetState(() => _loadingMessage = "syncing_data".tr());
         await _syncService.syncUserData();
         await _syncService.syncDashboardCounts();
-   if (!mounted) return;
+
+        if (!mounted) return;
         unawaited(NavigationService().preloadPages(context));
 
         if (mounted) {
           _navigateTo('/dashboard');
         }
       } else {
-        safeDebugPrint('❌ No valid license, attempting auto-license...');
-        _safeSetState(() => _loadingMessage = "creating_license".tr());
+        safeDebugPrint('❌ No valid license found');
+
+        _safeSetState(() => _loadingMessage = "checking_license".tr());
 
         final autoLicenseService = AutoLicenseService();
         final newLicense =
             await autoLicenseService.createAutoLicenseForNewUser(user.uid);
 
         if (newLicense != null) {
-          safeDebugPrint('✅ Auto-license created: $newLicense');
+          safeDebugPrint('✅ Trial license created: $newLicense');
           final newStatus = await _getLicenseStatusFromFirestore(user.uid);
           await _cacheLicenseStatus(newStatus);
-
-          if (mounted) {
-            _navigateTo('/dashboard');
-          }
+          if (mounted) _navigateTo('/dashboard');
         } else {
-          safeDebugPrint('❌ Auto-license failed');
-          await _showMessageDialog('license_expired'.tr());
+          // trialUsed == true → وجّهه لإرسال طلب للأدمن
+          safeDebugPrint('🚫 Trial used — redirecting to license request');
           if (mounted) _navigateTo('/license/request');
         }
       }
@@ -645,42 +633,15 @@ void _showForceUpdateDialog(String message, String version) {
     }
   }
 
-  // ============================================================
-  // ✅ الدالة الرئيسية _initializeApp
-  // ============================================================
-  Future<void> _initializeApp() async {
-    if (_isInitialized) return;
-    _isInitialized = true;
-
-    safeDebugPrint('🎬 SplashScreen - Starting initialization...');
-
-    // ✅ فحص التحديث الإجباري/الاختياري (المصدر الوحيد للحقيقة: Remote Config)
-    _safeSetState(() => _loadingMessage = "checking_updates".tr());
-    final updateStatus = await _checkForUpdatesWithTimeout();
-    
-    // ✅ إذا كان هناك تحديث إجباري، نوقف التهيئة هنا
-    if (updateStatus == _UpdateStatus.forced) {
-      safeDebugPrint('🔒 Force update required - Stopping initialization');
-      return;
-    }
-
-    // ✅ إذا كان هناك تحديث اختياري، نعرض Dialog ونكمل بعد إغلاقه
-    if (updateStatus == _UpdateStatus.optional && mounted) {
-      _showOptionalUpdateDialog();
-      // ✅ نكمل التهيئة بعد إغلاق Dialog (من خلال _continueInitialization)
-      return;
-    }
-
-    // ✅ لا يوجد تحديث، نكمل التهيئة مباشرة
-    await _completeInitialization();
-  }
-
   @override
   void dispose() {
     _syncService.dispose();
     super.dispose();
   }
 
+  // ============================================================
+  // ✅ Build
+  // ============================================================
   @override
   Widget build(BuildContext context) {
     final currentYear = DateTime.now().year;
@@ -698,7 +659,8 @@ void _showForceUpdateDialog(String message, String version) {
                   backgroundColor: Colors.green[50],
                   child: Padding(
                     padding: const EdgeInsets.all(12.0),
-                    child: Image.asset('assets/logo.png', fit: BoxFit.contain),
+                    child:
+                        Image.asset('assets/logo.png', fit: BoxFit.contain),
                   ),
                 ),
                 const SizedBox(height: 32),
@@ -731,20 +693,24 @@ void _showForceUpdateDialog(String message, String version) {
                     padding: const EdgeInsets.only(top: 16),
                     child: Text(
                       "offline_mode_notice".tr(),
-                      style: const TextStyle(fontSize: 14, color: Colors.orange),
+                      style: const TextStyle(
+                          fontSize: 14, color: Colors.orange),
                       textAlign: TextAlign.center,
                     ),
                   ),
                 const SizedBox(height: 16),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 16, vertical: 8),
                   decoration: BoxDecoration(
-                    color: _latestVersion.isNotEmpty && _latestVersion != _appVersion
+                    color: _latestVersion.isNotEmpty &&
+                            _latestVersion != _appVersion
                         ? Colors.orange.shade50
                         : Colors.grey.shade50,
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: _latestVersion.isNotEmpty && _latestVersion != _appVersion
+                      color: _latestVersion.isNotEmpty &&
+                              _latestVersion != _appVersion
                           ? Colors.orange.shade300
                           : Colors.grey.shade300,
                     ),
@@ -757,7 +723,8 @@ void _showForceUpdateDialog(String message, String version) {
                           Icon(
                             Icons.info_outline,
                             size: 14,
-                            color: _latestVersion.isNotEmpty && _latestVersion != _appVersion
+                            color: _latestVersion.isNotEmpty &&
+                                    _latestVersion != _appVersion
                                 ? Colors.orange
                                 : Colors.grey,
                           ),
@@ -771,7 +738,8 @@ void _showForceUpdateDialog(String message, String version) {
                           ),
                         ],
                       ),
-                      if (_latestVersion.isNotEmpty && _latestVersion != _appVersion) ...[
+                      if (_latestVersion.isNotEmpty &&
+                          _latestVersion != _appVersion) ...[
                         const SizedBox(height: 4),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -806,15 +774,19 @@ void _showForceUpdateDialog(String message, String version) {
             child: Column(
               children: [
                 const Text('Ahmed Tharwat tech.',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                    style: TextStyle(
+                        fontWeight: FontWeight.bold, fontSize: 16)),
                 const SizedBox(height: 4),
                 Text('© $currentYear ALL RIGHTS ARE RESERVED',
                     style: const TextStyle(
-                        fontSize: 12, letterSpacing: 1.2, color: Colors.grey)),
+                        fontSize: 12,
+                        letterSpacing: 1.2,
+                        color: Colors.grey)),
                 if (_appVersion.isNotEmpty) ...[
                   const SizedBox(height: 4),
                   Text("v$_appVersion",
-                      style: TextStyle(fontSize: 11, color: Colors.grey[600])),
+                      style:
+                          TextStyle(fontSize: 11, color: Colors.grey[600])),
                 ],
               ],
             ),

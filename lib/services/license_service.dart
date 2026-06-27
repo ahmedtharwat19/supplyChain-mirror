@@ -403,7 +403,7 @@ class LicenseService {
   }
 
   /// الحصول على حالة ترخيص المستخدم الحالي
-  Future<LicenseStatus> getCurrentUserLicenseStatus() async {
+/*   Future<LicenseStatus> getCurrentUserLicenseStatus() async {
     final user = _auth.currentUser;
     if (user == null) {
       return LicenseStatus.invalid(
@@ -438,6 +438,129 @@ class LicenseService {
       );
     }
   }
+ */
+
+/// الحصول على حالة ترخيص المستخدم الحالي
+Future<LicenseStatus> getCurrentUserLicenseStatus() async {
+  final user = _auth.currentUser;
+  if (user == null) {
+    return LicenseStatus.invalid(
+      reason: "User not logged in",
+      isOffline: false,
+    );
+  }
+
+  try {
+    // ✅ أولاً: جرب من SecureStorage (أسرع وأموثوق)
+    final cachedKey = await _secureStorage.read(key: 'license_key');
+    final cachedExpiry = await _secureStorage.read(key: 'license_expiry');
+    final cachedStatus = await _secureStorage.read(key: 'license_status');
+
+    if (cachedKey != null &&
+        cachedStatus == 'active' &&
+        cachedExpiry != null) {
+      final expiry = DateTime.tryParse(cachedExpiry);
+      if (expiry != null && expiry.isAfter(DateTime.now())) {
+        safeDebugPrint('✅ LicenseService: Valid from SecureStorage: $cachedKey');
+        return LicenseStatus(
+          isValid: true,
+          isOffline: false,
+          licenseKey: cachedKey,
+          expiryDate: expiry,
+          daysLeft: expiry.difference(DateTime.now()).inDays,
+          maxDevices: 1,
+          usedDevices: 1,
+          reason: null,
+          deviceChanged: false,
+          canChangeDevice: false,
+        );
+      }
+    }
+
+    // ✅ ثانياً: جرب من licenses collection مباشرة (بدون users)
+    safeDebugPrint('🔍 LicenseService: Checking licenses collection for userId=${user.uid}');
+    final licensesSnapshot = await _firestore
+        .collection('licenses')
+        .where('userId', isEqualTo: user.uid)
+        .where('isActive', isEqualTo: true)
+        .limit(1)
+        .get();
+
+    if (licensesSnapshot.docs.isNotEmpty) {
+      final licenseDoc = licensesSnapshot.docs.first;
+      final data = licenseDoc.data();
+      final licenseKey = licenseDoc.id;
+
+      final expiry = (data['expiryDate'] as Timestamp?)?.toDate();
+      if (expiry != null && expiry.isAfter(DateTime.now())) {
+        safeDebugPrint('✅ LicenseService: Valid license from Firestore licenses: $licenseKey');
+
+        // ✅ احفظ في SecureStorage للمرات القادمة
+        await _secureStorage.write(key: 'license_key', value: licenseKey);
+        await _secureStorage.write(key: 'license_expiry', value: expiry.toIso8601String());
+        await _secureStorage.write(key: 'license_status', value: 'active');
+
+        return LicenseStatus(
+          isValid: true,
+          isOffline: false,
+          licenseKey: licenseKey,
+          expiryDate: expiry,
+          daysLeft: expiry.difference(DateTime.now()).inDays,
+          maxDevices: data['maxDevices'] ?? 1,
+          usedDevices: (data['devices'] as List?)?.length ?? 0,
+          reason: null,
+          deviceChanged: data['deviceChanged'] ?? false,
+          canChangeDevice: false,
+        );
+      }
+    }
+
+    // ✅ ثالثاً: جرب من users collection (الطريقة القديمة كـ fallback)
+    safeDebugPrint('🔍 LicenseService: Trying users collection as fallback');
+    final userDoc = await _firestore.collection('users').doc(user.uid).get();
+    if (userDoc.exists) {
+      final licenseKey = userDoc.data()?['licenseKey'];
+      if (licenseKey != null && licenseKey.isNotEmpty) {
+        return await checkLicenseStatus(licenseKey);
+      }
+    }
+
+    safeDebugPrint('❌ LicenseService: No valid license found anywhere');
+    return LicenseStatus.invalid(
+      reason: "no_valid_license".tr(),
+      isOffline: false,
+    );
+  } catch (e) {
+    safeDebugPrint('❌ LicenseService error: $e');
+
+    // ✅ في حالة خطأ — رجّع SecureStorage كـ last resort
+    final cachedKey = await _secureStorage.read(key: 'license_key');
+    final cachedExpiry = await _secureStorage.read(key: 'license_expiry');
+    if (cachedKey != null && cachedExpiry != null) {
+      final expiry = DateTime.tryParse(cachedExpiry);
+      if (expiry != null && expiry.isAfter(DateTime.now())) {
+        safeDebugPrint('⚠️ LicenseService: Using SecureStorage as error fallback');
+        return LicenseStatus(
+          isValid: true,
+          isOffline: true,
+          licenseKey: cachedKey,
+          expiryDate: expiry,
+          daysLeft: expiry.difference(DateTime.now()).inDays,
+          maxDevices: 1,
+          usedDevices: 1,
+          reason: null,
+          deviceChanged: false,
+          canChangeDevice: false,
+        );
+      }
+    }
+
+    return LicenseStatus.invalid(
+      reason: "license_check_error".tr(args: [e.toString()]),
+      isOffline: true,
+    );
+  }
+}
 
   // ==================== دوال تغيير الجهاز لمرة واحدة ====================
 
