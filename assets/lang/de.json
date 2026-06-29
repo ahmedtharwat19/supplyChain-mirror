@@ -237,13 +237,9 @@
   "quantity_asc": "Menge (Aufsteigend)",
   "quantity_desc": "Menge (Absteigend)",
   "low_stock_only": "Nur geringer Lagerbestand",
-"allow_unknown_sources": "Installation aus unbekannten Quellen zulassen",
-"allow_unknown_sources_message": "Um das Update zu installieren, müssen Sie die Installation aus unbekannten Quellen für diese App zulassen.",
-"allow_unknown_sources_instruction": "Suchen Sie nach dem Öffnen der Einstellungen nach 'Unbekannte Apps installieren' und aktivieren Sie dies für PureSIP Purchasing.",
-"could_not_open_settings": "Einstellungen konnten nicht geöffnet werden. Bitte aktivieren Sie die Installation aus unbekannten Quellen manuell.",
-"retry_installation": "Installation wiederholen",
-"retry_installation_message": "Nachdem Sie unbekannte Quellen aktiviert haben, drücken Sie auf Wiederholen, um das Update zu installieren.",
-"install_cancelled_by_user": "Installation vom Benutzer abgebrochen.",
+"update_ready_to_install": "Update bereit zur Installation",
+"update_downloaded_install_now": "Das Update wurde heruntergeladen. Möchten Sie es jetzt installieren?",
+"install_now": "Jetzt Installieren"
 
   "renew_license": "Lizenz erneuern",
   "expires_on": "Läuft ab am: ",

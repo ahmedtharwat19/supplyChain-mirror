@@ -214,6 +214,9 @@
   "quantity_asc": "Quantité (Croissante)",
   "quantity_desc": "Quantité (Décroissante)",
   "low_stock_only": "Stock Faible Uniquement",
+"update_ready_to_install": "Güncelleme yüklemeye hazır",
+"update_downloaded_install_now": "Güncelleme indirildi. Şimdi yüklemek ister misiniz?",
+"install_now": "Şimdi Yükle",
 
   "renew_license": "Renouveler la licence",
   "expires_on": "Expire le : ",
