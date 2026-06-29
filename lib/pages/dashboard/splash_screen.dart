@@ -1,12 +1,9 @@
 // lib/pages/dashboard/splash_screen.dart
-
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:puresip_purchasing/services/navigation_service.dart';
@@ -31,9 +28,6 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> {
-  // ============================================================
-  // ✅ متغيرات الحالة
-  // ============================================================
   String _loadingMessage = "";
   bool _isOffline = false;
   String _appVersion = "";
@@ -51,22 +45,12 @@ class _SplashScreenState extends State<SplashScreen> {
   static const String _keyCachedAt = 'license_cached_at';
   static const String _keySubscriptionStatus = 'subscription_status';
 
-  // ============================================================
-  // ✅ دورة حياة الـ Widget
-  // ============================================================
   @override
   void initState() {
     super.initState();
     _loadingMessage = "loading".tr();
     _loadAppVersion();
     _initializeApp();
-    _reinitializeApp();
-  }
-
-  @override
-  void dispose() {
-    _syncService.dispose();
-    super.dispose();
   }
 
   // ============================================================
@@ -203,54 +187,7 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   // ============================================================
-  // ✅ حوار APK محمّل ينتظر التثبيت
-  // ============================================================
-  void _showPendingInstallDialog() {
-    if (!mounted) return;
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) => AlertDialog(
-        title: Row(
-          children: [
-            Icon(Icons.install_mobile, color: Colors.green.shade700),
-            const SizedBox(width: 8),
-            Expanded(child: Text('update_ready_to_install'.tr())),
-          ],
-        ),
-        content: Text('update_downloaded_install_now'.tr()),
-        actions: [
-          TextButton(
-            onPressed: () async {
-              Navigator.pop(dialogContext);
-              await UpdateService.clearPendingInstall();
-              _continueInitialization();
-            },
-            child: Text('later'.tr()),
-          ),
-          ElevatedButton.icon(
-            onPressed: () async {
-              Navigator.pop(dialogContext);
-              if (mounted) {
-                await UpdateService.installPendingApk(context);
-                // ✅ النظام يتولى التثبيت — التطبيق يبقى في الخلفية
-              }
-            },
-            icon: const Icon(Icons.install_mobile),
-            label: Text('install_now'.tr()),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.green.shade700,
-              foregroundColor: Colors.white,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ============================================================
-  // ✅ حوار التحديث الإجباري
+  // ✅ Force Update Dialog
   // ============================================================
   void _showForceUpdateDialog(String message, String version) {
     if (_isForceUpdateShowing) return;
@@ -318,34 +255,26 @@ class _SplashScreenState extends State<SplashScreen> {
         actions: [
           ElevatedButton.icon(
             onPressed: () async {
-              safeDebugPrint('🟢 FORCE UPDATE - Starting download...');
+              safeDebugPrint('🟢 UPDATE BUTTON PRESSED!');
+              Navigator.of(dialogContext).pop();
 
-              if (dialogContext.mounted) {
-                Navigator.of(dialogContext).pop();
-              }
+              // ✅ نكمل التهيئة فوراً، التحميل في الخلفية
+              _continueInitialization();
 
-              if (!rootContext.mounted) return;
-
-              // ✅ الحل النهائي: downloadAndInstall يتولى كل شيء
-              // تحميل → OpenFile → نافذة تثبيت أندرويد القياسية
-              try {
-                await UpdateService.downloadAndInstall(
+              if (rootContext.mounted) {
+                UpdateService.downloadAndInstall(
                   context: rootContext,
                   url: downloadUrl,
                 );
-              } catch (e) {
-                safeDebugPrint('❌ Update failed: $e');
-                _isForceUpdateShowing = false;
-                if (mounted) _showUpdateFailedDialog();
               }
-              // ✅ النظام يتولى التثبيت، التطبيق يبقى في الخلفية
             },
             icon: const Icon(Icons.download),
             label: Text('update_now'.tr()),
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.red.shade700,
               foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
             ),
           ),
         ],
@@ -354,67 +283,7 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   // ============================================================
-  // ✅ حوار فشل التحديث
-  // ============================================================
-  void _showUpdateFailedDialog() {
-    if (!mounted) return;
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) => AlertDialog(
-        title: Row(
-          children: [
-            Icon(Icons.error_outline, color: Colors.red.shade700),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                'update_failed_title'.tr(),
-                style: TextStyle(color: Colors.red.shade700),
-              ),
-            ),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('update_failed_message'.tr()),
-            const SizedBox(height: 12),
-            Text(
-              'update_failed_retry_message'.tr(),
-              style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
-            ),
-          ],
-        ),
-        actions: [
-          ElevatedButton.icon(
-            onPressed: () {
-              Navigator.pop(dialogContext);
-              _isForceUpdateShowing = false;
-              _initializeApp();
-            },
-            icon: const Icon(Icons.refresh),
-            label: Text('retry'.tr()),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.orange,
-              foregroundColor: Colors.white,
-            ),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(dialogContext);
-              _exitApp();
-            },
-            child: Text('exit'.tr()),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ============================================================
-  // ✅ حوار التحديث الاختياري
+  // ✅ Optional Update Dialog
   // ============================================================
   void _showOptionalUpdateDialog() {
     if (!mounted) return;
@@ -469,16 +338,17 @@ class _SplashScreenState extends State<SplashScreen> {
           TextButton(
             onPressed: () async {
               Navigator.pop(dialogContext);
-              safeDebugPrint('🚀 Optional update - Starting download: $downloadUrl');
 
+              // ✅ نكمل التهيئة فوراً، التحميل في الخلفية
+              _continueInitialization();
+
+              safeDebugPrint('🚀 Starting optional download from: $downloadUrl');
               if (rootContext.mounted) {
-                await UpdateService.downloadAndInstall(
+                UpdateService.downloadAndInstall(
                   context: rootContext,
                   url: downloadUrl,
                 );
               }
-
-              _continueInitialization();
             },
             child: Text('update_now'.tr()),
           ),
@@ -488,31 +358,10 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   // ============================================================
-  // ✅ إعادة تشغيل التطبيق
-  // ============================================================
-
-  // ============================================================
-  // ✅ الخروج من التطبيق
-  // ============================================================
-  void _exitApp() {
-    safeDebugPrint('🚪 Exiting app...');
-    try {
-      if (Platform.isAndroid) {
-        SystemNavigator.pop();
-      } else {
-        exit(0);
-      }
-    } catch (e) {
-      safeDebugPrint('❌ Error exiting: $e');
-      exit(0);
-    }
-  }
-
-  // ============================================================
-  // ✅ استكمال التهيئة
+  // ✅ استكمال التهيئة بعد dialog التحديث
   // ============================================================
   void _continueInitialization() {
-    safeDebugPrint('➡️ Continuing initialization');
+    safeDebugPrint('➡️ Continuing initialization after update dialog');
     _completeInitialization();
   }
 
@@ -550,6 +399,18 @@ class _SplashScreenState extends State<SplashScreen> {
       safeDebugPrint('⚠️ Version check error: $e');
     }
     return _UpdateStatus.none;
+  }
+
+  Future<_UpdateStatus> _checkForUpdatesWithTimeout() async {
+    try {
+      return await Future.any([
+        _checkForUpdates(),
+        Future.delayed(
+            const Duration(seconds: 5), () => _UpdateStatus.none),
+      ]);
+    } catch (e) {
+      return _UpdateStatus.none;
+    }
   }
 
   // ============================================================
@@ -617,68 +478,28 @@ class _SplashScreenState extends State<SplashScreen> {
   // ============================================================
   // ✅ الدالة الرئيسية: _initializeApp
   // ============================================================
-  // splash_screen.dart - أضف هذه الدالة
+  Future<void> _initializeApp() async {
+    if (_isInitialized) return;
+    _isInitialized = true;
 
-// ✅ إعادة تهيئة التطبيق بالكامل
-void _reinitializeApp() {
-  safeDebugPrint('🔄 Reinitializing app...');
-  
-  setState(() {
-    _isInitialized = false;
-    _isNavigating = false;
-    _isForceUpdateShowing = false;
-    _loadingMessage = "loading".tr();
-  });
-  
-  // ✅ إعادة التهيئة
-  _initializeApp();
-}
+    safeDebugPrint('🎬 SplashScreen - Starting initialization...');
 
-// splash_screen.dart - تعديل دالة _initializeApp
+    _safeSetState(() => _loadingMessage = "checking_updates".tr());
+    final updateStatus = await _checkForUpdatesWithTimeout();
 
-Future<void> _initializeApp() async {
-  if (_isInitialized) return;
-  _isInitialized = true;
-
-  safeDebugPrint('🎬 SplashScreen - Starting initialization...');
-
-  // ✅ 1: التحقق من APK محمّل — لو الإصدار تطابق معناه تم التثبيت فعلاً
-  _safeSetState(() => _loadingMessage = "checking_updates".tr());
-  final hasPending = await UpdateService.hasPendingInstall();
-  if (hasPending) {
-    // hasPendingInstall تتحقق تلقائياً إذا كان الإصدار الحالي == الإصدار المستهدف
-    // لو رجعت true معناه APK موجود ولم يُثبَّت بعد → اعرض dialog
-    safeDebugPrint('📦 Found pending APK — showing install dialog');
-    if (mounted) {
-      _showPendingInstallDialog();
+    if (updateStatus == _UpdateStatus.forced) {
+      safeDebugPrint('🔒 Force update required - Stopping initialization');
+      return;
     }
-    return;
-  }
-  // لو hasPendingInstall رجعت false ومسحت الملف → استكمل بشكل طبيعي
 
-  // ✅ 2: تهيئة Remote Config
-  try {
-    await VersionChecker.init();
-    safeDebugPrint('✅ Remote Config initialized');
-  } catch (e) {
-    safeDebugPrint('⚠️ VersionChecker init error: $e');
+    if (updateStatus == _UpdateStatus.optional && mounted) {
+      _showOptionalUpdateDialog();
+      return;
+    }
+
+    await _completeInitialization();
   }
 
-  // ✅ 3: استخدام _checkForUpdates
-  final updateStatus = await _checkForUpdates();
-
-  if (updateStatus == _UpdateStatus.forced) {
-    safeDebugPrint('🔒 Force update required');
-    return;
-  }
-
-  if (updateStatus == _UpdateStatus.optional && mounted) {
-    _showOptionalUpdateDialog();
-    return;
-  }
-
-  await _completeInitialization();
-}
   // ============================================================
   // ✅ استكمال التهيئة: فحص المستخدم والترخيص
   // ============================================================
@@ -697,7 +518,7 @@ Future<void> _initializeApp() async {
 
     safeDebugPrint('👤 User found: ${user.email}');
 
-    // ── فحص الترخيص المحلي ──
+    // ── فحص الترخيص المحلي أولاً ──
     _safeSetState(() => _loadingMessage = "checking_local_license".tr());
     final cachedLicense = await _getLicenseFromSecureStorage();
 
@@ -749,9 +570,7 @@ Future<void> _initializeApp() async {
 
       safeDebugPrint('📱 Offline mode - no cached license');
       await Future.delayed(const Duration(seconds: 1));
-      if (mounted) {
-        _navigateTo('/login');
-      }
+      if (mounted) _navigateTo('/login');
       return;
     }
 
@@ -780,6 +599,7 @@ Future<void> _initializeApp() async {
         }
       } else {
         safeDebugPrint('❌ No valid license found');
+
         _safeSetState(() => _loadingMessage = "checking_license".tr());
 
         final autoLicenseService = AutoLicenseService();
@@ -790,14 +610,11 @@ Future<void> _initializeApp() async {
           safeDebugPrint('✅ Trial license created: $newLicense');
           final newStatus = await _getLicenseStatusFromFirestore(user.uid);
           await _cacheLicenseStatus(newStatus);
-          if (mounted) {
-            _navigateTo('/dashboard');
-          }
+          if (mounted) _navigateTo('/dashboard');
         } else {
+          // trialUsed == true → وجّهه لإرسال طلب للأدمن
           safeDebugPrint('🚫 Trial used — redirecting to license request');
-          if (mounted) {
-            _navigateTo('/license/request');
-          }
+          if (mounted) _navigateTo('/license/request');
         }
       }
     } catch (e) {
@@ -808,16 +625,18 @@ Future<void> _initializeApp() async {
       if (fallbackLicense != null && fallbackLicense['licenseKey'] != null) {
         safeDebugPrint('⚠️ Using cached license as fallback');
         await Future.delayed(const Duration(seconds: 1));
-        if (mounted) {
-          _navigateTo('/dashboard');
-        }
+        if (mounted) _navigateTo('/dashboard');
       } else {
         await Future.delayed(const Duration(seconds: 1));
-        if (mounted) {
-          _navigateTo('/login');
-        }
+        if (mounted) _navigateTo('/login');
       }
     }
+  }
+
+  @override
+  void dispose() {
+    _syncService.dispose();
+    super.dispose();
   }
 
   // ============================================================
@@ -840,7 +659,8 @@ Future<void> _initializeApp() async {
                   backgroundColor: Colors.green[50],
                   child: Padding(
                     padding: const EdgeInsets.all(12.0),
-                    child: Image.asset('assets/logo.png', fit: BoxFit.contain),
+                    child:
+                        Image.asset('assets/logo.png', fit: BoxFit.contain),
                   ),
                 ),
                 const SizedBox(height: 32),

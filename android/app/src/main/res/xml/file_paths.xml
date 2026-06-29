@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- مسار التخزين الخارجي -->
+    <external-path
+        name="external"
+        path="." />
+    
+    <!-- مسار ملفات التطبيق الخارجية -->
+    <external-files-path
+        name="external_files"
+        path="." />
+    
+    <!-- مسار الكاش -->
+    <cache-path
+        name="cache"
+        path="." />
+    
+    <!-- مسار الكاش الخارجي -->
+    <external-cache-path
+        name="external_cache"
+        path="." />
+    
+    <!-- مسار ملفات التطبيق -->
+    <files-path
+        name="files"
+        path="." />
+    
+    <!-- مسار التنزيلات -->
+    <external-path
+        name="download"
+        path="Download/" />
+</paths>
