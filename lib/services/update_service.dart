@@ -233,5 +233,5 @@ class UpdateService {
     } catch (e) {
       onError(e);
     }
- , }
+  }
 }
