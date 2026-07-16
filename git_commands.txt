@@ -40,6 +40,9 @@ git commit -m "Updated feature X or fixed bug Y"
 
 git commit -m "Updated feature X or fixed bug Y"
 
+git push -u origin main --force
+
+
 
 cd D:\SECURE\firebase       
 

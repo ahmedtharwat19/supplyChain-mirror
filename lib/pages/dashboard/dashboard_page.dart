@@ -1,5 +1,7 @@
+// pages/dashboard/dashboard_page.dart
 import 'dart:convert';
 import 'dart:async';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -7,6 +9,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:puresip_purchasing/pages/dashboard/dashboard_metrics.dart';
 import 'package:puresip_purchasing/pages/dashboard/dashboard_tile_widget.dart';
 import 'package:puresip_purchasing/pages/settings/settings_page.dart';
@@ -32,17 +35,19 @@ class _DashboardPageState extends State<DashboardPage>
 
   final RefreshController _refreshController = RefreshController();
   final StatsService _statsService = StatsService();
+  final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
 
   DashboardView _dashboardView = DashboardView.short;
   Set<String> _selectedCards = {};
   bool isLoading = true;
-  bool isAdmin = false;
 
   final DashboardStats _stats = DashboardStats();
   String? userName;
   bool isSubscriptionExpiringSoon = false;
   bool isSubscriptionExpired = false;
   String? subscriptionTimeLeft;
+
+  Uint8List? _logoBytes;
 
   final List<String> _allCardKeys =
       dashboardMetrics.map((m) => m.titleKey).toList();
@@ -52,8 +57,55 @@ class _DashboardPageState extends State<DashboardPage>
   @override
   void initState() {
     super.initState();
+    _loadProviderSettings(); // ✅ تحميل الإعدادات من SharedPreferences عبر Provider
     _loadData();
     _startPeriodicUpdate();
+    _loadLogo();
+  }
+
+  // ✅ تحميل الإعدادات من Provider (يقرأ من SharedPreferences)
+  Future<void> _loadProviderSettings() async {
+    try {
+      final settingsProvider = Provider.of<DashboardSettingsProvider>(context, listen: false);
+      await settingsProvider.loadSettings(); // هذا السطر هو المفتاح
+      safeDebugPrint('✅ Settings loaded from provider');
+    } catch (e) {
+      safeDebugPrint('❌ Error loading provider settings: $e');
+    }
+  }
+
+  Future<void> _loadLogo() async {
+    try {
+      String? logo;
+
+      final possibleKeys = ['logoBase64', 'company_logo', 'logo', 'companyLogo'];
+      for (final key in possibleKeys) {
+        logo = await _secureStorage.read(key: key);
+        if (logo != null && logo.isNotEmpty) break;
+      }
+
+      if (logo == null || logo.isEmpty) {
+        final prefs = await SharedPreferences.getInstance();
+        logo = prefs.getString('company_logo') ?? prefs.getString('logo');
+      }
+
+      if (logo != null && logo.isNotEmpty) {
+        String base64String = logo;
+        if (logo.contains(',')) {
+          base64String = logo.split(',').last;
+        }
+        final bytes = base64Decode(base64String);
+        if (mounted) {
+          setState(() {
+            _logoBytes = bytes;
+          });
+        }
+      } else {
+        safeDebugPrint('⚠️ No logo found in any storage');
+      }
+    } catch (e) {
+      safeDebugPrint('Error loading logo: $e');
+    }
   }
 
   void _startPeriodicUpdate() {
@@ -62,203 +114,110 @@ class _DashboardPageState extends State<DashboardPage>
     });
   }
 
-/*   Future<void> _loadData() async {
-    setState(() => isLoading = true);
-
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
-      if (mounted) context.go('/login');
-      return;
-    }
-
-    await Future.wait([
-      _loadUserData(user.uid),
-      _loadStats(user.uid),
-      _loadSettings(),
-    ]);
-
-    setState(() => isLoading = false);
+  Future<void> _loadData() async {
+    await _loadFromCache();
+    await _loadSettings(); // الآن يقرأ من Provider المحمّل
+    if (mounted) setState(() => isLoading = false);
+    _refreshInBackground();
   }
- */
- 
- Future<void> _loadData() async {
-  // ── 1. اقرأ الكاش فوراً بدون loading ──
-  await _loadFromCache();
-  await _loadSettings();
-  if (mounted) setState(() => isLoading = false);
 
-  // ── 2. حدّث من Firestore في الخلفية ──
-  _refreshInBackground();
-}
-
-Future<void> _loadFromCache() async {
-  try {
-    final prefs = await SharedPreferences.getInstance();
-
-    // اسم المستخدم
-    final cachedName = prefs.getString('cached_user_name');
-    if (cachedName != null) userName = cachedName;
-
-    // الإحصائيات
-    final cached = prefs.getString('cached_stats');
-    if (cached != null) {
-      final data = json.decode(cached) as Map<String, dynamic>;
-      _stats.totalCompanies       = data['totalCompanies'] ?? 0;
-      _stats.totalSuppliers       = data['totalSuppliers'] ?? 0;
-      _stats.totalOrders          = data['totalOrders'] ?? 0;
-      _stats.totalItems           = data['totalItems'] ?? 0;
-      _stats.totalManufacturingOrders = data['totalManufacturingOrders'] ?? 0;
-      _stats.totalAmount          = (data['totalAmount'] ?? 0.0).toDouble();
-      _stats.totalFactories       = data['totalFactories'] ?? 0;
-      _stats.totalFinishedProducts = data['totalFinishedProducts'] ?? 0;
-      _stats.totalStockMovements  = data['totalStockMovements'] ?? 0;
-    }
-  } catch (e) {
-    safeDebugPrint('Cache read error: $e');
-  }
-}
-
-/* Future<void> _refreshInBackground() async {
-  try {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
-
-    // جلب بيانات المستخدم
-    final userDoc = await FirebaseFirestore.instance
-        .collection('users').doc(user.uid).get();
-
-  //  if (!userDoc.exists) return;
-  if (!userDoc.exists) {
-  safeDebugPrint('⚠️ User document not found in Firestore — signing out');
-  await FirebaseAuth.instance.signOut();
-  if (mounted) context.go('/login');
-  return;
-}
-    final data = userDoc.data()!;
-    isAdmin = data['isAdmin'] == true;
-
-    final companyIds = List<String>.from(data['companyIds'] ?? []);
-
-    // اسم المستخدم
-    final displayName = data['displayName'] ?? data['name'] ?? '';
-    final newName = displayName.isNotEmpty
-        ? displayName
-        : user.email?.split('@').first ?? 'User';
-
-    // تحديث الإحصائيات
-    await _statsService.updateUserStats(user.uid);
-    final stats = await _statsService.getUserStats(user.uid);
-
-    // حفظ في الكاش
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('cached_user_name', newName);
-    await prefs.setString('cached_stats', json.encode({
-      ...stats,
-      'totalCompanies': companyIds.length,
-    }));
-
-    if (mounted) {
-      setState(() {
-        userName = newName;
-        _stats.totalCompanies           = companyIds.length;
-        _stats.totalSuppliers           = stats['totalSuppliers'] ?? 0;
-        _stats.totalOrders              = stats['totalOrders'] ?? 0;
-        _stats.totalItems               = stats['totalItems'] ?? 0;
-        _stats.totalManufacturingOrders = stats['totalManufacturingOrders'] ?? 0;
-        _stats.totalAmount              = (stats['totalAmount'] ?? 0.0).toDouble();
-        _stats.totalFactories           = stats['totalFactories'] ?? 0;
-        _stats.totalFinishedProducts    = stats['totalFinishedProducts'] ?? 0;
-        _stats.totalStockMovements      = stats['totalStockMovements'] ?? 0;
-      });
-    }
-  } catch (e) {
-    safeDebugPrint('Background refresh error: $e');
-  }
-}
-  */
- 
-
- Future<void> _refreshInBackground() async {
-  try {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
- 
-    // جلب بيانات المستخدم
-    DocumentSnapshot userDoc;
+  Future<void> _loadFromCache() async {
     try {
-      userDoc = await FirebaseFirestore.instance
-          .collection('users').doc(user.uid).get();
-    } on FirebaseException catch (e) {
-      if (e.code == 'permission-denied') {
-        safeDebugPrint('⛔ Permission denied reading user doc — signing out');
-        await FirebaseAuth.instance.signOut();
-        if (mounted) context.go('/login');
-      } else {
-        safeDebugPrint('Firestore error fetching user doc: $e');
+      final prefs = await SharedPreferences.getInstance();
+
+      final cachedName = prefs.getString('cached_user_name');
+      if (cachedName != null) userName = cachedName;
+
+      final cached = prefs.getString('cached_stats');
+      if (cached != null) {
+        final data = json.decode(cached) as Map<String, dynamic>;
+        _stats.totalCompanies = data['totalCompanies'] ?? 0;
+        _stats.totalSuppliers = data['totalSuppliers'] ?? 0;
+        _stats.totalOrders = data['totalOrders'] ?? 0;
+        _stats.totalItems = data['totalItems'] ?? 0;
+        _stats.totalManufacturingOrders = data['totalManufacturingOrders'] ?? 0;
+        _stats.totalAmount = (data['totalAmount'] ?? 0.0).toDouble();
+        _stats.totalFactories = data['totalFactories'] ?? 0;
+        _stats.totalFinishedProducts = data['totalFinishedProducts'] ?? 0;
+        _stats.totalStockMovements = data['totalStockMovements'] ?? 0;
       }
-      return;
+    } catch (e) {
+      safeDebugPrint('Cache read error: $e');
     }
- 
-    if (!userDoc.exists) {
-      safeDebugPrint('⚠️ User document not found in Firestore — signing out');
-      await FirebaseAuth.instance.signOut();
-      if (mounted) context.go('/login');
-      return;
-    }
-    final data = userDoc.data()! as Map<String, dynamic>;
-    isAdmin = data['isAdmin'] == true;
- 
-    final companyIds = List<String>.from(data['companyIds'] ?? []);
- 
-    // اسم المستخدم
-    final displayName = data['displayName'] ?? data['name'] ?? '';
-    final newName = displayName.isNotEmpty
-        ? displayName
-        : user.email?.split('@').first ?? 'User';
- 
-    // تحديث الإحصائيات
-    Map<String, dynamic> stats;
+  }
+
+  Future<void> _refreshInBackground() async {
     try {
-      await _statsService.updateUserStats(user.uid);
-      stats = await _statsService.getUserStats(user.uid);
-    } on FirebaseException catch (e) {
-      if (e.code == 'permission-denied') {
-        safeDebugPrint('⛔ Permission denied on stats — signing out');
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      DocumentSnapshot userDoc;
+      try {
+        userDoc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .get();
+      } on FirebaseException catch (e) {
+        if (e.code == 'permission-denied') {
+          safeDebugPrint('⛔ Permission denied — signing out');
+          await FirebaseAuth.instance.signOut();
+          if (mounted) context.go('/login');
+        }
+        return;
+      }
+
+      if (!userDoc.exists) {
         await FirebaseAuth.instance.signOut();
         if (mounted) context.go('/login');
         return;
       }
-      safeDebugPrint('Stats Firestore error: $e');
-      return;
-    }
- 
-    // حفظ في الكاش
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('cached_user_name', newName);
-    await prefs.setString('cached_stats', json.encode({
-      ...stats,
-      'totalCompanies': companyIds.length,
-    }));
- 
-    if (mounted) {
-      setState(() {
-        userName = newName;
-        _stats.totalCompanies           = companyIds.length;
-        _stats.totalSuppliers           = stats['totalSuppliers'] ?? 0;
-        _stats.totalOrders              = stats['totalOrders'] ?? 0;
-        _stats.totalItems               = stats['totalItems'] ?? 0;
-        _stats.totalManufacturingOrders = stats['totalManufacturingOrders'] ?? 0;
-        _stats.totalAmount              = (stats['totalAmount'] ?? 0.0).toDouble();
-        _stats.totalFactories           = stats['totalFactories'] ?? 0;
-        _stats.totalFinishedProducts    = stats['totalFinishedProducts'] ?? 0;
-        _stats.totalStockMovements      = stats['totalStockMovements'] ?? 0;
-      });
-    }
-  } catch (e) {
-    safeDebugPrint('Background refresh error: $e');
-  }
-}
+      final data = userDoc.data()! as Map<String, dynamic>;
+      final companyIds = List<String>.from(data['companyIds'] ?? []);
+      final displayName = data['displayName'] ?? data['name'] ?? '';
+      final newName = displayName.isNotEmpty
+          ? displayName
+          : user.email?.split('@').first ?? 'User';
 
+      Map<String, dynamic> stats;
+      try {
+        await _statsService.updateUserStats(user.uid);
+        stats = await _statsService.getUserStats(user.uid);
+      } on FirebaseException catch (e) {
+        if (e.code == 'permission-denied') {
+          await FirebaseAuth.instance.signOut();
+          if (mounted) context.go('/login');
+        }
+        return;
+      }
+
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('cached_user_name', newName);
+      await prefs.setString(
+          'cached_stats',
+          json.encode({
+            ...stats,
+            'totalCompanies': companyIds.length,
+          }));
+
+      if (mounted) {
+        setState(() {
+          userName = newName;
+          _stats.totalCompanies = companyIds.length;
+          _stats.totalSuppliers = stats['totalSuppliers'] ?? 0;
+          _stats.totalOrders = stats['totalOrders'] ?? 0;
+          _stats.totalItems = stats['totalItems'] ?? 0;
+          _stats.totalManufacturingOrders =
+              stats['totalManufacturingOrders'] ?? 0;
+          _stats.totalAmount = (stats['totalAmount'] ?? 0.0).toDouble();
+          _stats.totalFactories = stats['totalFactories'] ?? 0;
+          _stats.totalFinishedProducts = stats['totalFinishedProducts'] ?? 0;
+          _stats.totalStockMovements = stats['totalStockMovements'] ?? 0;
+        });
+      }
+    } catch (e) {
+      safeDebugPrint('Background refresh error: $e');
+    }
+  }
 
   Future<void> _loadSettings() async {
     final settingsProvider =
@@ -269,64 +228,7 @@ Future<void> _loadFromCache() async {
     _selectedCards = settingsProvider.selectedCards.isNotEmpty
         ? settingsProvider.selectedCards
         : _getDefaultCards();
-  }
-
- /*  Future<void> _loadUserData(String userId) async {
-    try {
-      final userDoc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(userId)
-          .get();
-
-      if (userDoc.exists) {
-        final data = userDoc.data()!;
-        isAdmin = data['isAdmin'] == true;
-
-        final companyIds = List<String>.from(data['companyIds'] ?? []);
-        _stats.totalCompanies = companyIds.length;
-
-        String displayName = data['displayName'] ?? '';
-        String name = data['name'] ?? '';
-        String email = data['email'] ?? '';
-
-        if (displayName.isNotEmpty) {
-          userName = displayName;
-        } else if (name.isNotEmpty && name != 'User') {
-          userName = name;
-        } else if (email.isNotEmpty) {
-          userName = email.split('@').first;
-        } else {
-          userName = 'User';
-        }
-      }
-    } catch (e) {
-      safeDebugPrint('Error loading user: $e');
-    }
-  }
- */
- 
-  Future<void> _loadStats(String userId) async {
-    try {
-      // ✅ استعلام واحد فقط من Firestore! 🚀
-      final stats = await _statsService.getUserStats(userId);
-
-      setState(() {
-        _stats.totalSuppliers = stats['totalSuppliers'];
-        _stats.totalOrders = stats['totalOrders'];
-        _stats.totalItems = stats['totalItems'];
-        _stats.totalManufacturingOrders = stats['totalManufacturingOrders'];
-        _stats.totalAmount = stats['totalAmount'];
-        _stats.totalFactories = stats['totalFactories'];
-        _stats.totalFinishedProducts = stats['totalFinishedProducts'];
-        _stats.totalStockMovements = stats['totalStockMovements'];
-      });
-
-      safeDebugPrint('✅ Stats loaded from user document!');
-    } catch (e) {
-      safeDebugPrint('Error loading stats: $e');
-      // محاولة تحميل من الكاش
-      await _loadStatsFromCache();
-    }
+    safeDebugPrint('📐 Settings loaded: view=$_dashboardView, cards=${_selectedCards.length}, mode=${settingsProvider.displayMode}');
   }
 
   Future<void> _loadStatsFromCache() async {
@@ -338,7 +240,8 @@ Future<void> _loadFromCache() async {
         _stats.totalSuppliers = data['totalSuppliers'] ?? 0;
         _stats.totalOrders = data['totalOrders'] ?? 0;
         _stats.totalItems = data['totalItems'] ?? 0;
-        _stats.totalManufacturingOrders = data['totalManufacturingOrders'] ?? 0;
+        _stats.totalManufacturingOrders =
+            data['totalManufacturingOrders'] ?? 0;
         _stats.totalAmount = (data['totalAmount'] ?? 0.0).toDouble();
         _stats.totalFactories = data['totalFactories'] ?? 0;
         _stats.totalFinishedProducts = data['totalFinishedProducts'] ?? 0;
@@ -354,7 +257,8 @@ Future<void> _loadFromCache() async {
     if (user != null) {
       await _statsService.updateUserStats(user.uid);
       if (mounted) {
-        await _loadStats(user.uid);
+        await _loadStatsFromCache();
+        setState(() {});
       }
     }
   }
@@ -384,6 +288,8 @@ Future<void> _loadFromCache() async {
       MaterialPageRoute(builder: (_) => SettingsPage(allCards: _allCardKeys)),
     );
     if (result == true && mounted) {
+      // بعد العودة من الإعدادات، أعد تحميل الإعدادات من Provider
+      await _loadProviderSettings();
       await _loadSettings();
       setState(() {});
     }
@@ -414,24 +320,6 @@ Future<void> _loadFromCache() async {
           isSubscriptionExpired: isSubscriptionExpired,
           isDashboard: true,
           onSettingsPressed: _openSettings,
-/*           actions: [
-            IconButton(
-              icon: const Icon(Icons.refresh),
-              onPressed: () async {
-                final user = FirebaseAuth.instance.currentUser;
-                if (user != null) {
-                  await _statsService.updateUserStats(user.uid);
-                  await _loadStats(user.uid);
-                  setState(() {});
-     
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Stats updated!')),
-                    );
-
-                }
-              },
-            ),
-          ], */
           body: SmartRefresher(
             controller: _refreshController,
             onRefresh: _refresh,
@@ -441,7 +329,7 @@ Future<void> _loadFromCache() async {
                 children: [
                   _buildWelcome(),
                   const SizedBox(height: 16),
-                  _buildStatsGrid(),
+                  _buildStatsGrid(settingsProvider),
                 ],
               ),
             ),
@@ -461,7 +349,13 @@ Future<void> _loadFromCache() async {
     );
   }
 
-  Widget _buildStatsGrid() {
+  Widget _buildStatsGrid(DashboardSettingsProvider settingsProvider) {
+    final displayMode = settingsProvider.displayMode;
+
+    if (displayMode == 'logo') {
+      return _buildLogoOnly();
+    }
+
     final statsMap = _stats.toMap();
     final filtered = dashboardMetrics
         .where((m) => _selectedCards.contains(m.titleKey))
@@ -470,11 +364,15 @@ Future<void> _loadFromCache() async {
     if (filtered.isEmpty) {
       return Center(
         child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.dashboard_outlined, size: 64, color: Colors.grey),
+            Icon(Icons.dashboard_outlined, size: 80, color: Colors.grey.shade300),
             const SizedBox(height: 16),
-            Text(tr('no_cards_selected')),
-            const SizedBox(height: 8),
+            Text(
+              tr('no_cards_selected'),
+              style: TextStyle(color: Colors.grey.shade600, fontSize: 16),
+            ),
+            const SizedBox(height: 12),
             TextButton.icon(
               onPressed: _openSettings,
               icon: const Icon(Icons.settings),
@@ -503,6 +401,61 @@ Future<void> _loadFromCache() async {
     );
   }
 
+  Widget _buildLogoOnly() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          if (_logoBytes != null)
+            Image.memory(
+              _logoBytes!,
+              width: 200,
+              height: 200,
+              fit: BoxFit.contain,
+              errorBuilder: (context, error, stackTrace) =>
+                  const Icon(Icons.business, size: 200, color: Colors.grey),
+            )
+          else
+            Image.asset(
+              'assets/logo.png',
+              width: 200,
+              height: 200,
+              fit: BoxFit.contain,
+              errorBuilder: (context, error, stackTrace) =>
+                  const Icon(Icons.business, size: 200, color: Colors.grey),
+            ),
+          const SizedBox(height: 16),
+          Text(
+            tr('dashboard_logo_mode_title'),
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            tr('dashboard_logo_mode_subtitle'),
+            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                  color: Colors.grey.shade600,
+                ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 24),
+          OutlinedButton.icon(
+            onPressed: _openSettings,
+            icon: const Icon(Icons.settings),
+            label: Text(tr('customize_dashboard')),
+            style: OutlinedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   void dispose() {
     _periodicUpdateTimer?.cancel();
@@ -511,10 +464,7 @@ Future<void> _loadFromCache() async {
   }
 }
 
-// في dashboard_page.dart - داخل DashboardStats
-
-// في dashboard_page.dart
-
+// ─── نموذج الإحصائيات ──────────────────────────────────────────
 class DashboardStats {
   int totalCompanies = 0;
   int totalSuppliers = 0;
@@ -526,7 +476,6 @@ class DashboardStats {
   int totalFactories = 0;
   double totalAmount = 0.0;
 
-  // ✅ عدد التقارير من الدالة المساعدة
   int get totalReports => getTotalReportsCount();
 
   Map<String, dynamic> toMap() => {
@@ -542,29 +491,3 @@ class DashboardStats {
         'totalReports': totalReports,
       };
 }
-/* class DashboardStats {
-  int totalCompanies = 0;
-  int totalSuppliers = 0;
-  int totalOrders = 0;
-  int totalItems = 0;
-  int totalStockMovements = 0;
-  int totalManufacturingOrders = 0;
-  int totalFinishedProducts = 0;
-  int totalFactories = 0;
-  int totalReports = 7;
-  double totalAmount = 0.0;
-
-  Map<String, dynamic> toMap() => {
-        'totalCompanies': totalCompanies,
-        'totalSuppliers': totalSuppliers,
-        'totalOrders': totalOrders,
-        'totalAmount': totalAmount,
-        'totalItems': totalItems,
-        'totalStockMovements': totalStockMovements,
-        'totalManufacturingOrders': totalManufacturingOrders,
-        'totalFinishedProducts': totalFinishedProducts,
-        'totalFactories': totalFactories,
-        'totalReports': totalReports,
-      };
-}
- */

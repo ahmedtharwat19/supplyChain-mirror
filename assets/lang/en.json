@@ -1,8 +1,201 @@
 {
   "update_ready_to_install": "Update ready to install",
-"update_downloaded_install_now": "The update has been downloaded. Do you want to install it now?",
-"install_now": "Install Now",
+  "no_receiver_defined": "Cannot deliver the order because no factory or supplier is defined.",
+  "update_downloaded_install_now": "The update has been downloaded. Do you want to install it now?",
+  "install_now": "Install Now",
+  "delivery_note_title": "Delivery Note",
+  "data_title": "Note Data",
+  "delivery_number_label": "Delivery Note No.",
+  "date_label": "Date",
+  "po_label": "PO Number",
+  "method_label": "Delivery Method",
+  "method_value": "Ex Works",
+  "purpose_label": "Purpose",
+  "purpose_default": "Supply of raw materials and packaging for manufacturing",
+  "parties_title": "Parties",
+  "sender_label": "Sender",
+  "receiver_label": "Receiver",
+  "items_title": "Delivered Items Details",
+  "serial_label": "#",
+  "item_name_label": "Item",
+  "unit_label": "Unit",
+  "qty_label": "Quantity",
+  "notes_label": "Notes",
+  "summary_title": "Summary",
+    "print_choice_title": "Choose Document",
+      "delete_item_confirm": "Are you sure you want to delete this item?",
+  "load_default_items": "Load Default Items",
+    "print_choice_content_export": "Choose document to print",
+  "print_delivery_error": "Error printing delivery note",
+  
+"stats_title": "Statistics",
+  "devices_title": "Registered Devices",
+  "primary_device": "Primary Device: {0}",
+  "total_factories": "Total Factories",
+  "total_manufacturing_orders": "Total Manufacturing Orders",
+  "total_stock_movements": "Total Stock Movements",
+  "total_finished_products": "Total Finished Products",
+  "brand": "Brand",
+  "registered_at": "Registered At",
+  "license_expires_on": "License expires on",
 
+
+  "receiving_dialog_title": "Adjust Receiving Quantities - {0}",
+  "ordered_quantity_short": "Ordered",
+  "received_quantity_short": "Received",
+  "manufacturer": "Manufacturer",
+
+ "financial_balances": "Financial Balances",
+  "supplier_ledger": "Supplier Ledger",
+  "account_code": "Account Code",
+  "total_balance_due": "Total Balance Due",
+  "no_accounts_found": "No accounts found",
+  "no_transactions_found": "No transactions found",
+
+  "asset": "Asset",
+  "liability": "Liability",
+  "equity": "Equity",
+  "revenue": "Revenue",
+  "expense": "Expense",
+
+
+
+ "bank_accounts": "Bank Accounts",
+  "cash_management": "Cash Management",
+  "supplier_payment": "Supplier Payment",
+  "receivables": "Receivables",
+  "bank_name": "Bank Name",
+  "cash_balance": "Cash Balance",
+  "deposit": "Deposit",
+  "withdrawal": "Withdrawal",
+  "pay_supplier": "Pay Supplier",
+  "customer_receipt": "Customer Receipt",
+  "add_bank_account": "Add Bank Account",
+  "add_receipt": "Add Receipt",
+  "bank_added": "Bank added successfully",
+  "payment_saved": "Payment recorded successfully",
+  "receipt_saved": "Receipt recorded successfully",
+"account_cash": "Cash",
+  "account_inventory": "Inventory",
+  "account_payable": "Accounts Payable",
+  "account_banks": "Banks",
+  "account_receivable": "Accounts Receivable",
+  "account_profit_loss": "Profit/Loss",
+
+  "purchase_receipt_description": "Goods received from purchase order {0}",
+  "purchase_receipt_debit_inventory": "Debit: Inventory - PO {0}",
+  "purchase_receipt_credit_supplier": "Credit: Supplier - PO {0}",
+
+  "cash_deposit": "Cash Deposit",
+  "cash_withdrawal": "Cash Withdrawal",
+  "contra_deposit": "Contra for Cash Deposit",
+  "contra_withdrawal": "Contra for Cash Withdrawal",
+
+  "bank_deposit": "Bank Deposit",
+  "bank_withdrawal": "Bank Withdrawal",
+  "bank_transfer": "Bank Transfer",
+  "bank_transfer_received": "Received transfer from another bank",
+  "bank_transfer_sent": "Transfer to another bank",
+  "contra_bank_deposit": "Contra for Bank Deposit",
+  "contra_bank_withdrawal": "Contra for Bank Withdrawal",
+
+  "supplier_payment_description": "Payment to supplier (ID: {0})",
+  "supplier_payment_debit": "Supplier balance settlement",
+  "payment_cash": "Cash Payment",
+  "payment_bank": "Bank Payment",
+
+  "customer_receipt_default": "Receipt from customer",
+  "receipt_cash": "Cash Receipt",
+  "receipt_bank": "Bank Receipt",
+  "customer_receipt_credit": "Customer receivable settlement",
+
+
+  "main_section": "Main",
+  "financial_section": "Finance",
+  "admin_section": "Administration",
+  "settings_section": "Settings",
+
+  "choose_image_source": "Choose image source",
+  "gallery": "Gallery",
+  "camera": "Camera",
+  "avatar_updated": "Image updated successfully",
+  "avatar_update_error": "Failed to update image",
+  "edit_image": "Edit image",
+ "amount": "Amount",
+
+  "transaction_saved": "Transaction saved successfully",
+  "no_transactions": "No transactions found",
+  "supplier_payment_to": "Supplier Payment to ",
+
+  "total_receivables": "Total Receivables",
+
+  "customer_name": "Customer Name",
+
+  "payment_method": "Payment Method",
+  "bank": "Bank",
+  "company_not_set": "Company not set",
+  "cash_account_not_found": "Cash account not found",
+
+  "error_saving": "Error saving",
+
+  "supplier_unknown": "Unknown supplier",
+  "sales_invoices": "Sales Invoices",
+  "total_sales": "Total Sales",
+  "no_invoices": "No invoices",
+  "add_sales_invoice": "Add Sales Invoice",
+  "save_invoice": "Save Invoice",
+ "credit": "Credit",
+
+
+  "error_loading_companies": "Error loading companies",
+  "select_bank": "Please select a bank account",
+  "invalid_data": "Invalid data",
+  "dashboard_empty_title": "Welcome to Dashboard",
+  "dashboard_empty_subtitle": "You haven't selected any cards yet. You can customize the dashboard from settings.",
+
+ "no_bank_accounts": "No bank accounts found",
+  "line": "line",
+  "lines": "lines",
+  "supplier_credit_balance": "Supplier Balance Due",
+  "company_credit_balance": "Company Credit Balance",
+    "display_mode": "Display Mode",
+  "display_mode_cards_desc": "Show statistics cards on dashboard",
+  "display_mode_logo_desc": "Show company logo in center only",
+  "dashboard_logo_mode_title": "Welcome to Dashboard",
+  "dashboard_logo_mode_subtitle": "Customize your view from settings",
+  "account_type_asset": "Asset",
+  "account_type_liability": "Liability",
+  "account_type_equity": "Equity",
+  "account_type_revenue": "Revenue",
+  "account_type_expense": "Expense",
+
+  "print_choice_content": "What do you want to print after confirming delivery?",
+  "print_choice_po": "Purchase Order (PO)",
+  "print_choice_delivery": "Delivery Note",
+  "total_items_label": "Number of Items",
+  "total_qty_label": "Total Quantity",
+  "unit_suffix": "unit",
+  "delivery_number": "Delivery Number",
+  "delivery_date": "Delivery Date",
+  "print": "Print",
+  "delivery_note": "Delivery Note",
+  "notes_section_title": "Notes",
+  "note1": "Items have been delivered according to the above PO.",
+  "note2": "All items are sound and free of damage at the time of delivery.",
+  "note3": "The receiver must check quantities and items upon receipt and report any comments immediately.",
+  "acknowledgment_title": "Acknowledgment of Receipt",
+  "acknowledgment_text": "I, the undersigned representative of {0}, acknowledge receipt of the items listed in this note in full, in good condition, and conforming to the specifications and quantities shown above, without any reservations except as noted in the remarks.",
+  "signatures_title": "Signatures",
+  "storekeeper": "Storekeeper",
+  "name_label": "Name",
+  "signature_label": "Signature",
+  "date_label2": "Date",
+  "delegate": "Delegate / Driver",
+  "vehicle_label": "Vehicle No.",
+  "receiver_official": "Receiving Officer",
+  "stamp_label": "Official Stamp",
+  "footer_text": "Generated by Omicron System · {0}",
+  "logo_placeholder": "Your Logo",
   "about_contact": "Contact Us",
   "about_contact_title": "About the App & Contact Information",
   "about_description": "About Us",
@@ -23,7 +216,27 @@
   "pricing_extra_device_note": "Each additional device: 200 EGP/month",
   "future_plans_title": "Future Plans",
   "future_plans_description": "We are working on adding new modules such as: Project Management, AI Analytics, and Mobile Application.",
-
+  "about_app": "About App",
+  "app_description": "An integrated system for purchasing and inventory management, providing you with comprehensive solutions to manage companies, suppliers, items, and purchase orders.",
+  "app_name": "PureSip Purchasing",
+  "bank_account": "Bank Account",
+  "check_for_updates": "Check for Updates",
+  "checking": "Checking...",
+  "contact_us": "Contact Us",
+  "iban": "IBAN",
+  "inventory": "Inventory",
+  "key_features": "Key Features",
+  "no_update_available": "No Update Available",
+  "no_update_message": "No new updates are currently available.",
+  "settings.title": "Settings",
+  "up_to_date": "Up to Date",
+  "app_is_up_to_date": "The application is up to date with version {}",
+  "update_check_failed": "Update Check Failed",
+  "update_check_error": "An error occurred while checking for updates. Please try again.",
+  "version": "Version",
+  "version_details": "New version {} is available for download",
+  "visit_website": "Visit Website",
+  "vodafone_cash": "Vodafone Cash",
   "change_device": "Change Device",
   "checking_licenses": "Checking licenses...",
   "checking_device": "Checking device registration...",
@@ -244,8 +457,6 @@
   "unit": "Unit",
   "error_occurred": "An error occurred. Please try again.",
   "no_data_available": "No data available.",
-  
-
   "egyptian_pound_ar": "Egyptian Pounds",
   "us_dollar_ar": "US Dollars",
   "euro_ar": "Euros",
@@ -284,7 +495,7 @@
   "risk_level_high": "High",
   "risk_level_medium": "Medium",
   "risk_level_low": "Low",
-    "inventory_on_hand": "Inventory On-Hand",
+  "inventory_on_hand": "Inventory On-Hand",
   "slow_moving_inventory": "Slow-Moving Inventory",
   "abc_analysis": "ABC Analysis",
   "cost_analysis": "Cost Analysis",
@@ -294,35 +505,27 @@
   "category_packaging": "Packaging",
   "No expiring or expired items": "No expiring or expired items found.",
   "All items are within expiry period": "All items are within their valid expiry period.",
-"Click Analyze button to view results": "Click the Analyze button to view results.",
+  "Click Analyze button to view results": "Click the Analyze button to view results.",
   "Total Items": "Total Items",
   "Total Value": "Total Value",
-
   "inventory_on_hand_desc": "Detailed status of items currently available in stock.",
-
   "slow_moving_inventory_desc": "Identify inventory items with a low turnover rate.",
   "expiry_report_desc": "Track product batches nearing their expiration dates.",
-
   "abc_analysis_desc": "Classify inventory based on item value and importance.",
   "consumption_report_desc": "Detailed view of raw materials and stock consumed over time.",
   "trend_analysis_desc": "Statistical projections and direction of item demand.",
-
   "cost_analysis_desc": "Detailed evaluation of total inventory value and handling costs.",
   "purchase_orders_analysis_desc": "Metrics on open, completed, and canceled purchase orders.",
-
   "supplier_performance_desc": "Evaluate vendor delivery timelines and compliance scores.",
   "supplier_analysis_desc": "Comprehensive trends and financial distribution among suppliers.",
   "advanced_stock_movements_desc": "Granular log of stock issues, returns, and adjustments.",
   "factory_performance_desc": "Production turnover and efficiency scores per factory branch.",
-
   "slow_moving_recommendation_critical": "Disposal or recycling is recommended.",
   "slow_moving_recommendation_high": "Price reduction or promotional offers are recommended.",
   "slow_moving_recommendation_medium": "Monitor stock levels and review demand patterns.",
   "slow_moving_recommendation_low": "Perform regular inventory follow-ups.",
-
   "trend_analysis": "Trend Analysis",
   "factory_performance": "Factory Performance",
-
   "total_suppliers": "Total Suppliers",
   "total_spent": "Total Spent",
   "avg_delivery_days": "Avg Delivery Days",
@@ -345,17 +548,13 @@
   "top_items_by_value": "Top Items by Value",
   "items_not_moved_90_days": "Items not moved in 90 days",
   "expiring_in_30_days": "Expiring in 30 days",
-
   "no_factories_found": "No Factories Found",
   "per_month": "per month",
   "increasing": "Increasing",
   "decreasing": "Decreasing",
   "min_max": "Min - Max",
-
   "select_supplier": "Select Supplier",
-
   "all_time": "All Time",
-
   "critical": "Critical",
   "warning": "Warning",
   "no_companies_assigned": "No companies assigned",
@@ -363,7 +562,6 @@
   "select_factory_first": "Please select a factory first",
   "export_to_csv": "Export to CSV",
   "analyzing_report": "Analyzing data...",
-
   "exchange_rate": "Exchange Rate",
   "base_currency": "Base Currency",
   "amount_in_base_currency": "Amount in Base Currency",
@@ -377,8 +575,6 @@
   "currency_sar": "Saudi Riyal",
   "currency_aed": "UAE Dirham",
   "no_low_stock": "No low stock items found",
-
-
   "no_name": "No Name",
   "item_column": "Item",
   "qty_column": "Qty",
@@ -408,32 +604,23 @@
   "fils_en": "fils",
   "and_en": "and",
   "only_en": "only",
-
   "company_not_selected": "Please select a company",
   "supplier_not_selected": "Please select a supplier",
   "no_items_selected": "Please add at least one item",
-
   "tax_exempt_note_en": "* Items marked with * are tax exempt",
   "additional_conditions_en": "Additional Conditions",
   "required_documents_en": "Required Documents",
   "notes_en": "Notes",
-
   "tax_exempt_note": "* Items marked with * are tax exempt",
   "additional_conditions": "Additional Conditions",
   "low_stock": "Low Stock",
   "out_of_stock": "Out of Stock",
   "low": "Low",
   "empty": "Empty",
-
   "sort_by": "Sort By",
-
   "quantity_asc": "Quantity (Low to High)",
   "quantity_desc": "Quantity (High to Low)",
   "low_stock_only": "Low Stock Only",
-
-
-
-
   "name": "Name",
   "company": "Company",
   "phone": "Phone",
@@ -618,36 +805,12 @@
   "customize_dashboard": "Customize Dashboard",
   "initialization_failed": "Initialization failed",
   "offline_mode_notice": "You are offline. Some features may be limited.",
-
   "syncing_background": "Syncing in background...",
   "update_company": "Update Company",
   "update_required": "Update Required",
-
-
-
-
-
-
-
-
-
-
-
-
-
   "download_complete": "Download Complete",
   "platform_not_supported": "Auto-update is not supported on this platform",
-
-
-
-
-
   "available": "Available",
-
-
-
-
-  
   "settings": {
     "title": "Settings",
     "choose_view": "Choose Dashboard View:",
@@ -1401,46 +1564,39 @@
   "opening_install_screen": "Opening installation screen...",
   "install_permission_required": "Install packages permission required",
   "install_error": "Installation error",
-"update_not_supported_on_web": "Auto-update is not available on the web version. Please download manually.",
-"storage_permission_explanation": "The app needs storage permission to download and install updates.",
-"open_settings": "Open Settings",
+  "update_not_supported_on_web": "Auto-update is not available on the web version. Please download manually.",
+  "storage_permission_explanation": "The app needs storage permission to download and install updates.",
+  "open_settings": "Open Settings",
   "no_slow_moving_items": "No slow moving items found",
   "all_items_active": "All items are active and moving regularly",
   "last_movement": "Last Movement",
-   "install_permission_explanation": "The app needs install packages permission to install the new update.",
+  "install_permission_explanation": "The app needs install packages permission to install the new update.",
   "permission_required_for_update": "These permissions are required to install the update",
-"storage_permission_permanently_denied": "Storage permission was permanently denied. Please go to settings and grant permission manually.",
-"install_permission_permanently_denied": "Install packages permission was permanently denied. Please go to settings and grant permission manually.",
+  "storage_permission_permanently_denied": "Storage permission was permanently denied. Please go to settings and grant permission manually.",
+  "install_permission_permanently_denied": "Install packages permission was permanently denied. Please go to settings and grant permission manually.",
   "permissions_required": "Permissions Required",
   "permissions_explanation": "The app needs storage and install permissions to update the app.",
   "permissions_required_for_update": "These permissions are required to install the update",
   "download_will_start_soon": "The download will start soon...",
-
-
-
   "download_already_in_progress": "Download already in progress...",
   "update_url_empty": "Update URL is empty. Please contact support.",
   "invalid_update_file": "Invalid update file. Please contact support.",
   "download_complete_installing": "Download complete! Opening installer...",
   "install_open_error": "Error opening installer: {}",
-
-
   "license_check_error": "Error checking license: {}",
-"update_failed": "Update failed: {}",
-"speed": "Speed",
-"remaining": "Remaining",
-"invalid_phone": "Invalid phone number. Please check and try again.",
-"admin_users_title": "User Management",
+  "update_failed": "Update failed: {}",
+  "speed": "Speed",
+  "remaining": "Remaining",
+  "invalid_phone": "Invalid phone number. Please check and try again.",
+  "admin_users_title": "User Management",
   "search_users_hint": "Search by name or email...",
   "this_user": "this user",
   "delete_confirm_title": "Confirm Delete",
   "delete_confirm_message": "This will delete \"{}\" completely:\n• User data\n• License and requests\n• Associated companies and factories\n• Login account\n\nThis action cannot be undone.",
   "delete_success0": "\"{}\" has been deleted successfully",
-
   "delete_user": "Delete User",
   "admin_label": "Admin",
-"manage_users": "Manage Users",
-
+  "manage_users": "Manage Users",
   "trial": "Trial",
   "licensed": "Licensed",
   "expired_on": "Expired on {}",
@@ -1450,17 +1606,13 @@
   "no_search_results": "No results found for \"{}\"",
   "users_count": "{} users",
   "out_of": "out of",
-"checking_license": "Checking license...",
+  "checking_license": "Checking license...",
   "install_error_title": "Installation Error",
   "install_success_title": "Installation Successful",
   "install_success_message": "The app has been installed successfully. You can now open it.",
   "install_failed_unknown_sources": "Installation failed. Please allow installation from unknown sources in settings.",
   "install_status_unknown": "Unknown installation status.",
   "install_failed_code": "Installation failed (code: {}).",
-
-
-
-
   "days_since_last_movement": "Days Since Last Movement",
   "last_movement_type": "Last Movement Type",
   "last_movement_quantity": "Last Movement Quantity",

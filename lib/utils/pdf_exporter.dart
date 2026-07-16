@@ -25,10 +25,10 @@ class PdfExporter {
 
   static Future<String> _getUserName() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getString('displayName') ?? 'no_name'.tr();
+    return prefs.getString('cached_user_name') ?? 'no_name'.tr();
   }
 
-  static Future<pw.Document> generatePurchaseOrderPdf({
+/*   static Future<pw.Document> generatePurchaseOrderPdf({
     required String orderId,
     required Map<String, dynamic> orderData,
     required Map<String, dynamic> supplierData,
@@ -98,9 +98,106 @@ class PdfExporter {
 
     return pdf;
   }
+ */
+
+  static Future<pw.Document> generatePurchaseOrderPdf({
+    required String orderId,
+    required Map<String, dynamic> orderData,
+    required Map<String, dynamic> supplierData,
+    required Map<String, dynamic> companyData,
+    required Map<String, dynamic> itemData,
+    String? base64Logo,
+    bool isArabic = true,
+    Map<String, List<Map<String, dynamic>>>?
+        additionalItems, // يمكن تمريرها من الخارج
+  }) async {
+    final userName = await _getUserName();
+    final pdf = pw.Document();
+    final logoBytes = _decodeBase64Logo(base64Logo);
+
+    final poNumber = orderData['poNumber']?.toString().isNotEmpty == true
+        ? orderData['poNumber'].toString()
+        : orderId;
+
+    final qrData = _generateDetailedQrData(
+        poNumber, orderData, supplierData, companyData, isArabic);
+    final qrImage = await _generateRealQrImage(qrData, 150);
+
+    final arabicFont = await _getArabicFont();
+    final latinFont = await _getLatinFont();
+
+    // ── الحصول على بيانات العناصر الإضافية من orderData إن وجدت ──
+    Map<String, List<Map<String, dynamic>>>? effectiveAdditionalItems;
+
+    // 1. استخدم البيانات المخزنة في orderData (الأحدث)
+    if (orderData.containsKey('additionalItems') &&
+        orderData['additionalItems'] != null) {
+      final stored = orderData['additionalItems'];
+      if (stored is Map<String, dynamic>) {
+        // نحولها إلى النوع المطلوب
+        effectiveAdditionalItems = {
+          'conditions':
+              List<Map<String, dynamic>>.from(stored['conditions'] ?? []),
+          'documents':
+              List<Map<String, dynamic>>.from(stored['documents'] ?? []),
+          'notes': List<Map<String, dynamic>>.from(stored['notes'] ?? []),
+        };
+      }
+    }
+    // 2. إذا لم توجد، استخدم المُمرر من الخارج (إن وُجد)
+    else if (additionalItems != null) {
+      effectiveAdditionalItems = additionalItems;
+    }
+
+    // ── إنشاء الـ Widget للعناصر الإضافية (بدون جلب من Firestore) ──
+    final additionalItemsWidget = _buildAdditionalItemsList(
+      effectiveAdditionalItems ??
+          {'conditions': [], 'documents': [], 'notes': []},
+      isArabic,
+      arabicFont,
+    );
+
+    pdf.addPage(
+      pw.Page(
+        theme:
+            pw.ThemeData.withFont(base: arabicFont, fontFallback: [latinFont]),
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.all(20),
+        build: (pw.Context context) {
+          return pw.Directionality(
+            textDirection:
+                isArabic ? pw.TextDirection.rtl : pw.TextDirection.ltr,
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+              children: [
+                _buildHeader(orderData, companyData, qrImage, logoBytes,
+                    isArabic, arabicFont),
+                pw.SizedBox(height: 10),
+                _buildSupplierSection(supplierData, isArabic, arabicFont),
+                pw.SizedBox(height: 10),
+                _buildOrderItemsTable(orderData, arabicFont, isArabic),
+                pw.SizedBox(height: 8),
+                _buildTaxExemptNote(orderData, isArabic, arabicFont),
+                pw.SizedBox(height: 8),
+                _buildOrderSummary(orderData, arabicFont, isArabic),
+                pw.SizedBox(height: 8),
+                _buildTermsTable(orderData, arabicFont, isArabic),
+                pw.SizedBox(height: 8),
+                additionalItemsWidget,
+                pw.Expanded(child: pw.SizedBox()),
+                _buildFooter(companyData, isArabic, arabicFont, userName),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+
+    return pdf;
+  }
 
   // ==================== العناصر الإضافية ====================
-  static Future<pw.Widget> _getAdditionalItemsWidget(
+/*   static Future<pw.Widget> _getAdditionalItemsWidget(
     Map<String, dynamic> orderData,
     Map<String, List<Map<String, dynamic>>>? additionalItems,
     bool isArabic,
@@ -162,7 +259,7 @@ class PdfExporter {
     }
 
     return _buildAdditionalItemsList(loadedItems, isArabic, arabicFont);
-  }
+  } */
 
   static pw.Widget _buildAdditionalItemsList(
     Map<String, List<Map<String, dynamic>>> additionalItems,
@@ -867,10 +964,10 @@ class PdfExporter {
     try {
       final ByteData fontData = kIsWeb
           ? ByteData.view(
-              (await http.get(Uri.parse('assets/fonts/Tajawal-Regular.ttf')))
+              (await http.get(Uri.parse('assets/fonts/Cairo-Regular.ttf')))
                   .bodyBytes
                   .buffer)
-          : await rootBundle.load('assets/fonts/Tajawal-Regular.ttf');
+          : await rootBundle.load('assets/fonts/Cairo-Regular.ttf');
       return pw.Font.ttf(fontData);
     } catch (e) {
       return pw.Font.courier();

@@ -4399,7 +4399,7 @@ class _LoginFormState extends State<LoginForm> {
       setState(() => _isLoading = true);
       try {
         // ✅ تنظيف جميع البيانات المخزنة قبل تسجيل الدخول بحساب جديد
-        await _clearAllStoredData();
+      //  await _clearAllStoredData();
 
         final credential =
             await FirebaseAuth.instance.signInWithEmailAndPassword(
@@ -4467,7 +4467,7 @@ class _LoginFormState extends State<LoginForm> {
   }
 
   /// ✅ دالة تنظيف جميع البيانات المخزنة
-  Future<void> _clearAllStoredData() async {
+/*   Future<void> _clearAllStoredData() async {
     try {
       safeDebugPrint('🗑️ Clearing all stored data before login...');
 
@@ -4483,6 +4483,8 @@ class _LoginFormState extends State<LoginForm> {
       safeDebugPrint('❌ Error clearing stored data: $e');
     }
   }
+ */
+
 
 // login_form.dart - تعديل دالة _handleLogin للمستخدمين العاديين
 

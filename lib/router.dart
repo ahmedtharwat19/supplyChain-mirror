@@ -24,6 +24,12 @@ import 'package:puresip_purchasing/pages/devices_and_registeration/user_license_
 import 'package:puresip_purchasing/pages/factories/add_factory_page.dart';
 import 'package:puresip_purchasing/pages/factories/edit_factory_page.dart';
 import 'package:puresip_purchasing/pages/factories/factories_page.dart';
+import 'package:puresip_purchasing/pages/financial/bank_accounts_page.dart';
+import 'package:puresip_purchasing/pages/financial/cash_management_page.dart';
+import 'package:puresip_purchasing/pages/financial/financial_balances_page.dart';
+import 'package:puresip_purchasing/pages/financial/receivables_page.dart';
+import 'package:puresip_purchasing/pages/financial/supplier_ledger_page.dart';
+import 'package:puresip_purchasing/pages/financial/supplier_payment_page.dart';
 import 'package:puresip_purchasing/pages/finished_products/finished_products_page.dart';
 import 'package:puresip_purchasing/pages/inventory/inventory_query_page.dart';
 import 'package:puresip_purchasing/pages/items/add_item_page.dart';
@@ -48,6 +54,7 @@ import 'package:puresip_purchasing/pages/reports/slow_moving_report.dart';
 import 'package:puresip_purchasing/pages/reports/supplier_analysis_report.dart';
 import 'package:puresip_purchasing/pages/reports/supplier_performance_report.dart';
 import 'package:puresip_purchasing/pages/reports/trend_analysis_report.dart';
+import 'package:puresip_purchasing/pages/sales/sales_invoices_page.dart';
 import 'package:puresip_purchasing/pages/settings/additional_items_page.dart';
 import 'package:puresip_purchasing/pages/settings/user_terms_management_page.dart';
 import 'package:puresip_purchasing/pages/settings/settings_page.dart';
@@ -923,7 +930,36 @@ final GoRouter appRouter = GoRouter(
       pageBuilder: (context, state) => MaterialPage(
           key: state.pageKey, child: const UserTermsManagementPage()),
     ),
+    // ==================== التقارير المالية ====================
 
+GoRoute(
+  path: '/financial-balances',
+  builder: (context, state) => const FinancialBalancesPage(),
+),
+GoRoute(
+  path: '/supplier-ledger',
+  builder: (context, state) => const SupplierLedgerPage(),
+),
+GoRoute(
+  path: '/bank-accounts',
+  builder: (context, state) => const BankAccountsPage(),
+),
+GoRoute(
+  path: '/cash-management',
+  builder: (context, state) => const CashManagementPage(),
+),
+GoRoute(
+  path: '/supplier-payment',
+  builder: (context, state) => const SupplierPaymentPage(),
+),
+GoRoute(
+  path: '/receivables',
+  builder: (context, state) => const ReceivablesPage(),
+),
+GoRoute(
+  path: '/sales-invoices',
+  builder: (context, state) => const SalesInvoicesPage(),
+),
     // ==================== الأجهزة والتراخيص ====================
     GoRoute(
       path: '/device-registration',

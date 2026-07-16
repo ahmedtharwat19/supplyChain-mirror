@@ -1,5 +1,9 @@
 {
     "cmake.sourceDirectory": "D:/purchasing/windows",
     "java.configuration.updateBuildConfiguration": "automatic",
-    "cmake.ignoreCMakeListsMissing": true
+    "cmake.ignoreCMakeListsMissing": true,
+    "python.analysis.ignore": [
+        "**/ios/Flutter/ephemeral/**",
+        "**/build/**"
+    ]
 }

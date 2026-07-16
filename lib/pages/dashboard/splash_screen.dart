@@ -1,11 +1,15 @@
 // lib/pages/dashboard/splash_screen.dart
+
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:puresip_purchasing/router.dart';
 import 'package:puresip_purchasing/services/navigation_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -28,6 +32,9 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> {
+  // ============================================================
+  // ✅ متغيرات الحالة
+  // ============================================================
   String _loadingMessage = "";
   bool _isOffline = false;
   String _appVersion = "";
@@ -45,12 +52,21 @@ class _SplashScreenState extends State<SplashScreen> {
   static const String _keyCachedAt = 'license_cached_at';
   static const String _keySubscriptionStatus = 'subscription_status';
 
+  // ============================================================
+  // ✅ دورة حياة الـ Widget
+  // ============================================================
   @override
   void initState() {
     super.initState();
     _loadingMessage = "loading".tr();
     _loadAppVersion();
     _initializeApp();
+  }
+
+  @override
+  void dispose() {
+    _syncService.dispose();
+    super.dispose();
   }
 
   // ============================================================
@@ -187,7 +203,54 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   // ============================================================
-  // ✅ Force Update Dialog
+  // ✅ حوار APK محمّل ينتظر التثبيت
+  // ============================================================
+  void _showPendingInstallDialog() {
+    if (!mounted) return;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.install_mobile, color: Colors.green.shade700),
+            const SizedBox(width: 8),
+            Expanded(child: Text('update_ready_to_install'.tr())),
+          ],
+        ),
+        content: Text('update_downloaded_install_now'.tr()),
+        actions: [
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(dialogContext);
+              await UpdateService.clearPendingInstall();
+              _continueInitialization();
+            },
+            child: Text('later'.tr()),
+          ),
+          ElevatedButton.icon(
+            onPressed: () async {
+              Navigator.pop(dialogContext);
+              if (mounted) {
+                await UpdateService.installPendingApk(context);
+                // ✅ النظام يتولى التثبيت — التطبيق يبقى في الخلفية
+              }
+            },
+            icon: const Icon(Icons.install_mobile),
+            label: Text('install_now'.tr()),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green.shade700,
+              foregroundColor: Colors.white,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ============================================================
+  // ✅ حوار التحديث الإجباري
   // ============================================================
   void _showForceUpdateDialog(String message, String version) {
     if (_isForceUpdateShowing) return;
@@ -198,7 +261,7 @@ class _SplashScreenState extends State<SplashScreen> {
     final downloadUrl = VersionChecker.getDownloadUrlAndroid();
     safeDebugPrint('📥 Force update - Download URL: $downloadUrl');
 
-    final rootContext = context;
+   // final rootContext = context;
 
     showDialog(
       context: context,
@@ -254,18 +317,47 @@ class _SplashScreenState extends State<SplashScreen> {
         ),
         actions: [
           ElevatedButton.icon(
-            onPressed: () async {
-              safeDebugPrint('🟢 UPDATE BUTTON PRESSED!');
-              Navigator.of(dialogContext).pop();
+            /*  onPressed: () async {
+              safeDebugPrint('🟢 FORCE UPDATE - Starting download...');
 
-              // ✅ نكمل التهيئة فوراً، التحميل في الخلفية
-              _continueInitialization();
+              if (dialogContext.mounted) {
+                Navigator.of(dialogContext).pop();
+              }
 
-              if (rootContext.mounted) {
-                UpdateService.downloadAndInstall(
+              if (!rootContext.mounted) return;
+
+              try {
+                await UpdateService.downloadAndInstall(
                   context: rootContext,
                   url: downloadUrl,
+                  version: version,
                 );
+              } catch (e) {
+                safeDebugPrint('❌ Update failed: $e');
+                _isForceUpdateShowing = false;
+                if (mounted) _showUpdateFailedDialog();
+              } */
+            onPressed: () async {
+              safeDebugPrint('🟢 FORCE UPDATE - Starting download...');
+
+              if (dialogContext.mounted) {
+                Navigator.of(dialogContext).pop();
+              }
+
+              // ✅ navigatorKey بدل rootContext
+              final updateContext = navigatorKey.currentContext;
+              if (updateContext == null || !updateContext.mounted) return;
+
+              try {
+                await UpdateService.downloadAndInstall(
+                  context: updateContext,
+                  url: downloadUrl,
+                  version: version,
+                );
+              } catch (e) {
+                safeDebugPrint('❌ Update failed: $e');
+                _isForceUpdateShowing = false;
+                if (mounted) _showUpdateFailedDialog();
               }
             },
             icon: const Icon(Icons.download),
@@ -273,8 +365,7 @@ class _SplashScreenState extends State<SplashScreen> {
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.red.shade700,
               foregroundColor: Colors.white,
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
             ),
           ),
         ],
@@ -283,13 +374,133 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   // ============================================================
-  // ✅ Optional Update Dialog
+  // ✅ حوار فشل التحديث
+  // ============================================================
+/*   void _showUpdateFailedDialog() {
+    if (!mounted) return;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.error_outline, color: Colors.red.shade700),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'update_failed_title'.tr(),
+                style: TextStyle(color: Colors.red.shade700),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('update_failed_message'.tr()),
+            const SizedBox(height: 12),
+            Text(
+              'update_failed_retry_message'.tr(),
+              style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+            ),
+          ],
+        ),
+        actions: [
+          ElevatedButton.icon(
+            onPressed: () {
+              Navigator.pop(dialogContext);
+              _isForceUpdateShowing = false;
+              _initializeApp();
+            },
+            icon: const Icon(Icons.refresh),
+            label: Text('retry'.tr()),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orange,
+              foregroundColor: Colors.white,
+            ),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(dialogContext);
+              _exitApp();
+            },
+            child: Text('exit'.tr()),
+          ),
+        ],
+      ),
+    );
+  }
+ */
+
+  // splash_screen.dart - تعديل _showUpdateFailedDialog
+
+  void _showUpdateFailedDialog() {
+    if (!mounted) return;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.error_outline, color: Colors.red.shade700),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'update_failed_title'.tr(),
+                style: TextStyle(color: Colors.red.shade700),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('update_failed_message'.tr()),
+            const SizedBox(height: 12),
+            Text(
+              'update_failed_retry_message'.tr(),
+              style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+            ),
+          ],
+        ),
+        actions: [
+          ElevatedButton.icon(
+            onPressed: () {
+              Navigator.pop(dialogContext);
+              // ✅ استخدام _reinitializeApp هنا
+              _reinitializeApp();
+            },
+            icon: const Icon(Icons.refresh),
+            label: Text('retry'.tr()),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orange,
+              foregroundColor: Colors.white,
+            ),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(dialogContext);
+              _exitApp();
+            },
+            child: Text('exit'.tr()),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ============================================================
+  // ✅ حوار التحديث الاختياري
   // ============================================================
   void _showOptionalUpdateDialog() {
     if (!mounted) return;
     final latestVersion = VersionChecker.getLatestVersion();
     final downloadUrl = VersionChecker.getDownloadUrlAndroid();
-    final rootContext = context;
+    // final rootContext = context;
 
     showDialog(
       context: context,
@@ -338,17 +549,26 @@ class _SplashScreenState extends State<SplashScreen> {
           TextButton(
             onPressed: () async {
               Navigator.pop(dialogContext);
+              safeDebugPrint(
+                  '🚀 Optional update - Starting download: $downloadUrl');
 
-              // ✅ نكمل التهيئة فوراً، التحميل في الخلفية
-              _continueInitialization();
-
-              safeDebugPrint('🚀 Starting optional download from: $downloadUrl');
-              if (rootContext.mounted) {
-                UpdateService.downloadAndInstall(
+/*               if (rootContext.mounted) {
+                await UpdateService.downloadAndInstall(
                   context: rootContext,
+                  url: downloadUrl,
+                  version: latestVersion,
+                );
+              } */
+
+              final updateContext = navigatorKey.currentContext;
+              if (updateContext != null && updateContext.mounted) {
+                await UpdateService.downloadAndInstall(
+                  context: updateContext,
                   url: downloadUrl,
                 );
               }
+
+              _continueInitialization();
             },
             child: Text('update_now'.tr()),
           ),
@@ -358,10 +578,27 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   // ============================================================
-  // ✅ استكمال التهيئة بعد dialog التحديث
+  // ✅ الخروج من التطبيق
+  // ============================================================
+  void _exitApp() {
+    safeDebugPrint('🚪 Exiting app...');
+    try {
+      if (Platform.isAndroid) {
+        SystemNavigator.pop();
+      } else {
+        exit(0);
+      }
+    } catch (e) {
+      safeDebugPrint('❌ Error exiting: $e');
+      exit(0);
+    }
+  }
+
+  // ============================================================
+  // ✅ استكمال التهيئة
   // ============================================================
   void _continueInitialization() {
-    safeDebugPrint('➡️ Continuing initialization after update dialog');
+    safeDebugPrint('➡️ Continuing initialization');
     _completeInitialization();
   }
 
@@ -401,14 +638,27 @@ class _SplashScreenState extends State<SplashScreen> {
     return _UpdateStatus.none;
   }
 
-  Future<_UpdateStatus> _checkForUpdatesWithTimeout() async {
+/*   Future<_UpdateStatus> _checkForUpdatesWithTimeout() async {
     try {
       return await Future.any([
         _checkForUpdates(),
-        Future.delayed(
-            const Duration(seconds: 5), () => _UpdateStatus.none),
+        Future.delayed(const Duration(seconds: 5), () => _UpdateStatus.none),
       ]);
     } catch (e) {
+      return _UpdateStatus.none;
+    }
+  } */
+  Future<_UpdateStatus> _checkForUpdatesWithTimeout() async {
+    try {
+      return await _checkForUpdates().timeout(
+        const Duration(seconds: 20),
+        onTimeout: () {
+          safeDebugPrint('⏱️ Update check timed out');
+          return _UpdateStatus.none;
+        },
+      );
+    } catch (e) {
+      safeDebugPrint('⚠️ Update check failed: $e');
       return _UpdateStatus.none;
     }
   }
@@ -419,9 +669,8 @@ class _SplashScreenState extends State<SplashScreen> {
   List<int> _parseVersionParts(String version) {
     final mainAndBuild = version.split('+');
     final mainParts = mainAndBuild[0].split('.');
-    final build = mainAndBuild.length > 1
-        ? int.tryParse(mainAndBuild[1]) ?? 0
-        : 0;
+    final build =
+        mainAndBuild.length > 1 ? int.tryParse(mainAndBuild[1]) ?? 0 : 0;
 
     int part(int index) =>
         index < mainParts.length ? (int.tryParse(mainParts[index]) ?? 0) : 0;
@@ -476,6 +725,22 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   // ============================================================
+  // ✅ إعادة تهيئة التطبيق
+  // ============================================================
+  void _reinitializeApp() {
+    safeDebugPrint('🔄 Reinitializing app...');
+
+    setState(() {
+      _isInitialized = false;
+      _isNavigating = false;
+      _isForceUpdateShowing = false;
+      _loadingMessage = "loading".tr();
+    });
+
+    _initializeApp();
+  }
+
+  // ============================================================
   // ✅ الدالة الرئيسية: _initializeApp
   // ============================================================
   Future<void> _initializeApp() async {
@@ -483,12 +748,30 @@ class _SplashScreenState extends State<SplashScreen> {
     _isInitialized = true;
 
     safeDebugPrint('🎬 SplashScreen - Starting initialization...');
-
+    // ✅ إضافة تأخير 1.5 ثانية لإظهار الـ Splash بشكل جيد
+    await Future.delayed(const Duration(milliseconds: 1500));
+    // ✅ 1: التحقق من APK محمّل
     _safeSetState(() => _loadingMessage = "checking_updates".tr());
+    final hasPending = await UpdateService.hasPendingInstall();
+    if (hasPending && mounted) {
+      safeDebugPrint('📦 Found pending APK install');
+      _showPendingInstallDialog();
+      return;
+    }
+
+    // ✅ 2: تهيئة Remote Config
+    try {
+      await VersionChecker.init();
+      safeDebugPrint('✅ Remote Config initialized');
+    } catch (e) {
+      safeDebugPrint('⚠️ VersionChecker init error: $e');
+    }
+
+    // ✅ 3: استخدام _checkForUpdatesWithTimeout
     final updateStatus = await _checkForUpdatesWithTimeout();
 
     if (updateStatus == _UpdateStatus.forced) {
-      safeDebugPrint('🔒 Force update required - Stopping initialization');
+      safeDebugPrint('🔒 Force update required');
       return;
     }
 
@@ -518,7 +801,7 @@ class _SplashScreenState extends State<SplashScreen> {
 
     safeDebugPrint('👤 User found: ${user.email}');
 
-    // ── فحص الترخيص المحلي أولاً ──
+    // ── فحص الترخيص المحلي ──
     _safeSetState(() => _loadingMessage = "checking_local_license".tr());
     final cachedLicense = await _getLicenseFromSecureStorage();
 
@@ -570,7 +853,9 @@ class _SplashScreenState extends State<SplashScreen> {
 
       safeDebugPrint('📱 Offline mode - no cached license');
       await Future.delayed(const Duration(seconds: 1));
-      if (mounted) _navigateTo('/login');
+      if (mounted) {
+        _navigateTo('/login');
+      }
       return;
     }
 
@@ -599,7 +884,6 @@ class _SplashScreenState extends State<SplashScreen> {
         }
       } else {
         safeDebugPrint('❌ No valid license found');
-
         _safeSetState(() => _loadingMessage = "checking_license".tr());
 
         final autoLicenseService = AutoLicenseService();
@@ -610,11 +894,14 @@ class _SplashScreenState extends State<SplashScreen> {
           safeDebugPrint('✅ Trial license created: $newLicense');
           final newStatus = await _getLicenseStatusFromFirestore(user.uid);
           await _cacheLicenseStatus(newStatus);
-          if (mounted) _navigateTo('/dashboard');
+          if (mounted) {
+            _navigateTo('/dashboard');
+          }
         } else {
-          // trialUsed == true → وجّهه لإرسال طلب للأدمن
           safeDebugPrint('🚫 Trial used — redirecting to license request');
-          if (mounted) _navigateTo('/license/request');
+          if (mounted) {
+            _navigateTo('/license/request');
+          }
         }
       }
     } catch (e) {
@@ -625,18 +912,16 @@ class _SplashScreenState extends State<SplashScreen> {
       if (fallbackLicense != null && fallbackLicense['licenseKey'] != null) {
         safeDebugPrint('⚠️ Using cached license as fallback');
         await Future.delayed(const Duration(seconds: 1));
-        if (mounted) _navigateTo('/dashboard');
+        if (mounted) {
+          _navigateTo('/dashboard');
+        }
       } else {
         await Future.delayed(const Duration(seconds: 1));
-        if (mounted) _navigateTo('/login');
+        if (mounted) {
+          _navigateTo('/login');
+        }
       }
     }
-  }
-
-  @override
-  void dispose() {
-    _syncService.dispose();
-    super.dispose();
   }
 
   // ============================================================
@@ -659,8 +944,7 @@ class _SplashScreenState extends State<SplashScreen> {
                   backgroundColor: Colors.green[50],
                   child: Padding(
                     padding: const EdgeInsets.all(12.0),
-                    child:
-                        Image.asset('assets/logo.png', fit: BoxFit.contain),
+                    child: Image.asset('assets/logo.png', fit: BoxFit.contain),
                   ),
                 ),
                 const SizedBox(height: 32),
@@ -693,15 +977,15 @@ class _SplashScreenState extends State<SplashScreen> {
                     padding: const EdgeInsets.only(top: 16),
                     child: Text(
                       "offline_mode_notice".tr(),
-                      style: const TextStyle(
-                          fontSize: 14, color: Colors.orange),
+                      style:
+                          const TextStyle(fontSize: 14, color: Colors.orange),
                       textAlign: TextAlign.center,
                     ),
                   ),
                 const SizedBox(height: 16),
                 Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 16, vertical: 8),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   decoration: BoxDecoration(
                     color: _latestVersion.isNotEmpty &&
                             _latestVersion != _appVersion
@@ -774,19 +1058,16 @@ class _SplashScreenState extends State<SplashScreen> {
             child: Column(
               children: [
                 const Text('Ahmed Tharwat tech.',
-                    style: TextStyle(
-                        fontWeight: FontWeight.bold, fontSize: 16)),
+                    style:
+                        TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                 const SizedBox(height: 4),
                 Text('© $currentYear ALL RIGHTS ARE RESERVED',
                     style: const TextStyle(
-                        fontSize: 12,
-                        letterSpacing: 1.2,
-                        color: Colors.grey)),
+                        fontSize: 12, letterSpacing: 1.2, color: Colors.grey)),
                 if (_appVersion.isNotEmpty) ...[
                   const SizedBox(height: 4),
                   Text("v$_appVersion",
-                      style:
-                          TextStyle(fontSize: 11, color: Colors.grey[600])),
+                      style: TextStyle(fontSize: 11, color: Colors.grey[600])),
                 ],
               ],
             ),

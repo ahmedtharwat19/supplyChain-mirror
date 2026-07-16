@@ -8,6 +8,7 @@
 *.iws
 .idea/
 **/.idea/
+**.iml
 
 # VS Code
 .vscode/
@@ -16,7 +17,7 @@
 !.vscode/launch.json
 !.vscode/extensions.json
 *.code-workspace
-.vscode/workspaceStorage/  # ✅ تم التعديل
+.vscode/workspaceStorage/
 
 # ==================================================
 #                DEVELOPMENT TOOLS                 
@@ -39,10 +40,12 @@ android/ndk/
 android/sdk/
 android/key.properties
 
-# ✅ إضافة Service Account
+# ✅ Service Account (ملفات حساسة جداً)
 service_account.json
 *.key.json
-*.json
+*.secret.json
+*.firebase.json
+!firebase.json.example
 
 # ==================================================
 #                FLUTTER/ARTIFACTS                 
@@ -57,11 +60,13 @@ service_account.json
 .dart_tool/
 **/GeneratedPluginRegistrant.*
 
-# ✅ إضافة ملفات Flutter المؤقتة
+# ✅ ملفات Flutter المؤقتة
 *.dill
 *.snapshot
 *.vm
 *.aot
+*.vmdata
+*.precompiled
 
 # ==================================================
 #                  BUILD OUTPUTS                   
@@ -78,8 +83,17 @@ android/captures/
 android/app/debug/
 android/app/profile/
 android/app/release/
-android/app/build/  # ✅ إضافة
+android/app/build/
 android/local.properties
+android/gradle.properties.local
+
+# ✅ Android Keystore (حساس جداً)
+*.jks
+*.keystore
+*.key
+upload-keystore.jks
+android/app/upload-keystore.jks
+android/app/key.properties
 
 # iOS
 ios/Flutter/.last_build_id
@@ -87,13 +101,16 @@ ios/.generated/
 ios/Flutter/App.framework/
 ios/Flutter/Flutter.framework/
 ios/Flutter/Flutter.podspec
-ios/Pods/           # ✅ إضافة
-ios/Podfile.lock    # ✅ إضافة
+ios/Pods/
+ios/Podfile.lock
+ios/Runner/GeneratedPluginRegistrant.*
+ios/Runner/GoogleService-Info.plist
 
 # Desktop Platforms
 linux/flutter/ephemeral/
 linux/flutter/generated_*
 macos/Flutter/ephemeral/
+macos/Flutter/GeneratedPluginRegistrant.*
 windows/flutter/generated_*
 
 # Web
@@ -101,34 +118,42 @@ web/*.dart.js
 web/*.wasm
 web/*.js.map
 web/*.dart.js.map
+web/favicon.png
 
-# ✅ APK/AAB
+# ✅ APK/AAB/IPA
 *.apk
 *.aab
+*.ipa
 *.so
 *.jar
 *.dex
+*.o
+*.obj
 
 # ==================================================
 #                CONFIGURATION FILES               
 # ==================================================
 
-# Environment
+# Environment (حساس جداً)
 .env
+.env.*
 !.env.example
 !.env.template
 !.env.sample
+*.env.local
+*.env.production
+*.env.development
 
-# Firebase
+# Firebase (حساس)
 android/app/google-services.json
 ios/Runner/GoogleService-Info.plist
 firebase_app_id_file.json
 
 # Android Local
 android/local.properties
-android/gradle.properties.local  # ✅ إضافة
+android/gradle.properties.local
 
-# ✅ Gradle Wrapper (مع الاحتفاظ بالملفات الضرورية)
+# ✅ Gradle Wrapper
 gradle/wrapper/gradle-wrapper.jar
 !gradle/wrapper/gradle-wrapper.properties
 gradlew
@@ -145,9 +170,12 @@ gradlew.bat
 *.swp
 .atom/
 .buildlog/
-.history
+.history/
 .svn/
 migrate_working_dir/
+*.lock
+*.pid
+*.seed
 
 # OS-Specific
 .DS_Store
@@ -156,6 +184,8 @@ Thumbs.db
 ehthumbs.db
 Desktop.ini      # Windows
 *~               # Linux
+*.tmp
+*.temp
 
 # ==================================================
 #                DEBUGGING ARTIFACTS               
@@ -171,17 +201,24 @@ node_modules
 
 # Test coverage output
 coverage/
+coverage.json
+lcov.info
+test/**/coverage/
 
 # ==================================================
-#                    OTHERS                        
+#               DEPENDENCY FILES                   
 # ==================================================
 
-# Package lock files (احتفظ بواحد منهم)
+# ✅ احتفظ فقط بملف واحد للـ lock
 package-lock.json
 yarn.lock
 pnpm-lock.yaml
+pubspec.lock
 
-# Archives
+# ==================================================
+#                    ARCHIVES                      
+# ==================================================
+
 *.zip
 *.tar.gz
 *.tgz
@@ -195,22 +232,13 @@ pnpm-lock.yaml
 *.cab               
 *.iso
 *.dmg
-*.jar
 *.war
 
-# ✅ Android signing (تم التصحيح)
-android/key.properties
-*.jks
-*.keystore
-upload-keystore.jks
+# ==================================================
+#                   SECRETS                        
+# ==================================================
 
-# ✅ Dependencies
-*.part
-*.freezed.dart
-*.g.dart
-*.config.dart
-
-# ✅ Secrets
+# ✅ تم إصلاح هذا القسم
 secrets/
 credentials/
 *.pem
@@ -218,3 +246,84 @@ credentials/
 *.key
 *.crt
 *.csr
+*.p8
+*.pkcs12
+*.pfx
+*.der
+*.cert
+*.cer
+
+# ==================================================
+#               GENERATED CODE                     
+# ==================================================
+
+# ✅ ملفات الـ Code Generation
+*.freezed.dart
+*.g.dart
+*.config.dart
+*.reflectable.dart
+*.mocks.dart
+*.mo.dart
+
+# ==================================================
+#               DATABASE FILES                     
+# ==================================================
+
+*.db
+*.sqlite
+*.sqlite3
+*.sql
+*.dump
+*.backup
+
+# ==================================================
+#                 TEMP FILES                       
+# ==================================================
+
+*.tmp
+*.temp
+*.bak
+*.old
+*.orig
+*.rej
+*.patch
+*.diff
+
+# ==================================================
+#                   OTHERS                        
+# ==================================================
+
+# ✅ SSH Keys (تأكيد الأمان)
+.ssh/
+**/.ssh/
+id_rsa*
+id_ed25519*
+*.ppk
+known_hosts
+
+# ✅ أي ملفات تحتوي على كلمات مفتاحية حساسة
+*secret*
+*password*
+*credential*
+*token*
+*key*
+*private*
+
+# ✅ IDE WorkSpace
+*.workspace
+*.code-workspace
+**/.metadata
+**/.flutter-version
+
+# ✅ مشاريع فرعية
+**/node_modules/
+**/packages/
+**/vendor/
+**/vendor/bundle/
+**/lib/assets/
+
+# ✅ ملفات الخطأ
+error_log
+debug.log
+*.error
+*.stacktrace

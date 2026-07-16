@@ -909,4 +909,127 @@ Future<List<Factory>> getFactoriesByCompanyId(String companyId) async {
 
     await batch.commit();
   }
+  
+  //في firestore_service.dart
+
+/// معالجة استلام المخزون مع كميات فعلية (قد تختلف عن الكميات المطلوبة)
+/// معالجة استلام المخزون مع كميات فعلية (قد تختلف عن الكميات المطلوبة)
+Future<void> processStockDeliveryWithActual({
+  required String companyId,
+  required String factoryId,
+  required String orderId,
+  required String userId,
+  required List<Map<String, dynamic>> items, // يحتوي على receivedQuantity
+}) async {
+  try {
+    final batch = _firestore.batch();
+
+    for (final item in items) {
+      final itemId = item['itemId']?.toString();
+      final receivedQty = (item['receivedQuantity'] as num?)?.toDouble() ?? 0;
+
+      if (itemId == null || itemId.isEmpty || receivedQty <= 0) continue;
+
+      // ── تسجيل حركة المخزن ──
+      final movementRef = _firestore
+          .collection('companies')
+          .doc(companyId)
+          .collection('stock_movements')
+          .doc();
+
+      batch.set(movementRef, {
+        'type': 'purchase',
+        'itemId': itemId,
+        'quantity': receivedQty,
+        'date': FieldValue.serverTimestamp(),
+        'referenceId': orderId,
+        'userId': userId, // ✅ يجب إضافة userId لتلبية قواعد الأمان
+        'factoryId': factoryId,
+        'companyId': companyId, // ✅ إضافة companyId للتوثيق
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      // ── تحديث المخزون في المصنع ──
+      final stockRef = _firestore
+          .collection('factories')
+          .doc(factoryId)
+          .collection('inventory')
+          .doc(itemId);
+
+      batch.set(
+        stockRef,
+        {
+          'quantity': FieldValue.increment(receivedQty),
+          'lastUpdated': FieldValue.serverTimestamp(),
+        },
+        SetOptions(merge: true),
+      );
+    }
+
+    await batch.commit();
+    safeDebugPrint('✅ Stock processed with actual quantities');
+  } catch (e) {
+    safeDebugPrint('❌ Error processing stock: $e');
+    rethrow;
+  }
 }
+/// معالجة استلام المخزون مع كميات فعلية (قد تختلف عن الكميات المطلوبة)
+/* Future<void> processStockDeliveryWithActual({
+  required String companyId,
+  required String factoryId,
+  required String orderId,
+  required String userId,
+  required List<Map<String, dynamic>> items, // يحتوي على receivedQuantity
+}) async {
+  try {
+    final batch = _firestore.batch();
+
+    for (final item in items) {
+      final itemId = item['itemId']?.toString();
+      final receivedQty = (item['receivedQuantity'] as num?)?.toDouble() ?? 0;
+
+      if (itemId == null || itemId.isEmpty || receivedQty <= 0) continue;
+
+      // تسجيل حركة المخزن
+      final movementRef = _firestore
+          .collection('companies')
+          .doc(companyId)
+          .collection('stock_movements')
+          .doc();
+
+      batch.set(movementRef, {
+        'type': 'purchase',
+        'itemId': itemId,
+        'quantity': receivedQty,
+        'date': FieldValue.serverTimestamp(),
+        'referenceId': orderId,
+        'userId': userId,
+        'factoryId': factoryId,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      // تحديث المخزون في المصنع
+      final stockRef = _firestore
+          .collection('factories')
+          .doc(factoryId)
+          .collection('inventory')
+          .doc(itemId);
+
+      batch.set(
+        stockRef,
+        {
+          'quantity': FieldValue.increment(receivedQty),
+          'lastUpdated': FieldValue.serverTimestamp(),
+        },
+        SetOptions(merge: true),
+      );
+    }
+
+    await batch.commit();
+    safeDebugPrint('✅ Stock processed with actual quantities');
+  } catch (e) {
+    safeDebugPrint('❌ Error processing stock: $e');
+    rethrow;
+  }
+}
+ */}

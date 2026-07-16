@@ -13,7 +13,11 @@ val keystorePropertiesFile = rootProject.file("key.properties")
 if (keystorePropertiesFile.exists()) {
     keystoreProperties.load(FileInputStream(keystorePropertiesFile))
 }
-
+println("=========================================")
+println("Flutter compileSdk: ${flutter.compileSdkVersion}")
+println("Flutter targetSdk: ${flutter.targetSdkVersion}")
+println("Flutter minSdk: ${flutter.minSdkVersion}")
+println("=========================================")
 android {
     namespace = "com.puresip.purchasing"
     compileSdk = 36  // ✅ تم التحديث إلى 36

@@ -108,7 +108,7 @@ final List<DashboardMetric> dashboardMetrics = [
       final max = 500;
       return (value / max).clamp(0.0, 1.0);
     },
-    defaultMenuType: 'long',
+    defaultMenuType: 'short',
   ),
   DashboardMetric(
     titleKey: 'totalStockMovements',

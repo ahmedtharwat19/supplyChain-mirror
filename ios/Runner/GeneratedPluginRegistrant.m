@@ -90,10 +90,10 @@
 @import firebase_storage;
 #endif
 
-#if __has_include(<flutter_downloader/FlutterDownloaderPlugin.h>)
-#import <flutter_downloader/FlutterDownloaderPlugin.h>
+#if __has_include(<flutter_html_to_pdf_plus/FlutterHtmlToPdfPlugin.h>)
+#import <flutter_html_to_pdf_plus/FlutterHtmlToPdfPlugin.h>
 #else
-@import flutter_downloader;
+@import flutter_html_to_pdf_plus;
 #endif
 
 #if __has_include(<flutter_local_notifications/FlutterLocalNotificationsPlugin.h>)
@@ -191,7 +191,7 @@
   [FirebasePerformancePlugin registerWithRegistrar:[registry registrarForPlugin:@"FirebasePerformancePlugin"]];
   [FirebaseRemoteConfigPlugin registerWithRegistrar:[registry registrarForPlugin:@"FirebaseRemoteConfigPlugin"]];
   [FLTFirebaseStoragePlugin registerWithRegistrar:[registry registrarForPlugin:@"FLTFirebaseStoragePlugin"]];
-  [FlutterDownloaderPlugin registerWithRegistrar:[registry registrarForPlugin:@"FlutterDownloaderPlugin"]];
+  [FlutterHtmlToPdfPlugin registerWithRegistrar:[registry registrarForPlugin:@"FlutterHtmlToPdfPlugin"]];
   [FlutterLocalNotificationsPlugin registerWithRegistrar:[registry registrarForPlugin:@"FlutterLocalNotificationsPlugin"]];
   [FLTPDFViewFlutterPlugin registerWithRegistrar:[registry registrarForPlugin:@"FLTPDFViewFlutterPlugin"]];
   [FlutterSecureStorageDarwinPlugin registerWithRegistrar:[registry registrarForPlugin:@"FlutterSecureStorageDarwinPlugin"]];

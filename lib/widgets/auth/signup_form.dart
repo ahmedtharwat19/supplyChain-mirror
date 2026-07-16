@@ -6,8 +6,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:puresip_purchasing/debug_helper.dart';
-import 'package:puresip_purchasing/services/auto_license_service.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 class SignupForm extends StatefulWidget {
   const SignupForm({super.key});
@@ -29,28 +27,11 @@ class _SignupFormState extends State<SignupForm> {
   bool _obscurePassword = true;
   bool _obscureConfirm = true;
 
-  @override
-  void initState() {
-    super.initState();
-    _clearCache();
-  }
-
-  Future<void> _clearCache() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove('cached_user_name');
-      await prefs.remove('cached_stats');
-      safeDebugPrint('🧹 Cache cleared on signup page open');
-    } catch (e) {
-      safeDebugPrint('Cache clear error: $e');
-    }
-  }
-
-  /// ✅ التسجيل: بيعمل حساب Firebase Auth + document في users، ثم يستدعي
-  /// AutoLicenseService فورًا لإنشاء ترخيص تجريبي لشهر واحد. لا نعتمد على
-  /// مرور المستخدم بـ splash_screen.dart بعد التسجيل لأن التنقل يذهب
-  /// مباشرة لـ /dashboard، وكان هذا يمنع إنشاء الترخيص حتى يُغلق المستخدم
-  /// التطبيق ويعيد فتحه.
+  /// ✅ التسجيل: بيعمل بس حساب Firebase Auth + document في users
+  /// (بدون trialUsed أو license خالص). إنشاء الـ trial license الكامل
+  /// (بكل بيانات الجهاز والبصمة) بيتم تلقائيًا من AutoLicenseService
+  /// في splash_screen.dart بعد أول تسجيل دخول مباشرة — مصدر واحد بس
+  /// للحقيقة، عشان نمنع تكرار/تعارض إنشاء التراخيص.
   void _signup() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
     setState(() => _isLoading = true);
@@ -74,21 +55,13 @@ class _SignupFormState extends State<SignupForm> {
           ? _emailController.text.trim().split('@')[0]
           : _displayNameController.text.trim();
 
-      // ✅ مزامنة الاسم مع Firebase Auth Profile نفسه (لا يكفي حفظه في
-      // Firestore فقط)، عشان أي كود بيقرأ currentUser.displayName يلاقيه
-      // متاح فورًا بدون الحاجة لإغلاق وإعادة فتح التطبيق.
-      await createdUser.updateDisplayName(displayName);
-      await createdUser.reload();
-      final activeUser = FirebaseAuth.instance.currentUser ?? createdUser;
-      createdUser = activeUser;
-
       // 2️⃣ إنشاء user document فقط — بدون أي license هنا خالص
       await FirebaseFirestore.instance
           .collection('users')
-          .doc(activeUser.uid)
+          .doc(createdUser.uid)
           .set({
-        'userId': activeUser.uid,
-        'email': activeUser.email,
+        'userId': createdUser.uid,
+        'email': createdUser.email,
         'displayName': displayName,
         'phoneNumber': _phoneController.text.trim(),
         'companyIds': [],
@@ -97,36 +70,8 @@ class _SignupFormState extends State<SignupForm> {
         'isActive': true,
         'isAdmin': false,
         'createdAt': FieldValue.serverTimestamp(),
-        'trialUsed': false,
+        'trialUsed': false, // ✅ AutoLicenseService هيشوفها ويعمل trial تلقائي
       });
-
-      // ✅ تخزين الاسم فورًا في نفس الكاش اللي بتقرأه dashboard_page.dart
-      // (مفتاح 'cached_user_name')، عشان ميفضل فاضي لحد ما يكمل
-      // _refreshInBackground في الداشبورد (وده اللي كان بيخلي الاسم يظهر
-      // بس بعد إغلاق وإعادة فتح التطبيق).
-      try {
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('cached_user_name', displayName);
-      } catch (e) {
-        safeDebugPrint('⚠️ Failed to seed cached_user_name on signup: $e');
-      }
-
-      // 3️⃣ إنشاء الترخيص التجريبي (شهر واحد) فورًا — لا ننتظر splash_screen
-      // لأن التنقل بعد التسجيل يذهب مباشرة لـ /dashboard ولا يمر بالـ
-      // splash، فكان الترخيص لا يُنشأ إلا بعد إغلاق وفتح التطبيق من جديد.
-      try {
-        final license = await AutoLicenseService()
-            .createAutoLicenseForNewUser(activeUser.uid);
-        if (license != null) {
-          safeDebugPrint('✅ Trial license created on signup: $license');
-        } else {
-          safeDebugPrint('⚠️ Trial license NOT created on signup (will retry on splash)');
-        }
-      } catch (e) {
-        // ✅ لا نفشل عملية التسجيل لو فشل إنشاء الترخيص هنا — splash_screen
-        // سيحاول مرة أخرى عند أول فتح للتطبيق
-        safeDebugPrint('⚠️ Error creating trial license on signup: $e');
-      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -135,7 +80,11 @@ class _SignupFormState extends State<SignupForm> {
             backgroundColor: Colors.green,
           ),
         );
-        context.go('/dashboard');
+        // ✅ التوجيه لـ /splash (أو /dashboard لو الراوتر بيعمل redirect
+        // تلقائي للـ splash) — هناك AutoLicenseService هيتكفل بإنشاء
+        // الـ trial license الكامل بأول فتح للتطبيق بعد التسجيل.
+        //context.go('/dashboard');
+        context.go('/splash');
       }
     } on FirebaseAuthException catch (e) {
       String message = 'signup_error'.tr();
