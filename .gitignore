@@ -156,8 +156,8 @@ android/gradle.properties.local
 # ✅ Gradle Wrapper
 gradle/wrapper/gradle-wrapper.jar
 !gradle/wrapper/gradle-wrapper.properties
-gradlew
-gradlew.bat
+# gradlew
+# gradlew.bat
 
 # ==================================================
 #                SYSTEM TEMPORARY FILES            
