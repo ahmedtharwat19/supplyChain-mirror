@@ -1,8 +1,8 @@
 #!/bin/sh
 # This is a generated file; do not edit or check into version control.
 export "FLUTTER_ROOT=D:\SDKs\flutter"
-export "FLUTTER_APPLICATION_PATH=D:\Projects\purchasing"
-export "FLUTTER_FRAMEWORK_SWIFT_PACKAGE_PATH=D:\Projects\purchasing\macos\Flutter\ephemeral\Packages\.packages\FlutterFramework"
+export "FLUTTER_APPLICATION_PATH=D:\Projects\supplyChain-mirror"
+export "FLUTTER_FRAMEWORK_SWIFT_PACKAGE_PATH=D:\Projects\supplyChain-mirror\macos\Flutter\ephemeral\Packages\.packages\FlutterFramework"
 export "COCOAPODS_PARALLEL_CODE_SIGN=true"
 export "FLUTTER_BUILD_DIR=build"
 export "FLUTTER_BUILD_NAME=1.7.4"
